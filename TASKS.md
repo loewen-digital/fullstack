@@ -8,15 +8,15 @@ Implementation tasks in dependency order. Each task is self-contained and result
 
 ### Task 1.1: Project Scaffolding
 
-- [ ] Initialize npm project with `package.json` (name: `@loewen-digital/fullstack`)
-- [ ] Set up TypeScript with strict mode (`tsconfig.json`)
-- [ ] Set up Vite for library mode build, ESM only (`vite.config.ts`)
-- [ ] Set up Vitest (`vitest.config.ts`)
-- [ ] Set up ESLint with TypeScript rules
-- [ ] Create directory structure as defined in SPEC.md
-- [ ] Set up subpath exports in `package.json` (start with `"."` and `"./config"`)
-- [ ] Verify build, test, and lint commands work
-- [ ] Add `.gitignore`, `LICENSE`, `README.md` stubs
+- [x] Initialize npm project with `package.json` (name: `@loewen-digital/fullstack`)
+- [x] Set up TypeScript with strict mode (`tsconfig.json`)
+- [x] Set up Vite for library mode build, ESM only (`vite.config.ts`)
+- [x] Set up Vitest (`vitest.config.ts`)
+- [x] Set up ESLint with TypeScript rules
+- [x] Create directory structure as defined in SPEC.md
+- [x] Set up subpath exports in `package.json` (start with `"."` and `"./config"`)
+- [x] Verify build, test, and lint commands work
+- [x] Add `.gitignore`, `LICENSE`, `README.md` stubs
 
 ### Task 1.2: Config Module
 
