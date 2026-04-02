@@ -20,22 +20,22 @@ Implementation tasks in dependency order. Each task is self-contained and result
 
 ### Task 1.2: Config Module
 
-- [ ] Implement `defineConfig()` — typed config builder with sensible defaults
-- [ ] Implement `loadConfig()` — reads `fullstack.config.ts` from project root
-- [ ] Implement `env()` helper — type-safe environment variable access with fallbacks
-- [ ] Implement driver resolution utility (`resolveDriver`) — lazy-loads driver based on config string
-- [ ] Define `FullstackConfig` master type (all module configs as optional properties)
-- [ ] Write tests for config loading, env helper, driver resolution
-- [ ] Export from `@loewen-digital/fullstack` and `@loewen-digital/fullstack/config`
+- [x] Implement `defineConfig()` — typed config builder with sensible defaults
+- [x] Implement `loadConfig()` — reads `fullstack.config.ts` from project root
+- [x] Implement `env()` helper — type-safe environment variable access with fallbacks
+- [x] Implement driver resolution utility (`resolveDriver`) — lazy-loads driver based on config string
+- [x] Define `FullstackConfig` master type (all module configs as optional properties)
+- [x] Write tests for config loading, env helper, driver resolution
+- [x] Export from `@loewen-digital/fullstack` and `@loewen-digital/fullstack/config`
 
 ### Task 1.3: Error Module
 
-- [ ] Create base `FullstackError` class (extends Error, adds `code`, `statusCode`, `context`)
-- [ ] Create HTTP error classes: `NotFoundError`, `UnauthorizedError`, `ForbiddenError`, `ValidationError`, `ConflictError`, `RateLimitError`, `InternalError`
-- [ ] Create module-specific errors: `ConfigError`, `DatabaseError`, `AuthError`, `MailError`, `StorageError`
-- [ ] Implement error handler utility (formats errors for different contexts: JSON API, HTML, log)
-- [ ] Write tests
-- [ ] Export from `@loewen-digital/fullstack/errors`
+- [x] Create base `FullstackError` class (extends Error, adds `code`, `statusCode`, `context`)
+- [x] Create HTTP error classes: `NotFoundError`, `UnauthorizedError`, `ForbiddenError`, `ValidationError`, `ConflictError`, `RateLimitError`, `InternalError`
+- [x] Create module-specific errors: `ConfigError`, `DatabaseError`, `AuthError`, `MailError`, `StorageError`
+- [x] Implement error handler utility (formats errors for different contexts: JSON API, HTML, log)
+- [x] Write tests
+- [x] Export from `@loewen-digital/fullstack/errors`
 
 -----
 
