@@ -1,5 +1,15 @@
 # CLAUDE.md — @loewen-digital/fullstack
 
+## Git Workflow
+
+**During the current build-out phase, commit and push directly to `main` after every task.**
+
+- No feature branches, no PRs — trunk-based development until the project is stable
+- After completing any task or meaningful unit of work: `git add`, `git commit`, `git push -u origin main`
+- This applies to all changes: features, fixes, config, docs
+
+-----
+
 ## Project Overview
 
 This is `@loewen-digital/fullstack` — a single npm package providing backend primitives (auth, DB, validation, mail, storage, queue, etc.) for any JavaScript meta-framework. It follows a "Laravel for JS" philosophy but implemented as a composable library, not a framework.
