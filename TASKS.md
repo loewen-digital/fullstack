@@ -8,34 +8,34 @@ Implementation tasks in dependency order. Each task is self-contained and result
 
 ### Task 1.1: Project Scaffolding
 
-- [ ] Initialize npm project with `package.json` (name: `@loewen-digital/fullstack`)
-- [ ] Set up TypeScript with strict mode (`tsconfig.json`)
-- [ ] Set up Vite for library mode build, ESM only (`vite.config.ts`)
-- [ ] Set up Vitest (`vitest.config.ts`)
-- [ ] Set up ESLint with TypeScript rules
-- [ ] Create directory structure as defined in SPEC.md
-- [ ] Set up subpath exports in `package.json` (start with `"."` and `"./config"`)
-- [ ] Verify build, test, and lint commands work
-- [ ] Add `.gitignore`, `LICENSE`, `README.md` stubs
+- [x] Initialize npm project with `package.json` (name: `@loewen-digital/fullstack`)
+- [x] Set up TypeScript with strict mode (`tsconfig.json`)
+- [x] Set up Vite for library mode build, ESM only (`vite.config.ts`)
+- [x] Set up Vitest (`vitest.config.ts`)
+- [x] Set up ESLint with TypeScript rules
+- [x] Create directory structure as defined in SPEC.md
+- [x] Set up subpath exports in `package.json` (start with `"."` and `"./config"`)
+- [x] Verify build, test, and lint commands work
+- [x] Add `.gitignore`, `LICENSE`, `README.md` stubs
 
 ### Task 1.2: Config Module
 
-- [ ] Implement `defineConfig()` — typed config builder with sensible defaults
-- [ ] Implement `loadConfig()` — reads `fullstack.config.ts` from project root
-- [ ] Implement `env()` helper — type-safe environment variable access with fallbacks
-- [ ] Implement driver resolution utility (`resolveDriver`) — lazy-loads driver based on config string
-- [ ] Define `FullstackConfig` master type (all module configs as optional properties)
-- [ ] Write tests for config loading, env helper, driver resolution
-- [ ] Export from `@loewen-digital/fullstack` and `@loewen-digital/fullstack/config`
+- [x] Implement `defineConfig()` — typed config builder with sensible defaults
+- [x] Implement `loadConfig()` — reads `fullstack.config.ts` from project root
+- [x] Implement `env()` helper — type-safe environment variable access with fallbacks
+- [x] Implement driver resolution utility (`resolveDriver`) — lazy-loads driver based on config string
+- [x] Define `FullstackConfig` master type (all module configs as optional properties)
+- [x] Write tests for config loading, env helper, driver resolution
+- [x] Export from `@loewen-digital/fullstack` and `@loewen-digital/fullstack/config`
 
 ### Task 1.3: Error Module
 
-- [ ] Create base `FullstackError` class (extends Error, adds `code`, `statusCode`, `context`)
-- [ ] Create HTTP error classes: `NotFoundError`, `UnauthorizedError`, `ForbiddenError`, `ValidationError`, `ConflictError`, `RateLimitError`, `InternalError`
-- [ ] Create module-specific errors: `ConfigError`, `DatabaseError`, `AuthError`, `MailError`, `StorageError`
-- [ ] Implement error handler utility (formats errors for different contexts: JSON API, HTML, log)
-- [ ] Write tests
-- [ ] Export from `@loewen-digital/fullstack/errors`
+- [x] Create base `FullstackError` class (extends Error, adds `code`, `statusCode`, `context`)
+- [x] Create HTTP error classes: `NotFoundError`, `UnauthorizedError`, `ForbiddenError`, `ValidationError`, `ConflictError`, `RateLimitError`, `InternalError`
+- [x] Create module-specific errors: `ConfigError`, `DatabaseError`, `AuthError`, `MailError`, `StorageError`
+- [x] Implement error handler utility (formats errors for different contexts: JSON API, HTML, log)
+- [x] Write tests
+- [x] Export from `@loewen-digital/fullstack/errors`
 
 -----
 
@@ -43,54 +43,54 @@ Implementation tasks in dependency order. Each task is self-contained and result
 
 ### Task 2.1: Validation Module
 
-- [ ] Implement `validate(data, rules)` — returns `{ ok: true, data }` or `{ ok: false, errors }`
-- [ ] Implement string rule parser: `'required|string|max:255'` → rule objects
-- [ ] Implement object rule format: `{ required: true, type: 'string', max: 255 }`
-- [ ] Built-in rules: `required`, `optional`, `nullable`, `string`, `number`, `boolean`, `array`, `object`
-- [ ] Built-in rules: `min`, `max`, `email`, `url`, `in`, `regex`, `uuid`, `date`, `before`, `after`
-- [ ] Built-in rule: `confirmed` (checks `{field}_confirmation`)
-- [ ] Implement `defineRules()` for custom rule registration
-- [ ] Implement nested object validation (`address.street`: `'required|string'`)
-- [ ] Implement array item validation (`tags.*`: `'string|max:50'`)
-- [ ] TypeScript: infer validated data type from rules
-- [ ] Write comprehensive tests (happy path, errors, edge cases, custom rules)
-- [ ] Export from `@loewen-digital/fullstack/validation`
+- [x] Implement `validate(data, rules)` — returns `{ ok: true, data }` or `{ ok: false, errors }`
+- [x] Implement string rule parser: `'required|string|max:255'` → rule objects
+- [x] Implement object rule format: `{ required: true, type: 'string', max: 255 }`
+- [x] Built-in rules: `required`, `optional`, `nullable`, `string`, `number`, `boolean`, `array`, `object`
+- [x] Built-in rules: `min`, `max`, `email`, `url`, `in`, `regex`, `uuid`, `date`, `before`, `after`
+- [x] Built-in rule: `confirmed` (checks `{field}_confirmation`)
+- [x] Implement `defineRules()` for custom rule registration
+- [x] Implement nested object validation (`address.street`: `'required|string'`)
+- [x] Implement array item validation (`tags.*`: `'string|max:50'`)
+- [x] TypeScript: infer validated data type from rules
+- [x] Write comprehensive tests (happy path, errors, edge cases, custom rules)
+- [x] Export from `@loewen-digital/fullstack/validation`
 
 ### Task 2.2: Logging Module
 
-- [ ] Implement `createLogger(config)` — returns logger instance
-- [ ] Log levels: `debug`, `info`, `warn`, `error`, `fatal`
-- [ ] Structured logging (JSON format with timestamp, level, message, context)
-- [ ] Console transport (with colors in dev, JSON in prod)
-- [ ] File transport (rotating log files)
-- [ ] Driver interface `LogTransport` for custom transports
-- [ ] Child loggers with inherited context: `logger.child({ module: 'auth' })`
-- [ ] Write tests
-- [ ] Export from `@loewen-digital/fullstack/logging`
+- [x] Implement `createLogger(config)` — returns logger instance
+- [x] Log levels: `debug`, `info`, `warn`, `error`, `fatal`
+- [x] Structured logging (JSON format with timestamp, level, message, context)
+- [x] Console transport (with colors in dev, JSON in prod)
+- [x] File transport (rotating log files)
+- [x] Driver interface `LogTransport` for custom transports
+- [x] Child loggers with inherited context: `logger.child({ module: 'auth' })`
+- [x] Write tests
+- [x] Export from `@loewen-digital/fullstack/logging`
 
 ### Task 2.3: Events Module
 
-- [ ] Implement `createEventBus()` — typed pub/sub within the app
-- [ ] `emit(event, payload)` — fire event
-- [ ] `on(event, listener)` — register listener
-- [ ] `off(event, listener)` — remove listener
-- [ ] `once(event, listener)` — listen once
-- [ ] Typed events: `defineEvents<{ 'user.created': User, 'post.published': Post }>()`
-- [ ] Optional: async listeners, error handling in listeners
-- [ ] Write tests
-- [ ] Export from `@loewen-digital/fullstack/events`
+- [x] Implement `createEventBus()` — typed pub/sub within the app
+- [x] `emit(event, payload)` — fire event
+- [x] `on(event, listener)` — register listener
+- [x] `off(event, listener)` — remove listener
+- [x] `once(event, listener)` — listen once
+- [x] Typed events: `defineEvents<{ 'user.created': User, 'post.published': Post }>()`
+- [x] Optional: async listeners, error handling in listeners
+- [x] Write tests
+- [x] Export from `@loewen-digital/fullstack/events`
 
 ### Task 2.4: i18n Module
 
-- [ ] Implement `createI18n(config)` — returns translation functions
-- [ ] `t(key, params?)` — translate with optional interpolation
-- [ ] `locale(name)` — switch locale
-- [ ] Load translation files from directory (JSON format)
-- [ ] Pluralization support
-- [ ] Number and date formatting per locale
-- [ ] Nested translation keys: `t('auth.errors.invalid_password')`
-- [ ] Write tests
-- [ ] Export from `@loewen-digital/fullstack/i18n`
+- [x] Implement `createI18n(config)` — returns translation functions
+- [x] `t(key, params?)` — translate with optional interpolation
+- [x] `locale(name)` — switch locale
+- [x] Load translation files from directory (JSON format)
+- [x] Pluralization support
+- [x] Number and date formatting per locale
+- [x] Nested translation keys: `t('auth.errors.invalid_password')`
+- [x] Write tests
+- [x] Export from `@loewen-digital/fullstack/i18n`
 
 -----
 
