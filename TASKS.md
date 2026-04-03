@@ -98,50 +98,50 @@ Implementation tasks in dependency order. Each task is self-contained and result
 
 ### Task 3.1: Database Module
 
-- [ ] Implement `createDb(config)` — wraps Drizzle ORM
-- [ ] Support drivers: `sqlite`, `postgres`, `mysql`, `d1` (Cloudflare)
-- [ ] Implement migration runner: `migrate()`, `rollback()`, `status()`
-- [ ] Implement seed runner: `seed()`
-- [ ] Implement factory builder for test data
-- [ ] Implement `paginate()` helper — returns `{ data, total, page, perPage, lastPage }`
-- [ ] CLI integration points: expose functions for `migrate`, `seed`, `generate` commands
-- [ ] Write tests (using SQLite in-memory)
-- [ ] Export from `@loewen-digital/fullstack/db`
+- [x] Implement `createDb(config)` — wraps Drizzle ORM
+- [x] Support drivers: `sqlite`, `postgres`, `mysql`, `d1` (Cloudflare)
+- [x] Implement migration runner: `migrate()`, `rollback()`, `status()`
+- [x] Implement seed runner: `seed()`
+- [x] Implement factory builder for test data
+- [x] Implement `paginate()` helper — returns `{ data, total, page, perPage, lastPage }`
+- [x] CLI integration points: expose functions for `migrate`, `seed`, `generate` commands
+- [x] Write tests (using SQLite in-memory)
+- [x] Export from `@loewen-digital/fullstack/db`
 
 ### Task 3.2: Security Module
 
-- [ ] Implement `createSecurity(config)` — returns security utilities
-- [ ] CSRF: `generateToken()`, `verifyToken(token)` using Node crypto
-- [ ] CORS: `corsHeaders(origin, config)` — returns headers object
-- [ ] Rate limiting: `createRateLimiter(config)` — in-memory (swappable driver later)
-- [ ] Input sanitization: `sanitize(input)` — strip dangerous HTML/scripts
-- [ ] Write tests
-- [ ] Export from `@loewen-digital/fullstack/security`
+- [x] Implement `createSecurity(config)` — returns security utilities
+- [x] CSRF: `generateToken()`, `verifyToken(token)` using Node crypto
+- [x] CORS: `corsHeaders(origin, config)` — returns headers object
+- [x] Rate limiting: `createRateLimiter(config)` — in-memory (swappable driver later)
+- [x] Input sanitization: `sanitize(input)` — strip dangerous HTML/scripts
+- [x] Write tests
+- [x] Export from `@loewen-digital/fullstack/security`
 
 ### Task 3.3: Session Module
 
-- [ ] Implement `createSession(config)` — returns session manager
-- [ ] Cookie driver: signed cookies, configurable maxAge
-- [ ] Memory driver: server-side sessions (for dev/testing)
-- [ ] Redis driver: server-side sessions via Redis
-- [ ] Flash messages: `flash(key, value)`, `getFlash(key)`
-- [ ] Old input: `flashInput(data)`, `getOldInput()`
-- [ ] Driver interface `SessionDriver` for custom implementations
-- [ ] Write tests
-- [ ] Export from `@loewen-digital/fullstack/session`
+- [x] Implement `createSession(config)` — returns session manager
+- [x] Cookie driver: signed cookies, configurable maxAge
+- [x] Memory driver: server-side sessions (for dev/testing)
+- [x] Redis driver: server-side sessions via Redis
+- [x] Flash messages: `flash(key, value)`, `getFlash(key)`
+- [x] Old input: `flashInput(data)`, `getOldInput()`
+- [x] Driver interface `SessionDriver` for custom implementations
+- [x] Write tests
+- [x] Export from `@loewen-digital/fullstack/session`
 
 ### Task 3.4: Auth Module
 
-- [ ] Implement `createAuth(config, { db })` — requires db instance
-- [ ] Password hashing: `hashPassword()`, `verifyPassword()` (argon2 preferred, bcrypt fallback)
-- [ ] Session-based auth: `createSession(user)`, `validateSession(token)`, `destroySession(token)`
-- [ ] Token-based auth: `generateToken(user, type)`, `verifyToken(token, type)`
-- [ ] Email verification: `sendVerificationEmail()`, `verifyEmail(token)`
-- [ ] Password reset: `sendResetEmail()`, `resetPassword(token, newPassword)`
-- [ ] OAuth scaffold: `createOAuthProvider(name, config)` — returns redirect URL + callback handler
-- [ ] Define User type contract (what the auth module expects from the DB user table)
-- [ ] Write tests
-- [ ] Export from `@loewen-digital/fullstack/auth`
+- [x] Implement `createAuth(config, { db })` — requires db instance
+- [x] Password hashing: `hashPassword()`, `verifyPassword()` (argon2 preferred, bcrypt fallback)
+- [x] Session-based auth: `createSession(user)`, `validateSession(token)`, `destroySession(token)`
+- [x] Token-based auth: `generateToken(user, type)`, `verifyToken(token, type)`
+- [x] Email verification: `sendVerificationEmail()`, `verifyEmail(token)`
+- [x] Password reset: `sendResetEmail()`, `resetPassword(token, newPassword)`
+- [x] OAuth scaffold: `createOAuthProvider(name, config)` — returns redirect URL + callback handler
+- [x] Define User type contract (what the auth module expects from the DB user table)
+- [x] Write tests
+- [x] Export from `@loewen-digital/fullstack/auth`
 
 -----
 
