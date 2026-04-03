@@ -1,2 +1,3 @@
 // Event listener types — Task 2.3
-export {}
+
+export type { EventListener } from './types.js'

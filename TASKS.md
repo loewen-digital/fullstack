@@ -43,54 +43,54 @@ Implementation tasks in dependency order. Each task is self-contained and result
 
 ### Task 2.1: Validation Module
 
-- [ ] Implement `validate(data, rules)` — returns `{ ok: true, data }` or `{ ok: false, errors }`
-- [ ] Implement string rule parser: `'required|string|max:255'` → rule objects
-- [ ] Implement object rule format: `{ required: true, type: 'string', max: 255 }`
-- [ ] Built-in rules: `required`, `optional`, `nullable`, `string`, `number`, `boolean`, `array`, `object`
-- [ ] Built-in rules: `min`, `max`, `email`, `url`, `in`, `regex`, `uuid`, `date`, `before`, `after`
-- [ ] Built-in rule: `confirmed` (checks `{field}_confirmation`)
-- [ ] Implement `defineRules()` for custom rule registration
-- [ ] Implement nested object validation (`address.street`: `'required|string'`)
-- [ ] Implement array item validation (`tags.*`: `'string|max:50'`)
-- [ ] TypeScript: infer validated data type from rules
-- [ ] Write comprehensive tests (happy path, errors, edge cases, custom rules)
-- [ ] Export from `@loewen-digital/fullstack/validation`
+- [x] Implement `validate(data, rules)` — returns `{ ok: true, data }` or `{ ok: false, errors }`
+- [x] Implement string rule parser: `'required|string|max:255'` → rule objects
+- [x] Implement object rule format: `{ required: true, type: 'string', max: 255 }`
+- [x] Built-in rules: `required`, `optional`, `nullable`, `string`, `number`, `boolean`, `array`, `object`
+- [x] Built-in rules: `min`, `max`, `email`, `url`, `in`, `regex`, `uuid`, `date`, `before`, `after`
+- [x] Built-in rule: `confirmed` (checks `{field}_confirmation`)
+- [x] Implement `defineRules()` for custom rule registration
+- [x] Implement nested object validation (`address.street`: `'required|string'`)
+- [x] Implement array item validation (`tags.*`: `'string|max:50'`)
+- [x] TypeScript: infer validated data type from rules
+- [x] Write comprehensive tests (happy path, errors, edge cases, custom rules)
+- [x] Export from `@loewen-digital/fullstack/validation`
 
 ### Task 2.2: Logging Module
 
-- [ ] Implement `createLogger(config)` — returns logger instance
-- [ ] Log levels: `debug`, `info`, `warn`, `error`, `fatal`
-- [ ] Structured logging (JSON format with timestamp, level, message, context)
-- [ ] Console transport (with colors in dev, JSON in prod)
-- [ ] File transport (rotating log files)
-- [ ] Driver interface `LogTransport` for custom transports
-- [ ] Child loggers with inherited context: `logger.child({ module: 'auth' })`
-- [ ] Write tests
-- [ ] Export from `@loewen-digital/fullstack/logging`
+- [x] Implement `createLogger(config)` — returns logger instance
+- [x] Log levels: `debug`, `info`, `warn`, `error`, `fatal`
+- [x] Structured logging (JSON format with timestamp, level, message, context)
+- [x] Console transport (with colors in dev, JSON in prod)
+- [x] File transport (rotating log files)
+- [x] Driver interface `LogTransport` for custom transports
+- [x] Child loggers with inherited context: `logger.child({ module: 'auth' })`
+- [x] Write tests
+- [x] Export from `@loewen-digital/fullstack/logging`
 
 ### Task 2.3: Events Module
 
-- [ ] Implement `createEventBus()` — typed pub/sub within the app
-- [ ] `emit(event, payload)` — fire event
-- [ ] `on(event, listener)` — register listener
-- [ ] `off(event, listener)` — remove listener
-- [ ] `once(event, listener)` — listen once
-- [ ] Typed events: `defineEvents<{ 'user.created': User, 'post.published': Post }>()`
-- [ ] Optional: async listeners, error handling in listeners
-- [ ] Write tests
-- [ ] Export from `@loewen-digital/fullstack/events`
+- [x] Implement `createEventBus()` — typed pub/sub within the app
+- [x] `emit(event, payload)` — fire event
+- [x] `on(event, listener)` — register listener
+- [x] `off(event, listener)` — remove listener
+- [x] `once(event, listener)` — listen once
+- [x] Typed events: `defineEvents<{ 'user.created': User, 'post.published': Post }>()`
+- [x] Optional: async listeners, error handling in listeners
+- [x] Write tests
+- [x] Export from `@loewen-digital/fullstack/events`
 
 ### Task 2.4: i18n Module
 
-- [ ] Implement `createI18n(config)` — returns translation functions
-- [ ] `t(key, params?)` — translate with optional interpolation
-- [ ] `locale(name)` — switch locale
-- [ ] Load translation files from directory (JSON format)
-- [ ] Pluralization support
-- [ ] Number and date formatting per locale
-- [ ] Nested translation keys: `t('auth.errors.invalid_password')`
-- [ ] Write tests
-- [ ] Export from `@loewen-digital/fullstack/i18n`
+- [x] Implement `createI18n(config)` — returns translation functions
+- [x] `t(key, params?)` — translate with optional interpolation
+- [x] `locale(name)` — switch locale
+- [x] Load translation files from directory (JSON format)
+- [x] Pluralization support
+- [x] Number and date formatting per locale
+- [x] Nested translation keys: `t('auth.errors.invalid_password')`
+- [x] Write tests
+- [x] Export from `@loewen-digital/fullstack/i18n`
 
 -----
 
