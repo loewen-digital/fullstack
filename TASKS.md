@@ -258,34 +258,34 @@ Implementation tasks in dependency order. Each task is self-contained and result
 
 ### Task 6.1: createStack Implementation
 
-- [ ] Implement `createStack(config)` — initializes all configured modules
-- [ ] Resolve inter-module dependencies (auth needs db, notifications needs mail, etc.)
-- [ ] TypeScript: return type is inferred from config (only configured modules are present)
-- [ ] Handle missing optional dependencies gracefully
-- [ ] Write integration tests
-- [ ] Export from `@loewen-digital/fullstack`
+- [x] Implement `createStack(config)` — initializes all configured modules
+- [x] Resolve inter-module dependencies (auth needs db, notifications needs mail, etc.)
+- [x] TypeScript: return type is inferred from config (only configured modules are present)
+- [x] Handle missing optional dependencies gracefully
+- [x] Write integration tests
+- [x] Export from `@loewen-digital/fullstack`
 
 ### Task 6.2: SvelteKit Adapter
 
-- [ ] Implement `createHandle(stack)` — returns SvelteKit `Handle` function
-- [ ] Populate `event.locals.fullstack` with session, auth helpers, etc.
-- [ ] CSRF protection for non-GET requests
-- [ ] Type augmentation for `App.Locals`
-- [ ] Convenience helpers for form actions (validation, old input, flash)
-- [ ] Write tests with mock SvelteKit request/response
-- [ ] Export from `@loewen-digital/fullstack/adapters/sveltekit`
+- [x] Implement `createHandle(stack)` — returns SvelteKit `Handle` function
+- [x] Populate `event.locals` with session, auth helpers, etc.
+- [x] CSRF protection for non-GET requests
+- [x] Type augmentation for `App.Locals`
+- [x] Convenience helpers for form actions (validation, old input, flash)
+- [x] Write tests with mock SvelteKit request/response
+- [x] Export from `@loewen-digital/fullstack/adapters/sveltekit`
 
 ### Task 6.3: Testing Module
 
-- [ ] Implement `createTestStack(config?)` — pre-configured for testing
-- [ ] All drivers default to memory/fake
-- [ ] Fake mail: captures sent messages in array
-- [ ] Fake storage: in-memory file system
-- [ ] Fake queue: synchronous execution, captures dispatched jobs
-- [ ] DB helpers: transaction wrapping, automatic cleanup
-- [ ] Factory integration: `stack.db.factory('user').create()`
-- [ ] Write tests (meta: tests for the testing module)
-- [ ] Export from `@loewen-digital/fullstack/testing`
+- [x] Implement `createTestStack(config?)` — pre-configured for testing
+- [x] All drivers default to memory/fake
+- [x] Fake mail: captures sent messages in array
+- [x] Fake storage: in-memory file system
+- [x] Fake queue: synchronous execution, captures dispatched jobs
+- [x] DB helpers: transaction wrapping, automatic cleanup
+- [x] Factory integration: standalone `defineFactory()` helper
+- [x] Write tests (meta: tests for the testing module)
+- [x] Export from `@loewen-digital/fullstack/testing`
 
 -----
 

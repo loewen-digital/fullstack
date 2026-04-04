@@ -4,6 +4,10 @@
 export type { FullstackConfig } from './config/types.js'
 export { defineConfig, loadConfig, env, resolveDriver } from './config/index.js'
 
+// Phase 6: Integration
+export type { StackModules, StackDeps } from './stack/index.js'
+export { createStack } from './stack/index.js'
+
 export type { ErrorContext, SerializedError } from './errors/types.js'
 export {
   FullstackError,
