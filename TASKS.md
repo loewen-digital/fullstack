@@ -202,55 +202,55 @@ Implementation tasks in dependency order. Each task is self-contained and result
 
 ### Task 5.1: Permissions Module
 
-- [ ] Implement `createPermissions(config, { db })` — returns permission checker
-- [ ] RBAC: define roles with permissions, assign roles to users
-- [ ] Policies: `definePolicy('post', { update: (user, post) => ... })`
-- [ ] `can(user, action, resource?)` — check permission
-- [ ] `authorize(user, action, resource?)` — throws if not allowed
-- [ ] Write tests
-- [ ] Export from `@loewen-digital/fullstack/permissions`
+- [x] Implement `createPermissions(config, { db })` — returns permission checker
+- [x] RBAC: define roles with permissions, assign roles to users
+- [x] Policies: `definePolicy('post', { update: (user, post) => ... })`
+- [x] `can(user, action, resource?)` — check permission
+- [x] `authorize(user, action, resource?)` — throws if not allowed
+- [x] Write tests
+- [x] Export from `@loewen-digital/fullstack/permissions`
 
 ### Task 5.2: Notifications Module
 
-- [ ] Implement `createNotifications(config, { mail })` — requires mail instance
-- [ ] Mail channel: sends via mail module
-- [ ] In-app channel: stores in DB
-- [ ] SMS channel: driver-based (Twilio etc.)
-- [ ] Push channel: web push notifications
-- [ ] `notify(user, notification)` — send via configured channels
-- [ ] Notification class: `channels()`, `toMail()`, `toInApp()`, etc.
-- [ ] Write tests
-- [ ] Export from `@loewen-digital/fullstack/notifications`
+- [x] Implement `createNotifications(config, { mail })` — requires mail instance
+- [x] Mail channel: sends via mail module
+- [x] In-app channel: stores in DB
+- [x] SMS channel: driver-based (Twilio etc.)
+- [x] Push channel: web push notifications
+- [x] `notify(user, notification)` — send via configured channels
+- [x] Notification class: `channels()`, `toMail()`, `toInApp()`, etc.
+- [x] Write tests
+- [x] Export from `@loewen-digital/fullstack/notifications`
 
 ### Task 5.3: Search Module
 
-- [ ] Implement `createSearch(config)` — returns search interface
-- [ ] SQLite FTS driver: built-in full-text search
-- [ ] Meilisearch driver
-- [ ] Typesense driver
-- [ ] API: `index(collection, documents)`, `search(collection, query, filters?)`
-- [ ] Driver interface `SearchDriver`
-- [ ] Write tests (using SQLite FTS)
-- [ ] Export from `@loewen-digital/fullstack/search`
+- [x] Implement `createSearch(config)` — returns search interface
+- [x] SQLite FTS driver: built-in full-text search
+- [x] Meilisearch driver
+- [x] Typesense driver
+- [x] API: `index(collection, documents)`, `search(collection, query, filters?)`
+- [x] Driver interface `SearchDriver`
+- [x] Write tests (using SQLite FTS)
+- [x] Export from `@loewen-digital/fullstack/search`
 
 ### Task 5.4: Webhooks Module
 
-- [ ] Implement `createWebhooks(config)` — returns webhook manager
-- [ ] Incoming: signature verification (GitHub, Stripe, etc. patterns)
-- [ ] Outgoing: send with retry logic, signing
-- [ ] Webhook event log (optional DB storage)
-- [ ] Write tests
-- [ ] Export from `@loewen-digital/fullstack/webhooks`
+- [x] Implement `createWebhooks(config)` — returns webhook manager
+- [x] Incoming: signature verification (GitHub, Stripe, etc. patterns)
+- [x] Outgoing: send with retry logic, signing
+- [x] Webhook event log (optional DB storage)
+- [x] Write tests
+- [x] Export from `@loewen-digital/fullstack/webhooks`
 
 ### Task 5.5: Realtime Module
 
-- [ ] Implement `createRealtime(config)` — returns realtime manager
-- [ ] WebSocket support
-- [ ] SSE (Server-Sent Events) support
-- [ ] Channel/room abstraction
-- [ ] `broadcast(channel, event, data)` — send to all connected clients
-- [ ] Write tests
-- [ ] Export from `@loewen-digital/fullstack/realtime`
+- [x] Implement `createRealtime(config)` — returns realtime manager
+- [x] WebSocket support
+- [x] SSE (Server-Sent Events) support
+- [x] Channel/room abstraction
+- [x] `broadcast(channel, event, data)` — send to all connected clients
+- [x] Write tests
+- [x] Export from `@loewen-digital/fullstack/realtime`
 
 -----
 
