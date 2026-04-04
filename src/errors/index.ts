@@ -13,5 +13,7 @@ export {
   AuthError,
   MailError,
   StorageError,
+  CacheError,
+  QueueError,
 } from './http-errors.js'
 export { serializeError, errorToResponse, isFullstackError } from './handler.js'

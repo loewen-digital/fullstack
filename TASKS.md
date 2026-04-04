@@ -149,52 +149,52 @@ Implementation tasks in dependency order. Each task is self-contained and result
 
 ### Task 4.1: Mail Module
 
-- [ ] Implement `createMail(config)` — returns mail sender
-- [ ] Console driver: logs to console, captures in-memory for dev UI
-- [ ] SMTP driver: sends via SMTP (nodemailer)
-- [ ] Resend driver: sends via Resend API
-- [ ] Postmark driver: sends via Postmark API
-- [ ] `send(message)` — send immediately
-- [ ] HTML template support (simple variable interpolation)
-- [ ] Driver interface `MailDriver` for custom transports
-- [ ] Write tests (using console driver)
-- [ ] Export from `@loewen-digital/fullstack/mail`
+- [x] Implement `createMail(config)` — returns mail sender
+- [x] Console driver: logs to console, captures in-memory for dev UI
+- [x] SMTP driver: sends via SMTP (nodemailer)
+- [x] Resend driver: sends via Resend API
+- [x] Postmark driver: sends via Postmark API
+- [x] `send(message)` — send immediately
+- [x] HTML template support (simple variable interpolation)
+- [x] Driver interface `MailDriver` for custom transports
+- [x] Write tests (using console driver)
+- [x] Export from `@loewen-digital/fullstack/mail`
 
 ### Task 4.2: Storage Module
 
-- [ ] Implement `createStorage(config)` — returns file storage
-- [ ] Local driver: filesystem-based storage
-- [ ] S3 driver: AWS S3 compatible
-- [ ] R2 driver: Cloudflare R2
-- [ ] Memory driver: in-memory (for tests)
-- [ ] API: `get`, `put`, `delete`, `exists`, `list`, `getUrl`
-- [ ] Driver interface `StorageDriver` for custom backends
-- [ ] Write tests (using memory driver)
-- [ ] Export from `@loewen-digital/fullstack/storage`
+- [x] Implement `createStorage(config)` — returns file storage
+- [x] Local driver: filesystem-based storage
+- [x] S3 driver: AWS S3 compatible
+- [x] R2 driver: Cloudflare R2
+- [x] Memory driver: in-memory (for tests)
+- [x] API: `get`, `put`, `delete`, `exists`, `list`, `getUrl`
+- [x] Driver interface `StorageDriver` for custom backends
+- [x] Write tests (using memory driver)
+- [x] Export from `@loewen-digital/fullstack/storage`
 
 ### Task 4.3: Cache Module
 
-- [ ] Implement `createCache(config)` — returns cache instance
-- [ ] Memory driver: in-process Map with TTL
-- [ ] Redis driver: Redis-backed cache
-- [ ] KV driver: Cloudflare KV
-- [ ] API: `get`, `set`, `has`, `delete`, `flush`, `remember(key, ttl, fn)`
-- [ ] Driver interface `CacheDriver`
-- [ ] Write tests (using memory driver)
-- [ ] Export from `@loewen-digital/fullstack/cache`
+- [x] Implement `createCache(config)` — returns cache instance
+- [x] Memory driver: in-process Map with TTL
+- [x] Redis driver: Redis-backed cache
+- [x] KV driver: Cloudflare KV
+- [x] API: `get`, `set`, `has`, `delete`, `flush`, `remember(key, ttl, fn)`
+- [x] Driver interface `CacheDriver`
+- [x] Write tests (using memory driver)
+- [x] Export from `@loewen-digital/fullstack/cache`
 
 ### Task 4.4: Queue Module
 
-- [ ] Implement `createQueue(config)` — returns job dispatcher
-- [ ] Memory driver: synchronous execution (dev mode)
-- [ ] Redis driver: Redis-backed queue (BullMQ or custom)
-- [ ] Cloudflare driver: Cloudflare Queues
-- [ ] `dispatch(job)` — add job to queue
-- [ ] Job class: `name`, `payload`, `attempts`, `backoff`, `timeout`
-- [ ] Failed job handling: retry, dead letter
-- [ ] Driver interface `QueueDriver`
-- [ ] Write tests (using memory driver)
-- [ ] Export from `@loewen-digital/fullstack/queue`
+- [x] Implement `createQueue(config)` — returns job dispatcher
+- [x] Memory driver: synchronous execution (dev mode)
+- [x] Redis driver: Redis-backed queue (BullMQ or custom)
+- [x] Cloudflare driver: Cloudflare Queues
+- [x] `dispatch(job)` — add job to queue
+- [x] Job class: `name`, `payload`, `attempts`, `backoff`, `timeout`
+- [x] Failed job handling: retry, dead letter
+- [x] Driver interface `QueueDriver`
+- [x] Write tests (using memory driver)
+- [x] Export from `@loewen-digital/fullstack/queue`
 
 -----
 

@@ -101,3 +101,15 @@ export class StorageError extends FullstackError {
     super(message, 'STORAGE_ERROR', 500, context)
   }
 }
+
+export class CacheError extends FullstackError {
+  constructor(message: string, context?: ErrorContext) {
+    super(message, 'CACHE_ERROR', 500, context)
+  }
+}
+
+export class QueueError extends FullstackError {
+  constructor(message: string, context?: ErrorContext) {
+    super(message, 'QUEUE_ERROR', 500, context)
+  }
+}

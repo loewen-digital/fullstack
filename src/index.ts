@@ -19,6 +19,8 @@ export {
   AuthError,
   MailError,
   StorageError,
+  CacheError,
+  QueueError,
   serializeError,
   errorToResponse,
   isFullstackError,
@@ -45,3 +47,17 @@ export { createEventBus, defineEvents } from './events/index.js'
 
 export type { I18nConfig, I18nInstance } from './i18n/index.js'
 export { createI18n, loadTranslations } from './i18n/index.js'
+
+// Phase 4: Infrastructure Modules
+
+export type { MailConfig, MailDriver, MailInstance, MailMessage, MailAddress, MailAttachment } from './mail/index.js'
+export { createMail, createMailInstance, renderTemplate } from './mail/index.js'
+
+export type { StorageConfig, StorageDriver, StorageInstance, FileMeta } from './storage/index.js'
+export { createStorage, createStorageInstance } from './storage/index.js'
+
+export type { CacheConfig, CacheDriver, CacheInstance } from './cache/index.js'
+export { createCache, createCacheInstance } from './cache/index.js'
+
+export type { QueueConfig, QueueDriver, QueueInstance, Job, JobDefinition, JobHandler } from './queue/index.js'
+export { createQueue, createQueueInstance } from './queue/index.js'
