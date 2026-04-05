@@ -1,6 +1,7 @@
 // Console transport — Task 2.2
 
 import type { LogEntry, LogTransport } from '../types.js'
+import { devStorePushLog, isDevMode } from '../../dev-store/index.js'
 
 const LEVEL_COLORS: Record<string, string> = {
   debug: '\x1b[36m', // cyan
@@ -28,6 +29,15 @@ export function consoleTransport(format?: 'dev' | 'prod'): LogTransport {
 
   return {
     log(entry: LogEntry): void {
+      if (isDevMode()) {
+        devStorePushLog({
+          level: entry.level,
+          message: entry.message,
+          timestamp: entry.timestamp,
+          context: entry.context as Record<string, unknown> | undefined,
+        })
+      }
+
       const output = isDev ? devFormat(entry) : JSON.stringify(entry)
       if (entry.level === 'error' || entry.level === 'fatal') {
         console.error(output)

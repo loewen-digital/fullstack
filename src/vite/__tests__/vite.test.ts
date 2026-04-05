@@ -7,6 +7,11 @@ describe('fullstackPlugin', () => {
     expect(plugin.name).toBe('vite-plugin-fullstack')
   })
 
+  it('enforces pre execution order', () => {
+    const plugin = fullstackPlugin()
+    expect(plugin.enforce).toBe('pre')
+  })
+
   it('resolves virtual:fullstack/config module id', () => {
     const plugin = fullstackPlugin()
     const resolveId = plugin.resolveId as (id: string) => string | undefined
@@ -14,13 +19,12 @@ describe('fullstackPlugin', () => {
     expect(resolveId('something-else')).toBeUndefined()
   })
 
-  it('loads virtual config module with empty config initially', () => {
+  it('loads virtual config module as a valid JS export', () => {
     const plugin = fullstackPlugin()
     const load = plugin.load as (id: string) => string | undefined
     const result = load('\0virtual:fullstack/config')
-    expect(result).toContain('export default')
-    // Should be valid JSON after the `export default `
-    const json = result?.replace('export default ', '') ?? '{}'
+    expect(result).toMatch(/^export default /)
+    const json = result!.replace('export default ', '')
     expect(() => JSON.parse(json)).not.toThrow()
   })
 
@@ -30,8 +34,23 @@ describe('fullstackPlugin', () => {
     expect(load('some-other-module')).toBeUndefined()
   })
 
-  it('accepts custom options', () => {
-    const plugin = fullstackPlugin({ configFile: './custom.config.ts' })
+  it('accepts generateTypes option', () => {
+    const plugin = fullstackPlugin({ generateTypes: false })
     expect(plugin.name).toBe('vite-plugin-fullstack')
+  })
+
+  it('accepts configRoot option', () => {
+    const plugin = fullstackPlugin({ configRoot: '/tmp' })
+    expect(plugin.name).toBe('vite-plugin-fullstack')
+  })
+
+  it('has configureServer hook', () => {
+    const plugin = fullstackPlugin()
+    expect(typeof plugin.configureServer).toBe('function')
+  })
+
+  it('has buildStart hook', () => {
+    const plugin = fullstackPlugin()
+    expect(typeof plugin.buildStart).toBe('function')
   })
 })

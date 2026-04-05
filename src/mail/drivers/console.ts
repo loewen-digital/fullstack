@@ -1,4 +1,5 @@
 import type { MailDriver, MailMessage } from '../types.js'
+import { devStorePushMail, isDevMode } from '../../dev-store/index.js'
 
 export interface ConsoleDriverOptions {
   /** If true, suppress console.log output (useful for testing) */
@@ -13,6 +14,19 @@ export function createConsoleDriver(options: ConsoleDriverOptions = {}): MailDri
 
     async send(message: MailMessage): Promise<void> {
       sent.push(message)
+
+      if (isDevMode()) {
+        devStorePushMail({
+          timestamp: new Date().toISOString(),
+          to: formatAddresses(message.to),
+          subject: message.subject,
+          from: message.from ? formatAddresses(message.from) : '',
+          cc: message.cc ? formatAddresses(message.cc) : undefined,
+          bcc: message.bcc ? formatAddresses(message.bcc) : undefined,
+          text: message.text,
+          html: message.html,
+        })
+      }
 
       if (!options.silent) {
         console.log('--- Mail Sent ---')

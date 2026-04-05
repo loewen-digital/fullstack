@@ -293,39 +293,39 @@ Implementation tasks in dependency order. Each task is self-contained and result
 
 ### Task 7.1: CLI
 
-- [ ] Implement CLI entry point (`bin/fullstack`)
-- [ ] `fullstack migrate` — run migrations
-- [ ] `fullstack migrate:rollback` — rollback last batch
-- [ ] `fullstack migrate:status` — show migration status
-- [ ] `fullstack seed` — run seeders
-- [ ] `fullstack generate migration <name>` — scaffold migration file
-- [ ] `fullstack generate factory <name>` — scaffold factory file
-- [ ] `fullstack generate seed <name>` — scaffold seed file
-- [ ] Register as `bin` in package.json
-- [ ] Write tests
-- [ ] Export from `@loewen-digital/fullstack/cli`
+- [x] Implement CLI entry point (`bin/fullstack`)
+- [x] `fullstack migrate` — run migrations
+- [x] `fullstack migrate:rollback` — rollback last batch
+- [x] `fullstack migrate:status` — show migration status
+- [x] `fullstack seed` — run seeders
+- [x] `fullstack generate migration <name>` — scaffold migration file
+- [x] `fullstack generate factory <name>` — scaffold factory file
+- [x] `fullstack generate seed <name>` — scaffold seed file
+- [x] Register as `bin` in package.json
+- [x] Write tests
+- [x] Export from `@loewen-digital/fullstack/cli`
 
 ### Task 7.2: Vite Plugin
 
-- [ ] Implement `fullstackPlugin()` — Vite plugin
-- [ ] Auto-detect and load `fullstack.config.ts`
-- [ ] Dev server middleware for dev UI routes
-- [ ] Config file watching with auto-restart
-- [ ] Type generation hook (DB schema types on build)
-- [ ] Write tests
-- [ ] Export from `@loewen-digital/fullstack/vite`
+- [x] Implement `fullstackPlugin()` — Vite plugin
+- [x] Auto-detect and load `fullstack.config.ts`
+- [x] Dev server middleware for dev UI routes
+- [x] Config file watching with auto-restart
+- [x] Type generation hook (DB schema types on build)
+- [x] Write tests
+- [x] Export from `@loewen-digital/fullstack/vite`
 
 ### Task 7.3: Dev UI
 
-- [ ] Build dev UI dashboard (SvelteKit app, served via Vite plugin)
-- [ ] DB browser page: view tables, run queries, see migration status
-- [ ] Mail preview page: view captured emails (console driver)
-- [ ] Queue dashboard: view jobs, failed jobs, retry
-- [ ] Cache inspector: view keys, flush
-- [ ] Log viewer: structured log display with level filtering
-- [ ] Storage browser: view/download files
-- [ ] Config overview: display active configuration
-- [ ] Serve from Vite plugin at `/__fullstack/`
+- [x] Build dev UI dashboard (served via Vite plugin as self-contained SPA)
+- [x] DB browser page: view tables, run queries, see migration status
+- [x] Mail preview page: view captured emails (console driver)
+- [x] Queue dashboard: view jobs, failed jobs, retry
+- [x] Cache inspector: view keys, flush
+- [x] Log viewer: structured log display with level filtering
+- [x] Storage browser: view/download files
+- [x] Config overview: display active configuration
+- [x] Serve from Vite plugin at `/__fullstack/`
 
 -----
 
