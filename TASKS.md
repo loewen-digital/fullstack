@@ -333,22 +333,22 @@ Implementation tasks in dependency order. Each task is self-contained and result
 
 ### Task 8.1: Nuxt Adapter
 
-- [ ] Implement adapter for Nuxt/Nitro server routes
-- [ ] Server middleware integration
-- [ ] Write tests
-- [ ] Export from `@loewen-digital/fullstack/adapters/nuxt`
+- [x] Implement adapter for Nuxt/Nitro server routes
+- [x] Server middleware integration
+- [x] Write tests
+- [x] Export from `@loewen-digital/fullstack/adapters/nuxt`
 
 ### Task 8.2: Remix Adapter
 
-- [ ] Implement adapter for Remix loader/action pattern
-- [ ] Write tests
-- [ ] Export from `@loewen-digital/fullstack/adapters/remix`
+- [x] Implement adapter for Remix loader/action pattern
+- [x] Write tests
+- [x] Export from `@loewen-digital/fullstack/adapters/remix`
 
 ### Task 8.3: Astro Adapter
 
-- [ ] Implement adapter for Astro API routes and SSR
-- [ ] Write tests
-- [ ] Export from `@loewen-digital/fullstack/adapters/astro`
+- [x] Implement adapter for Astro API routes and SSR
+- [x] Write tests
+- [x] Export from `@loewen-digital/fullstack/adapters/astro`
 
 -----
 
