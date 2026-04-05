@@ -74,3 +74,4 @@ The core is completely framework-agnostic. Thin adapters wire it into your meta-
 ## Get started
 
 Head to the [Installation guide](/getting-started/installation) to add `@loewen-digital/fullstack` to your project.
+
