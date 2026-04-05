@@ -16,12 +16,18 @@ export async function runMigrations(drizzle: AnyDrizzleDb, folder: string): Prom
 export async function rollbackMigration(drizzle: AnyDrizzleDb): Promise<void> {
   const { sql } = await import('drizzle-orm')
   // Drizzle tracks applied migrations in __drizzle_migrations
-  const rows = drizzle.all<{ id: number; hash: string; created_at: number }>(
-    sql`SELECT id, hash, created_at FROM __drizzle_migrations ORDER BY created_at DESC LIMIT 1`,
-  )
-  if (rows.length === 0) return
-  const last = rows[0]
-  drizzle.run(sql`DELETE FROM __drizzle_migrations WHERE id = ${last.id}`)
+  try {
+    const rows = drizzle.all<{ id: number; hash: string; created_at: number }>(
+      sql`SELECT id, hash, created_at FROM __drizzle_migrations ORDER BY created_at DESC LIMIT 1`,
+    )
+    if (rows.length === 0) return
+    const last = rows[0]
+    drizzle.run(sql`DELETE FROM __drizzle_migrations WHERE id = ${last.id}`)
+  } catch (err) {
+    // Table doesn't exist yet — nothing to roll back
+    if (err instanceof Error && err.message.includes('no such table')) return
+    throw err
+  }
 }
 
 /**
