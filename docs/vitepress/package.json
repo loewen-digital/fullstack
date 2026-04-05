@@ -1,12 +1,14 @@
 {
   "name": "@loewen-digital/docs-vitepress",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "vitepress dev",
     "build": "vitepress build",
     "preview": "vitepress preview"
   },
   "devDependencies": {
-    "vitepress": "^1.6.0"
+    "vitepress": "^1.6.0",
+    "vue": "^3.5.32"
   }
 }

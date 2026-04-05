@@ -6,18 +6,14 @@ export default defineConfig({
     starlight({
       title: '@loewen-digital/fullstack',
       description: 'Laravel for JS — backend primitives for any meta-framework',
-      social: [
-        {
-          icon: 'github',
-          label: 'GitHub',
-          href: 'https://github.com/loewen-digital/fullstack',
-        },
-      ],
+      social: {
+        github: 'https://github.com/loewen-digital/fullstack',
+      },
       sidebar: [
         {
           label: 'Getting Started',
           items: [
-            { label: 'Introduction', slug: 'getting-started/index' },
+            { label: 'Introduction', slug: 'getting-started' },
             { label: 'Installation', slug: 'getting-started/installation' },
             { label: 'Quick Start', slug: 'getting-started/quick-start' },
             { label: 'Configuration', slug: 'getting-started/configuration' },

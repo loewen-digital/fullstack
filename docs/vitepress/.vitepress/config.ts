@@ -4,6 +4,22 @@ export default defineConfig({
   title: '@loewen-digital/fullstack',
   description: 'Laravel for JS — backend primitives for any meta-framework',
   srcDir: '../content',
+  vite: {
+    build: {
+      rollupOptions: {
+        external: [
+          'vue',
+          'vue/server-renderer',
+          '@vue/reactivity',
+          '@vue/runtime-core',
+          '@vue/runtime-dom',
+          '@vue/server-renderer',
+          '@vue/shared',
+          '@vueuse/core',
+        ],
+      },
+    },
+  },
   themeConfig: {
     nav: [
       { text: 'Guide', link: '/getting-started/' },
