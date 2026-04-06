@@ -117,7 +117,7 @@ export function createSessionManager(driver: SessionDriver, ttlSeconds = 7200): 
 function parseTtl(value: string): number {
   const match = /^(\d+)(s|m|h|d)?$/.exec(value)
   if (!match) return 7200
-  const num = parseInt(match[1], 10)
+  const num = parseInt(match[1]!, 10)
   const unit = match[2] ?? 's'
   const multipliers: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 }
   return num * (multipliers[unit] ?? 1)

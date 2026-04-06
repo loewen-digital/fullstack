@@ -65,7 +65,7 @@ export async function verifyCsrfToken(
     // Constant-time comparison
     let diff = 0
     for (let i = 0; i < expectedMac.length; i++) {
-      diff |= expectedMac[i] ^ providedMac[i]
+      diff |= (expectedMac[i] ?? 0) ^ (providedMac[i] ?? 0)
     }
     return diff === 0
   } catch {

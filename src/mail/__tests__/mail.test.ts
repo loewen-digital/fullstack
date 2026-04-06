@@ -18,7 +18,7 @@ describe('createMail', () => {
       text: 'Hello!',
     })
     expect(mail.sent).toHaveLength(1)
-    expect(mail.sent[0].subject).toBe('Test')
+    expect(mail.sent[0]!.subject).toBe('Test')
   })
 
   it('applies default from address', async () => {
@@ -28,7 +28,7 @@ describe('createMail', () => {
       subject: 'Test',
       text: 'Hello!',
     })
-    expect(mail.sent[0].from).toBe('noreply@example.com')
+    expect(mail.sent[0]!.from).toBe('noreply@example.com')
   })
 
   it('does not override explicit from address', async () => {
@@ -39,7 +39,7 @@ describe('createMail', () => {
       subject: 'Test',
       text: 'Hello!',
     })
-    expect(mail.sent[0].from).toBe('custom@example.com')
+    expect(mail.sent[0]!.from).toBe('custom@example.com')
   })
 
   it('sends to multiple recipients', async () => {
@@ -62,7 +62,7 @@ describe('createMail', () => {
       subject: 'Full',
       text: 'All fields',
     })
-    const msg = mail.sent[0]
+    const msg = mail.sent[0]!
     expect(msg.cc).toBe('cc@example.com')
     expect(msg.bcc).toBe('bcc@example.com')
     expect(msg.replyTo).toBe('reply@example.com')
@@ -102,7 +102,7 @@ describe('createConsoleDriver', () => {
     const driver = createConsoleDriver({ silent: true })
     await driver.send({ to: 'test@example.com', subject: 'Test', text: 'Hi' })
     expect(driver.sent).toHaveLength(1)
-    expect(driver.sent[0].subject).toBe('Test')
+    expect(driver.sent[0]!.subject).toBe('Test')
   })
 
   it('accumulates multiple messages', async () => {

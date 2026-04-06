@@ -21,7 +21,7 @@ export async function rollbackMigration(drizzle: AnyDrizzleDb): Promise<void> {
       sql`SELECT id, hash, created_at FROM __drizzle_migrations ORDER BY created_at DESC LIMIT 1`,
     )
     if (rows.length === 0) return
-    const last = rows[0]
+    const last = rows[0]!
     drizzle.run(sql`DELETE FROM __drizzle_migrations WHERE id = ${last.id}`)
   } catch (err) {
     // Table doesn't exist yet — nothing to roll back

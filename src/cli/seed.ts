@@ -1,4 +1,5 @@
 import { createDb } from '../db/index.js'
+import type { DbInstance } from '../db/types.js'
 import { loadConfig } from '../config/index.js'
 import type { DbConfig } from '../config/types.js'
 import { existsSync } from 'node:fs'
@@ -35,7 +36,7 @@ export async function seedRun(file?: string): Promise<void> {
     }
 
     console.log(`Running seed: ${resolvedPath}`)
-    const mod = await import(resolvedPath) as { default?: (db: typeof db) => Promise<void>; seed?: (db: typeof db) => Promise<void> }
+    const mod = await import(resolvedPath) as { default?: (db: DbInstance) => Promise<void>; seed?: (db: DbInstance) => Promise<void> }
     const seedFn = mod.default ?? mod.seed
 
     if (typeof seedFn !== 'function') {

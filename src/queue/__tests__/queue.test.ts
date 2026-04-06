@@ -43,7 +43,7 @@ describe('queue dispatch and process', () => {
     await queue.process()
 
     expect(handler).toHaveBeenCalledOnce()
-    expect(handler.mock.calls[0][0].payload).toEqual({ name: 'Alice' })
+    expect(handler.mock.calls[0]![0].payload).toEqual({ name: 'Alice' })
   })
 
   it('processes multiple jobs in order', async () => {
@@ -115,7 +115,7 @@ describe('job failure and retry', () => {
     expect(failed).toHaveLength(1)
 
     // Retry the failed job
-    await queue.retry(failed[0].id)
+    await queue.retry(failed[0]!.id)
     expect(await queue.size()).toBe(1)
 
     const handler = vi.fn()

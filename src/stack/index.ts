@@ -22,6 +22,7 @@ import type {
   WebhooksConfig,
   RealtimeConfig,
 } from '../config/types.js'
+import type { SearchConfig as SearchModuleConfig } from '../search/types.js'
 import type { SecurityConfig as SecurityModuleConfig } from '../security/types.js'
 import type { NotificationsConfig as NotificationsModuleConfig } from '../notifications/types.js'
 import type { DbInstance } from '../db/index.js'
@@ -144,7 +145,7 @@ export function createStack<C extends FullstackConfig>(
 
   if (config.search !== undefined) {
     const searchCfg = config.search as SearchConfig
-    stack.search = createSearch(searchCfg as SearchConfig)
+    stack.search = createSearch(searchCfg as unknown as SearchModuleConfig)
   }
 
   if (config.webhooks !== undefined) {

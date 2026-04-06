@@ -55,10 +55,13 @@ describe('paginate', () => {
   })
 })
 
+type TestUser = { id: string; name: string; email: string; age: number | null }
+type SqliteRawClient = { prepare(sql: string): { run(): void } }
+
 describe('factory', () => {
   it('makes items without inserting', () => {
     db = createDb({ driver: 'sqlite', url: ':memory:' }, schema)
-    const userFactory = db.factory({
+    const userFactory = db.factory<TestUser>({
       build: (overrides) => ({
         id: crypto.randomUUID(),
         name: 'Alice',
@@ -76,7 +79,7 @@ describe('factory', () => {
   it('creates multiple items with createMany', async () => {
     db = createDb({ driver: 'sqlite', url: ':memory:' }, schema)
     let counter = 0
-    const userFactory = db.factory({
+    const userFactory = db.factory<TestUser>({
       build: (overrides) => ({
         id: crypto.randomUUID(),
         name: `User ${++counter}`,
@@ -88,20 +91,20 @@ describe('factory', () => {
 
     const items = await userFactory.createMany(3)
     expect(items).toHaveLength(3)
-    expect(items[0].name).toBe('User 1')
-    expect(items[1].name).toBe('User 2')
-    expect(items[2].name).toBe('User 3')
+    expect(items[0]!.name).toBe('User 1')
+    expect(items[1]!.name).toBe('User 2')
+    expect(items[2]!.name).toBe('User 3')
   })
 
   it('calls insert function when provided', async () => {
     db = createDb({ driver: 'sqlite', url: ':memory:' }, schema)
     // Create the table first
-    db.drizzle.$client.prepare(
+    ;(db.drizzle as unknown as { $client: SqliteRawClient }).$client.prepare(
       'CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, age INTEGER)',
     ).run()
 
     const insertedIds: string[] = []
-    const userFactory = db.factory({
+    const userFactory = db.factory<TestUser>({
       build: (overrides) => ({
         id: crypto.randomUUID(),
         name: 'Alice',
@@ -125,7 +128,7 @@ describe('factory', () => {
 describe('seed', () => {
   it('runs a seed function', async () => {
     db = createDb({ driver: 'sqlite', url: ':memory:' }, schema)
-    db.drizzle.$client.prepare(
+    ;(db.drizzle as unknown as { $client: SqliteRawClient }).$client.prepare(
       'CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, age INTEGER)',
     ).run()
 

@@ -30,7 +30,7 @@ describe('generateMigration', () => {
     expect(files).toHaveLength(1)
     expect(files[0]).toMatch(/^\d{14}_create_users_table\.ts$/)
 
-    const content = readFileSync(join(migrationsDir, files[0]), 'utf-8')
+    const content = readFileSync(join(migrationsDir, files[0]!), 'utf-8')
     expect(content).toContain('export async function up')
     expect(content).toContain('export async function down')
   })
