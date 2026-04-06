@@ -356,10 +356,10 @@ Implementation tasks in dependency order. Each task is self-contained and result
 
 ### Task 9.1: Documentation
 
-- [ ] Comprehensive README.md with quick start
-- [ ] Per-module documentation in docs/ directory
-- [ ] API reference (generated from TSDoc comments)
-- [ ] Example project: SvelteKit blog with fullstack
+- [x] Comprehensive README.md with quick start
+- [x] Per-module documentation in docs/ directory
+- [x] API reference (generated from TSDoc comments)
+- [x] Example project: SvelteKit blog with fullstack
 
 ### Task 9.2: CI/CD
 
@@ -369,7 +369,7 @@ Implementation tasks in dependency order. Each task is self-contained and result
 
 ### Task 9.3: Performance & Bundle Size
 
-- [ ] Audit bundle size per subpath export
-- [ ] Ensure tree-shaking works correctly
-- [ ] Benchmark critical paths (validation, auth session check)
-- [ ] Optimize hot paths if needed
+- [x] Audit bundle size per subpath export
+- [x] Ensure tree-shaking works correctly
+- [x] Benchmark critical paths (validation, auth session check)
+- [x] Optimize hot paths if needed

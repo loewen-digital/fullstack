@@ -120,6 +120,7 @@
   "bin": {
     "fullstack": "./dist/cli/index.js"
   },
+  "sideEffects": false,
   "files": [
     "dist"
   ],
@@ -128,6 +129,8 @@
     "dev": "vite build --watch",
     "test": "vitest run",
     "test:watch": "vitest",
+    "bench": "vitest bench",
+    "size": "node scripts/bundle-size.mjs",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "docs:api": "typedoc"

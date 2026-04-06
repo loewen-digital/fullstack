@@ -9,17 +9,31 @@ export interface ParsedRule {
   param?: string
 }
 
+// Cache parsed rule strings — rule strings are almost always static literals, so
+// memoizing eliminates repeated string splitting on every validate() call.
+const ruleStringCache = new Map<string, ParsedRule[]>()
+
 /**
  * Parse a pipe-delimited rule string into individual rule objects.
  * e.g. 'required|string|max:255' → [{name:'required'},{name:'string'},{name:'max',param:'255'}]
+ *
+ * Results are memoized — rule strings used as static literals pay the parse cost once.
  */
 export function parseRuleString(rule: string): ParsedRule[] {
-  return rule.split('|').map((segment) => {
+  const cached = ruleStringCache.get(rule)
+  if (cached) return cached
+
+  const parsed = rule.split('|').map((segment) => {
     const colonIdx = segment.indexOf(':')
     if (colonIdx === -1) return { name: segment.trim() }
     return { name: segment.slice(0, colonIdx).trim(), param: segment.slice(colonIdx + 1).trim() }
   })
+  ruleStringCache.set(rule, parsed)
+  return parsed
 }
+
+// Cache compiled RegExp instances — avoids re-compiling the same pattern on every call.
+const regexCache = new Map<string, RegExp>()
 
 export type RuleValidator = (
   value: unknown,
@@ -173,7 +187,11 @@ export const BUILT_IN_RULES: Record<string, RuleValidator> = {
 
   regex(value, param, field) {
     if (value !== null && value !== undefined && param) {
-      const re = new RegExp(param)
+      let re = regexCache.get(param)
+      if (!re) {
+        re = new RegExp(param)
+        regexCache.set(param, re)
+      }
       if (!re.test(String(value))) {
         return `The ${field} field format is invalid.`
       }
