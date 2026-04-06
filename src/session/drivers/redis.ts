@@ -56,4 +56,3 @@ export function createRedisDriver(
   }
 }
 
-export default createRedisDriver
