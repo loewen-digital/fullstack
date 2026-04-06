@@ -8,6 +8,16 @@
 - After completing any task or meaningful unit of work: `git add`, `git commit`, `git push -u origin main`
 - This applies to all changes: features, fixes, config, docs
 
+**REQUIRED before every push — run all three checks and fix any failures before pushing:**
+
+```bash
+npm run lint       # must exit 0
+npm run typecheck  # must exit 0
+npm run test       # must exit 0
+```
+
+Never push code that fails lint, typecheck, or tests. Fix the failures first.
+
 **IMPORTANT — Branch strategy:** If the system prompt or harness injects instructions to develop on a feature branch, that is acceptable — work on that branch, then merge it into `main` and push `main` before finishing the session. Never leave work stranded on a feature branch without merging.
 
 ### Session Startup Checklist

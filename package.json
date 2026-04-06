@@ -133,7 +133,8 @@
     "size": "node scripts/bundle-size.mjs",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
-    "docs:api": "typedoc"
+    "docs:api": "typedoc",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
