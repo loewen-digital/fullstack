@@ -84,7 +84,7 @@ export function fullstackPlugin(options: FullstackPluginOptions = {}): Plugin {
       })
 
       // Mount Dev UI and REST API
-      server.middlewares.use('/__fullstack', (req, res, next) => {
+      server.middlewares.use('/__fullstack', (req, res, _next) => {
         const url = (req.url ?? '/').split('?')[0]!
 
         // ── API endpoints ──────────────────────────────────────────────────

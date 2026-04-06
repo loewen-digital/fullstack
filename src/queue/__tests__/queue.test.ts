@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createQueue, createQueueInstance, createMemoryDriver } from '../index.js'
-import type { JobHandler } from '../types.js'
 
 describe('createQueue', () => {
   it('creates instance with memory driver', () => {

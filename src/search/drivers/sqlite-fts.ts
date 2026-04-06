@@ -1,4 +1,5 @@
 import type { SearchDocument, SearchDriver, SearchOptions, SearchResult } from '../types.js'
+import type { default as BetterSqlite3Ctor } from 'better-sqlite3'
 
 /**
  * SQLite FTS5 search driver using better-sqlite3.
@@ -11,7 +12,7 @@ export function createSqliteFtsDriver(urlOrDb?: string): SearchDriver {
   // Lazy-load better-sqlite3 so that it remains an optional peer dependency
   // during tests that don't use this driver.
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const Database = require('better-sqlite3') as typeof import('better-sqlite3')
+  const Database = require('better-sqlite3') as typeof BetterSqlite3Ctor
   const db = new Database(urlOrDb ?? ':memory:')
   db.pragma('journal_mode = WAL')
 

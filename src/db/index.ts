@@ -1,4 +1,6 @@
 import type { DbConfig } from '../config/types.js'
+import type { default as BetterSqlite3Ctor } from 'better-sqlite3'
+import type * as DrizzleBetterSqlite3 from 'drizzle-orm/better-sqlite3'
 import type {
   DbInstance,
   PaginationOptions,
@@ -40,9 +42,9 @@ export function createDb<TSchema extends Record<string, unknown> = Record<string
 
   // Lazy-require so consumers who don't use sqlite don't pay the cost.
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const Database = require('better-sqlite3') as typeof import('better-sqlite3').default
+  const Database = require('better-sqlite3') as typeof BetterSqlite3Ctor
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { drizzle } = require('drizzle-orm/better-sqlite3') as typeof import('drizzle-orm/better-sqlite3')
+  const { drizzle } = require('drizzle-orm/better-sqlite3') as typeof DrizzleBetterSqlite3
 
   const sqlite = new Database(config.url)
   // Enable WAL mode for better concurrent read performance
@@ -50,14 +52,12 @@ export function createDb<TSchema extends Record<string, unknown> = Record<string
     sqlite.pragma('journal_mode = WAL')
   }
 
-  const drizzleDb = drizzle(sqlite, schema ? { schema } : {}) as import('drizzle-orm/better-sqlite3').BetterSQLite3Database<TSchema>
+  const drizzleDb = drizzle(sqlite, schema ? { schema } : {}) as DrizzleBetterSqlite3.BetterSQLite3Database<TSchema>
 
   const migrationsFolder = config.migrations ?? './drizzle'
 
   // Self-reference needed for factory/seed bindings
-  let instance: DbInstance<TSchema>
-
-  instance = {
+  const instance: DbInstance<TSchema> = {
     drizzle: drizzleDb,
 
     async migrate(folder?: string): Promise<void> {

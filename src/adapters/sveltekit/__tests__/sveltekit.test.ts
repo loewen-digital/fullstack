@@ -55,7 +55,6 @@ describe('createHandle (SvelteKit adapter)', () => {
       await handle({
         event: event1,
         resolve: async (e) => {
-          (e.locals.session as ReturnType<typeof session.load> extends Promise<infer T> ? T : never)
           const s = e.locals.session as Awaited<ReturnType<typeof session.load>>
           s.set('userId', 42)
           return new Response('ok')

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { createPermissions } from '../index.js'
 import { ForbiddenError } from '../../errors/http-errors.js'
 

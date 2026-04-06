@@ -23,7 +23,6 @@ export function createSmtpDriver(options: SmtpDriverOptions): MailDriver {
   async function getTransporter(): Promise<{ sendMail(opts: unknown): Promise<unknown> }> {
     if (!transporter) {
       try {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const nodemailer = await (import('nodemailer' as string) as Promise<{ createTransport(opts: unknown): { sendMail(opts: unknown): Promise<unknown> } }>)
         transporter = nodemailer.createTransport({
           host: options.host,

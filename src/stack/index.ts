@@ -144,7 +144,7 @@ export function createStack<C extends FullstackConfig>(
 
   if (config.search !== undefined) {
     const searchCfg = config.search as SearchConfig
-    stack.search = createSearch(searchCfg as import('../search/types.js').SearchConfig)
+    stack.search = createSearch(searchCfg as SearchConfig)
   }
 
   if (config.webhooks !== undefined) {

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { createRealtime, createChannel, createSseConnection } from '../index.js'
 import type { ChannelSubscriber, RealtimeEvent } from '../types.js'
 

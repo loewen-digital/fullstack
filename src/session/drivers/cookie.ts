@@ -46,7 +46,7 @@ async function verify(payload: string, signature: string, secret: string): Promi
   return diff === 0
 }
 
-export function createCookieDriver(secret: string, defaultTtl = 7200): SessionDriver & {
+export function createCookieDriver(secret: string, _defaultTtl = 7200): SessionDriver & {
   /** Serialize the data object into a signed cookie value */
   serialize(data: SessionData): Promise<string>
   /** Parse and verify a cookie value, returning the data or {} on failure */
