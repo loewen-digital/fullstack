@@ -98,4 +98,3 @@ export function createCookieDriver(secret: string, _defaultTtl = 7200): SessionD
   return driver
 }
 
-export default createCookieDriver

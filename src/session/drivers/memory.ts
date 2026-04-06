@@ -43,4 +43,3 @@ export function createMemoryDriver(defaultTtl = 7200): SessionDriver {
   }
 }
 
-export default createMemoryDriver
