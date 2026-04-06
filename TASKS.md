@@ -363,9 +363,9 @@ Implementation tasks in dependency order. Each task is self-contained and result
 
 ### Task 9.2: CI/CD
 
-- [ ] GitHub Actions: test, lint, typecheck on PR
-- [ ] Automated npm publish on release tag
-- [ ] Changelog generation
+- [x] GitHub Actions: test, lint, typecheck on PR
+- [x] Automated npm publish on release tag
+- [x] Changelog generation
 
 ### Task 9.3: Performance & Bundle Size
 
