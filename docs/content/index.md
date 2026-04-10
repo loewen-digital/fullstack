@@ -1,77 +1,53 @@
 ---
-title: '@loewen-digital/fullstack'
-description: Laravel for JS — backend primitives for any meta-framework
+layout: home
+
+hero:
+  name: fullstack
+  text: Backend primitives for JS
+  tagline: "Auth, database, mail, storage, queues, and more \u2014 one package, any meta-framework."
+  actions:
+    - theme: brand
+      text: Get Started
+      link: /getting-started/installation
+    - theme: alt
+      text: View on GitHub
+      link: https://github.com/loewen-digital/fullstack
+
+features:
+  - icon: "\U0001F511"
+    title: Auth
+    details: Sessions, passwords, tokens, OAuth, email verification, and password resets out of the box.
+  - icon: "\U0001F5C4\uFE0F"
+    title: Database
+    details: Drizzle ORM wrapper with migrations, seeds, factories, and cursor/offset pagination.
+  - icon: "\u2705"
+    title: Validation
+    details: Stateless, schema-driven input validation with string or object rules and full type inference.
+  - icon: "\U0001F4E7"
+    title: Mail
+    details: Pluggable drivers for SMTP, Resend, Postmark, and console. HTML templates built in.
+  - icon: "\U0001F4C1"
+    title: Storage
+    details: Unified file storage API with local, S3, Cloudflare R2, and memory drivers.
+  - icon: "\u26A1"
+    title: Cache
+    details: Key-value caching with memory, Redis, and Cloudflare KV drivers. TTL and remember() helper.
+  - icon: "\U0001F6E1\uFE0F"
+    title: Security
+    details: CSRF protection, CORS, rate limiting, and HTML sanitization middleware.
+  - icon: "\U0001F4E6"
+    title: Queue
+    details: Background job processing with sync, memory, and Redis drivers. Retries and error handling.
+  - icon: "\U0001F50D"
+    title: Search
+    details: Full-text search with SQLite FTS, Meilisearch, and Typesense drivers.
+  - icon: "\U0001F310"
+    title: i18n
+    details: Internationalization with message lookup, pluralization, and number/date formatting.
+  - icon: "\U0001F514"
+    title: Notifications
+    details: Multi-channel notifications via mail, in-app, SMS, and push.
+  - icon: "\U0001F512"
+    title: Permissions
+    details: Role-based access control with policies, wildcards, and role inheritance.
 ---
-
-# @loewen-digital/fullstack
-
-A single npm package providing backend primitives for any JavaScript meta-framework. Think "Laravel for the JS ecosystem" — but as a composable library, not a framework.
-
-**One package. Direct imports. Driver pattern. Framework-agnostic core.**
-
-## What is it?
-
-`@loewen-digital/fullstack` gives you everything you need to build production-quality backend logic in your JS meta-framework of choice:
-
-- **Authentication** — sessions, passwords, tokens, OAuth
-- **Database** — Drizzle ORM wrapper with migrations, seeds, pagination, and factories
-- **Validation** — stateless, schema-driven input validation
-- **Mail** — pluggable drivers (SMTP, Resend, Postmark, console)
-- **Storage** — file storage with local, S3, R2, and memory drivers
-- **Cache** — key-value caching with memory, Redis, and KV drivers
-- **Sessions** — cookie, memory, and Redis session drivers
-- **Security** — CSRF protection, CORS, rate limiting, input sanitization
-- **Queue** — background jobs with pluggable drivers
-- **Events** — lightweight in-process event bus
-- **Logging** — structured logging with pluggable transports
-- **i18n** — internationalization with pluralization and number/date formatting
-- **Permissions** — roles, policies, and authorization helpers
-- **Notifications** — multi-channel notifications (mail, SMS, push)
-- **Search** — full-text search with SQLite FTS, Meilisearch, and Typesense drivers
-- **Realtime** — WebSocket and SSE helpers
-- **Webhooks** — incoming and outgoing webhook handling
-- **Testing** — fakes, factories, and a `createTestStack()` helper
-
-## Philosophy
-
-Every module follows these principles:
-
-- **Factory functions** — `createAuth(config)`, not `new Auth()` or service providers
-- **Driver pattern** — swap backends without changing application code
-- **Web Standards first** — `Request`, `Response`, `Headers`, `URL`, `FormData` — no custom abstractions
-- **TypeScript-first** — everything is fully typed with inferred return types
-- **Tree-shakeable** — import only what you use
-
-## Quick example
-
-```ts
-import { createAuth } from '@loewen-digital/fullstack/auth'
-import { createDb } from '@loewen-digital/fullstack/db'
-import { validate } from '@loewen-digital/fullstack/validation'
-
-const db = createDb({ driver: 'sqlite', url: './app.db' })
-const auth = createAuth({ db, session: { driver: 'cookie' } })
-
-// Validate incoming data
-const result = validate(formData, {
-  email: ['required', 'email'],
-  password: ['required', 'min:8'],
-})
-
-// Authenticate a user
-const user = await auth.attempt({ email, password })
-```
-
-## Framework adapters
-
-The core is completely framework-agnostic. Thin adapters wire it into your meta-framework of choice:
-
-- **SvelteKit** — `createHandle()` for `hooks.server.ts`
-- **Nuxt** — server middleware integration
-- **Remix** — loader/action helpers
-- **Astro** — middleware integration
-
-## Get started
-
-Head to the [Installation guide](/getting-started/installation) to add `@loewen-digital/fullstack` to your project.
-

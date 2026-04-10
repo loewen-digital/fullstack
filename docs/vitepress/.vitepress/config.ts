@@ -23,6 +23,10 @@ export default defineConfig({
     plugins: [resolveFromHere],
   },
   themeConfig: {
+    search: {
+      provider: 'local',
+    },
+
     nav: [
       { text: 'Guide', link: '/getting-started/' },
       { text: 'Modules', link: '/modules/validation' },
@@ -36,7 +40,6 @@ export default defineConfig({
         {
           text: 'Getting Started',
           items: [
-            { text: 'Introduction', link: '/' },
             { text: 'Overview', link: '/getting-started/' },
             { text: 'Installation', link: '/getting-started/installation' },
             { text: 'Quick Start', link: '/getting-started/quick-start' },
