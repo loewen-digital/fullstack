@@ -36,7 +36,7 @@ git merge <feature-branch> --no-ff -m "merge: <feature-branch> into main"
 git push -u origin main
 ```
 
------
+---
 
 ## Project Overview
 
@@ -44,7 +44,7 @@ This is `@loewen-digital/fullstack` — a single npm package providing backend p
 
 **Read SPEC.md for the complete design specification before making any architectural decisions.**
 
------
+---
 
 ## Core Principles
 
@@ -57,7 +57,7 @@ This is `@loewen-digital/fullstack` — a single npm package providing backend p
 1. **TypeScript-first** — everything is fully typed. `createStack` return type is inferred from config.
 1. **Tree-shakeable** — unused modules don't end up in the bundle
 
------
+---
 
 ## Tech Stack
 
@@ -68,7 +68,7 @@ This is `@loewen-digital/fullstack` — a single npm package providing backend p
 - **Package manager:** npm (never yarn or pnpm)
 - **Node target:** Node 20+
 
------
+---
 
 ## Project Structure
 
@@ -104,7 +104,7 @@ src/
 └── cli/                  → CLI commands (migrate, seed, generate)
 ```
 
------
+---
 
 ## Development Commands
 
@@ -118,7 +118,7 @@ npm run lint              # Lint with ESLint
 npm run typecheck         # TypeScript type checking
 ```
 
------
+---
 
 ## Coding Conventions
 
@@ -128,23 +128,23 @@ Every module with I/O follows this pattern:
 
 ```ts
 // src/mail/index.ts
-import type { MailConfig, MailInstance, MailMessage } from './types.js'
-import { resolveDriver } from '../config/drivers.js'
+import type { MailConfig, MailInstance, MailMessage } from "./types.js";
+import { resolveDriver } from "../config/drivers.js";
 
 export function createMail(config: MailConfig): MailInstance {
   const driver = resolveDriver(config.driver, {
-    console: () => import('./drivers/console.js'),
-    smtp: () => import('./drivers/smtp.js'),
-    resend: () => import('./drivers/resend.js'),
-    postmark: () => import('./drivers/postmark.js'),
-  })
+    console: () => import("./drivers/console.js"),
+    smtp: () => import("./drivers/smtp.js"),
+    resend: () => import("./drivers/resend.js"),
+    postmark: () => import("./drivers/postmark.js"),
+  });
 
   return {
     async send(message: MailMessage): Promise<void> {
-      await driver.send(message)
+      await driver.send(message);
     },
     // ...
-  }
+  };
 }
 ```
 
@@ -153,12 +153,16 @@ export function createMail(config: MailConfig): MailInstance {
 ```ts
 // src/storage/types.ts
 export interface StorageDriver {
-  get(key: string): Promise<ReadableStream | null>
-  put(key: string, data: ReadableStream | Uint8Array | string, meta?: FileMeta): Promise<void>
-  delete(key: string): Promise<void>
-  exists(key: string): Promise<boolean>
-  list(prefix?: string): Promise<string[]>
-  getUrl(key: string): Promise<string>
+  get(key: string): Promise<ReadableStream | null>;
+  put(
+    key: string,
+    data: ReadableStream | Uint8Array | string,
+    meta?: FileMeta,
+  ): Promise<void>;
+  delete(key: string): Promise<void>;
+  exists(key: string): Promise<boolean>;
+  list(prefix?: string): Promise<string[]>;
+  getUrl(key: string): Promise<string>;
 }
 ```
 
@@ -189,7 +193,7 @@ export interface StorageDriver {
 - Each test should be independent (no shared state)
 - Use the `createTestStack()` helper for integration tests
 
------
+---
 
 ## Dependency Rules
 
@@ -222,7 +226,7 @@ Minimize external dependencies. Prefer:
 - Single-purpose packages over large utility libraries
 - Optional peer dependencies for heavy drivers (e.g., `redis`, AWS SDK)
 
------
+---
 
 ## Subpath Exports
 
@@ -236,7 +240,7 @@ When adding a new module:
 1. Add to `src/index.ts` convenience re-exports if appropriate
 1. Update SPEC.md
 
------
+---
 
 ## Implementation Priority
 
@@ -250,7 +254,7 @@ Follow TASKS.md for the implementation order. The general principle:
 1. Adapters (SvelteKit first)
 1. Tooling (Vite plugin, CLI, Dev UI)
 
------
+---
 
 ## Important Notes
 
@@ -271,10 +275,10 @@ Claude runs unattended via `.github/workflows/agent.yml`. Nobody answers questio
 
 1. Read the issue: `gh issue view <n> --json title,body,labels,comments`. If acceptance criteria are missing: comment the concrete question, add label `needs-human`, remove `ready`, stop.
 2. Branch `claude/issue-<n>-<slug>` from the default branch.
-3. Implement following the rules above. If something is missing in one of our own libraries (fullstack, flatdb, sveltekit-ai-orchestrator, element-js, element-js-ssr-renderer, element-library): open an issue there (`gh issue create --repo <owner/lib>`), add the smallest workaround marked `// UPSTREAM: <issue-url>`, keep going. Never wait for upstream.
+3. Implement following the rules above. Acceptance criteria are binding; a solution proposed in the issue is not. Build what fits this project and its conventions, even where that differs from the proposal, and explain every difference in the PR under "Deviations from the issue". If the need does not belong in this project: comment why, label `needs-human`, remove `ready`, stop. If something is missing in one of our own libraries (fullstack, flatdb, sveltekit-ai-orchestrator, element-js, element-js-ssr-renderer, element-library): open an issue there (`gh issue create --repo <owner/lib>`) that states the need and the context here, with at most a non-binding proposal; add the smallest workaround marked `// UPSTREAM: <issue-url>`, keep going. Never wait for upstream.
 4. `npm run lint && npm run typecheck && npm test && npm run build` must pass. After three failed attempts: open a draft PR, label `needs-human`, stop.
 5. Review your own diff: security, dead code, error handling, accessibility.
-6. Open the PR (`gh pr create`): summary, `Closes #<n>`, test plan, and say explicitly whether auth, payments, schema, or secrets are touched. Do not post `@codex review`: Codex ignores comments from bots. Eddy requests the review.
+6. Open the PR (`gh pr create`): summary, `Closes #<n>`, test plan, a "Deviations from the issue" section (or "none"), and say explicitly whether auth, payments, schema, or secrets are touched. Do not post `@codex review`: Codex ignores comments from bots. Eddy requests the review.
 
 **Review** (a review on a `claude/*` PR):
 
