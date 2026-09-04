@@ -68,6 +68,20 @@ call, so it cannot implement `write(sessionId, ...)` faithfully. Path mode's `in
 `get(path)` / `update(path, changes)` / `delete(path)` map onto `write` / `read` / `destroy`
 one-to-one, with `sessionId` as the path.
 
+**`sessionId` must be validated before it is used as a path.** `SessionManager.load(sessionId)`
+(`src/session/index.ts`) accepts whatever the caller passes in, and every framework adapter reads
+that value straight from the client's session cookie (`src/adapters/nuxt/index.ts`,
+`src/adapters/remix/index.ts`, `src/adapters/sveltekit/index.ts` all do
+`driver.read/write(getRequestCookie(...))` with no parsing in between). Handing that
+client-controlled string to a filesystem-style `path` collection as-is would let a crafted cookie
+value (separators, `..`, or a name matching `_index.json`) address documents outside the session
+namespace or the collection's index file, depending on what the underlying `StorageAdapter` does
+with it. Since `generateId()` only ever hands out `crypto.randomUUID()` values, `createFlatdbDriver`
+must reject anything that doesn't match the UUID shape before calling `get`/`update`/`delete` —
+treating a malformed id the same as a missing session (`read` returns `{}`, `destroy` is a no-op)
+rather than passing it through to the adapter. This validation is the driver's responsibility, not
+something callers or other drivers need to duplicate.
+
 **Document shape:**
 
 ```ts
