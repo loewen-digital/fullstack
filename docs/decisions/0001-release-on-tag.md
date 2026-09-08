@@ -4,8 +4,7 @@
 
 `publish.yml` published on tags with an `NPM_TOKEN` secret; `changelog.yml` let git-cliff generate release
 notes from commit messages (`cliff.toml`). npm has revoked classic tokens and expires granular ones, and the
-loop curates `CHANGELOG.md` by hand, so generated notes duplicated it. flatdb settled the same question in
-its decision 0010; every loewen-digital library releases the same way.
+loop curates `CHANGELOG.md` by hand. flatdb settled this in its decision 0010; every library releases alike.
 
 ## Decision
 
