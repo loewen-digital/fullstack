@@ -1,7 +1,9 @@
 {
   "name": "@loewen-digital/fullstack",
   "version": "0.1.0",
-  "engines": { "node": "24" },
+  "engines": {
+    "node": "24"
+  },
   "type": "module",
   "description": "Backend primitives for any JavaScript meta-framework",
   "license": "MIT",
