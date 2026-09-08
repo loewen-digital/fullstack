@@ -7,6 +7,8 @@ is the topmost released one here.
 
 ## Unreleased
 
+- Releases run from tags: pushing `v<version>` runs lint, typecheck, tests and build, publishes to npm through trusted publishing (no token, provenance included) and creates the GitHub Release with this file's matching section as notes. The tag must equal the version in `package.json`. Replaces `publish.yml` (token-based) and `changelog.yml` with `cliff.toml` (notes generated from commit messages). Decision: [0001](docs/decisions/0001-release-on-tag.md).
+- `repository`, `bugs`, `homepage` in `package.json`, so npm shows the source and can attest provenance.
 - Node 24 is the required version (`engines.node` in `package.json`); CI, deploy and the agent workflow read it from there.
 - Design for running `session` and `auth` on `@loewen-digital/flatdb` (Cloudflare R2 in production) is decided: the session driver writes one object per session through flatdb's `StorageAdapter`, the auth adapter is a reference `AuthDbAdapter` on the app's own collections, both ship as their own subpaths without importing flatdb. Decision: [ADR 0001](docs/adr/0001-flatdb-driver.md). (#1)
 - Agent rules live in `AGENTS.md`; `CLAUDE.md` only imports it. The Codex review rules are a section of the same file.
