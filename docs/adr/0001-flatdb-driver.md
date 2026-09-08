@@ -8,7 +8,7 @@
 
 Apps built from `sveltekit-ai-starter-template` will keep their data in `@loewen-digital/flatdb` (JSON documents; `FsAdapter` locally, `R2Adapter` on Cloudflare Workers) instead of Drizzle/D1. They still want fullstack's `session` module (flash, old input) and `auth` module (passwords, sessions, one-time tokens), so both need a first-class flatdb backend.
 
-What flatdb offers (main, unreleased 0.1.0):
+What flatdb offers (0.1.0, npm release in progress):
 
 - `StorageAdapter`: `read`, `write`, `delete`, `exists`, `list`, `mkdir`, `move` on string paths, plus optional `readVersioned`/`writeIf` for compare-and-swap. Implemented by `FsAdapter`, `MemoryAdapter`, `IndexedDBAdapter` and `R2Adapter` (loewen-digital/flatdb#1, done).
 - `Collection` (auto ids) and `PathCollection` (path ids) on top of an adapter. Every collection keeps `<name>/_index.json` holding **all documents of the collection**. Reads (`findById`, `get`, `find`) are served from that index; every write rewrites the whole index, on R2 with a compare-and-swap on the etag, five retries, then it throws (loewen-digital/flatdb#3).
@@ -57,7 +57,7 @@ No new `store` or `document` module: flatdb is the document store. A fullstack w
 - Neither file imports `@loewen-digital/flatdb`. Like `createRedisDriver` with its `RedisClient`, each declares the slice it needs as a local interface: `FlatdbStorage` (`read`, `write`, `delete`, `list`) and `FlatdbCollection<T>` (`findById`, `findOne`, `find`, `insert`, `update`, `delete`). Any flatdb adapter or collection satisfies them structurally, and the emitted `.d.ts` files stand on their own.
 - `@loewen-digital/flatdb` is declared as an optional peer dependency (`peerDependencies` plus `peerDependenciesMeta.optional`), so the version contract is visible to consumers without forcing an install.
 - Subpath exports `./session/flatdb` to `dist/session/drivers/flatdb.js` and `./auth/flatdb` to `dist/auth/adapters/flatdb.js`, with matching Vite entries and lines in `SPEC.md`. `src/session/index.ts` and `src/auth/index.ts` never import these files, so `@loewen-digital/fullstack/session` and `/auth` stay flatdb-free and `sideEffects: false` keeps everything else tree-shakeable.
-- Tests run against flatdb's real `MemoryAdapter` and collections: a structural contract is worth testing against the real implementation. flatdb is not on npm yet, so it becomes a devDependency from GitHub; that needs a `prepare` script upstream so a git install builds `dist`. #2 files that issue and adds the dependency.
+- Tests run against flatdb's real `MemoryAdapter` and collections: a structural contract is worth testing against the real implementation. flatdb is being published to npm and becomes a devDependency from there; #2 adds it.
 
 ### 4. Runtime: Workers-safe by construction
 
