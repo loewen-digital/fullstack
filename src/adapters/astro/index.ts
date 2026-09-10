@@ -98,8 +98,7 @@ export function createAstroMiddleware(
     let sessionHandle: SessionHandle | undefined
 
     if (stack.session) {
-      const sessionId = cookies.get(sessionCookie)?.value
-      sessionHandle = await stack.session.load(sessionId)
+      sessionHandle = await stack.session.open(cookies.get(sessionCookie)?.value)
       ;(locals as FullstackAstroLocals).session = sessionHandle
     }
 
@@ -144,12 +143,11 @@ export function createAstroMiddleware(
     const response = await next()
 
     // ── 5. Persist session ─────────────────────────────────────────────────
-    if (sessionHandle) {
-      await sessionHandle.save()
+    if (stack.session && sessionHandle) {
+      const value = await stack.session.commit(sessionHandle)
 
-      const existingId = cookies.get(sessionCookie)?.value
-      if (sessionHandle.id !== existingId) {
-        cookies.set(sessionCookie, sessionHandle.id, {
+      if (value !== cookies.get(sessionCookie)?.value) {
+        cookies.set(sessionCookie, value, {
           path: '/',
           httpOnly: true,
           sameSite: 'lax',

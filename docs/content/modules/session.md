@@ -7,7 +7,7 @@ description: HTTP session management with flash messages, old input, and swappab
 
 The `session` module provides HTTP session management, flash messages, and old input persistence. It is independent of the `auth` module: login state lives in `auth`'s own sessions, this module carries request-to-request state such as flash messages.
 
-Running next to `auth` on `@loewen-digital/flatdb`, locally and on Cloudflare Workers: see [Auth on flatdb](/guides/auth-on-flatdb). That guide also shows how to carry the cookie driver's payload in the cookie, which `createHandle` does not do yet ([#6](https://github.com/loewen-digital/fullstack/issues/6)).
+Running next to `auth` on `@loewen-digital/flatdb`, locally and on Cloudflare Workers: see [Auth on flatdb](/guides/auth-on-flatdb). On the cookie driver the whole session travels in the signed cookie; the SvelteKit adapter's `createHandle` reads and writes it.
 
 ## Import
 

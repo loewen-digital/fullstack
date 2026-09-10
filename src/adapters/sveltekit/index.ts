@@ -40,7 +40,8 @@ export interface AdapterStack {
 
 export interface HandleOptions {
   /**
-   * Cookie name used to store the session ID (for memory/redis drivers).
+   * Name of the session cookie. It carries the session id with the memory and redis
+   * drivers and the signed session payload with the cookie driver.
    * Default: 'fsid'
    */
   sessionCookie?: string
@@ -64,10 +65,10 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
  * Create a SvelteKit Handle function from a fullstack stack.
  *
  * What it does per request:
- *  1. Loads the session (if session module configured) → event.locals.session
+ *  1. Opens the session from its cookie (if session module configured) → event.locals.session
  *  2. Reads auth token from cookie → validates session → event.locals.authSession, event.locals.user
  *  3. Enforces CSRF for non-GET mutations (if security module configured)
- *  4. Saves the session after the route resolves
+ *  4. Commits the session after the route resolves and writes the cookie when its value changed
  */
 export function createHandle(stack: AdapterStack, options: HandleOptions = {}): SvelteKitHandle {
   const sessionCookie = options.sessionCookie ?? 'fsid'
@@ -81,8 +82,7 @@ export function createHandle(stack: AdapterStack, options: HandleOptions = {}): 
     let sessionHandle: SessionHandle | undefined
 
     if (stack.session) {
-      const sessionId = event.cookies.get(sessionCookie)
-      sessionHandle = await stack.session.load(sessionId)
+      sessionHandle = await stack.session.open(event.cookies.get(sessionCookie))
       locals.session = sessionHandle
     }
 
@@ -135,16 +135,12 @@ export function createHandle(stack: AdapterStack, options: HandleOptions = {}): 
     // ── 4. Resolve the request ─────────────────────────────────────────────
     const response = await resolve(event)
 
-    // ── 5. Persist the session (save any changes made during the request) ──
-    if (sessionHandle) {
-      await sessionHandle.save()
+    // ── 5. Commit the session; the cookie changes with a new id or, on the cookie driver, new data
+    if (stack.session && sessionHandle) {
+      const value = await stack.session.commit(sessionHandle)
 
-      // Set the session cookie if it's a new session or was regenerated
-      const currentId = sessionHandle.id
-      const existingId = event.cookies.get(sessionCookie)
-
-      if (currentId !== existingId) {
-        event.cookies.set(sessionCookie, currentId, {
+      if (value !== event.cookies.get(sessionCookie)) {
+        event.cookies.set(sessionCookie, value, {
           path: '/',
           httpOnly: true,
           sameSite: 'lax',

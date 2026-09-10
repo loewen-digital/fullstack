@@ -129,8 +129,7 @@ async function buildFullstackArgs(
   // 1. Load session
   let sessionHandle: SessionHandle | undefined
   if (stack.session) {
-    const sessionId = getRequestCookie(request, sessionCookie)
-    sessionHandle = await stack.session.load(sessionId)
+    sessionHandle = await stack.session.open(getRequestCookie(request, sessionCookie))
   }
 
   // 2. Auth validation
@@ -169,9 +168,9 @@ async function buildFullstackArgs(
 
   // Build commitSession helper
   async function commitSession(): Promise<string> {
-    if (!sessionHandle) return ''
-    await sessionHandle.save()
-    return serializeCookie(sessionCookie, sessionHandle.id, {
+    if (!stack.session || !sessionHandle) return ''
+    const value = await stack.session.commit(sessionHandle)
+    return serializeCookie(sessionCookie, value, {
       path: '/',
       httpOnly: true,
       sameSite: 'Lax',

@@ -1,21 +1,25 @@
-import type { SessionDriver, SessionData } from '../types.js'
+import type { SessionDriver, SessionData, SessionPayload } from '../types.js'
 
 /**
- * Cookie session driver.
+ * Cookie session driver: stateless, the whole session travels in the cookie.
  *
- * Stores the entire session payload as a signed JSON cookie.
- * The signature prevents tampering but does NOT encrypt the data —
- * do not store sensitive values (passwords, tokens) in the session.
+ * `serialize(id, data)` encodes `{ id, data, exp }` as base64url JSON and appends an
+ * HMAC-SHA256 signature over it: `<payload>.<signature>`. `parse(value)` checks the
+ * signature and the expiry and returns the payload, or `null`.
  *
- * This driver is stateless (no server-side storage). It works by:
- *  1. Encoding the session data as JSON → base64url
- *  2. Computing HMAC-SHA256 over the payload with the secret
- *  3. Joining them as: <payload>.<signature>
+ * The signature prevents tampering but does NOT encrypt: anyone holding the cookie can
+ * read its JSON. Keep secrets (tokens, password hashes) out of the session.
  *
- * The `read()` and `write()` methods operate on the in-memory data object.
- * The calling code is responsible for serializing/deserializing the cookie
- * header (e.g. via the framework adapter).
+ * There is no store, so `read`, `write` and `destroy` do nothing. Go through
+ * `SessionManager.open(cookie)` and `commit(handle)`, as the framework adapters do.
  */
+
+export type CookieSessionDriver = SessionDriver & Required<Pick<SessionDriver, 'serialize' | 'parse'>>
+
+interface Envelope extends SessionPayload {
+  /** Expiry as unix seconds */
+  exp: number
+}
 
 function encodeBase64Url(bytes: Uint8Array): string {
   return btoa(String.fromCharCode(...bytes))
@@ -26,7 +30,8 @@ function encodeBase64Url(bytes: Uint8Array): string {
 
 function decodeBase64Url(str: string): string {
   const padded = str.replace(/-/g, '+').replace(/_/g, '/').padEnd(str.length + ((4 - (str.length % 4)) % 4), '=')
-  return atob(padded)
+  const bytes = Uint8Array.from(atob(padded), (c) => c.charCodeAt(0))
+  return new TextDecoder().decode(bytes)
 }
 
 async function sign(payload: string, secret: string): Promise<string> {
@@ -46,55 +51,59 @@ async function verify(payload: string, signature: string, secret: string): Promi
   return diff === 0
 }
 
-export function createCookieDriver(secret: string, _defaultTtl = 7200): SessionDriver & {
-  /** Serialize the data object into a signed cookie value */
-  serialize(data: SessionData): Promise<string>
-  /** Parse and verify a cookie value, returning the data or {} on failure */
-  parse(cookieValue: string): Promise<SessionData>
-} {
-  // In-memory store maps session ids to data (the "session" is just the id = cookie value)
-  const sessions = new Map<string, SessionData>()
+function isEnvelope(value: unknown): value is Envelope {
+  if (typeof value !== 'object' || value === null) return false
+  const v = value as Record<string, unknown>
+  return (
+    typeof v.id === 'string' &&
+    typeof v.exp === 'number' &&
+    typeof v.data === 'object' &&
+    v.data !== null &&
+    !Array.isArray(v.data)
+  )
+}
 
-  async function serialize(data: SessionData): Promise<string> {
-    const payload = encodeBase64Url(new TextEncoder().encode(JSON.stringify(data)))
-    const sig = await sign(payload, secret)
-    return `${payload}.${sig}`
-  }
+function nowSeconds(): number {
+  return Math.floor(Date.now() / 1000)
+}
 
-  async function parse(cookieValue: string): Promise<SessionData> {
-    try {
-      const dot = cookieValue.lastIndexOf('.')
-      if (dot === -1) return {}
-      const payload = cookieValue.slice(0, dot)
-      const sig = cookieValue.slice(dot + 1)
-      if (!(await verify(payload, sig, secret))) return {}
-      return JSON.parse(decodeBase64Url(payload)) as SessionData
-    } catch {
-      return {}
-    }
-  }
-
-  const driver: SessionDriver & { serialize: typeof serialize; parse: typeof parse } = {
+/**
+ * @param secret  signs the cookie; keep it out of the repository
+ * @param ttlSeconds  a payload older than this is rejected by `parse` (default 2h)
+ */
+export function createCookieDriver(secret: string, ttlSeconds = 7200): CookieSessionDriver {
+  return {
     generateId(): string {
       return crypto.randomUUID()
     },
 
-    async read(sessionId: string): Promise<SessionData> {
-      return sessions.get(sessionId) ?? {}
+    async read(): Promise<SessionData> {
+      return {}
     },
 
-    async write(sessionId: string, data: SessionData): Promise<void> {
-      sessions.set(sessionId, { ...data })
+    async write(): Promise<void> {},
+
+    async destroy(): Promise<void> {},
+
+    async serialize(sessionId: string, data: SessionData): Promise<string> {
+      const envelope: Envelope = { id: sessionId, data, exp: nowSeconds() + ttlSeconds }
+      const payload = encodeBase64Url(new TextEncoder().encode(JSON.stringify(envelope)))
+      const sig = await sign(payload, secret)
+      return `${payload}.${sig}`
     },
 
-    async destroy(sessionId: string): Promise<void> {
-      sessions.delete(sessionId)
+    async parse(value: string): Promise<SessionPayload | null> {
+      try {
+        const dot = value.lastIndexOf('.')
+        if (dot === -1) return null
+        const payload = value.slice(0, dot)
+        if (!(await verify(payload, value.slice(dot + 1), secret))) return null
+        const parsed: unknown = JSON.parse(decodeBase64Url(payload))
+        if (!isEnvelope(parsed) || parsed.exp <= nowSeconds()) return null
+        return { id: parsed.id, data: parsed.data }
+      } catch {
+        return null
+      }
     },
-
-    serialize,
-    parse,
   }
-
-  return driver
 }
-

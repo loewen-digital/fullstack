@@ -108,40 +108,13 @@ The cookie driver signs the session payload with HMAC-SHA256 and stores it in th
 - **Signed, not encrypted.** Anyone with the cookie can read its JSON. Nothing secret goes in: no tokens, no password hashes, no personal data you would not show the user.
 - **The login state is not in it.** Who is logged in is the `fs_token` cookie plus the session document in `sessions`, validated on every request by the hook below. The flash cookie can be lost or cleared without logging anyone out.
 
-`createHandle` keeps only a session id in its cookie and reads the data from the driver's memory, so through it the cookie driver behaves like the memory driver: per process, per isolate on Workers. Until [#6](https://github.com/loewen-digital/fullstack/issues/6) lands, the app round-trips the payload itself:
-
-```ts
-// src/lib/server/session.ts
-import { createCookieDriver, createSessionManager } from '@loewen-digital/fullstack/session'
-import type { Cookies } from '@sveltejs/kit'
-
-// UPSTREAM: https://github.com/loewen-digital/fullstack/issues/6 — createHandle stores only
-// the session id in its cookie and keeps the cookie driver's data in memory. Until it
-// serializes the payload itself, the app seeds the driver from the cookie and writes it back.
-export async function loadCookieSession(secret: string, cookies: Cookies, name = 'session') {
-  const driver = createCookieDriver(secret)
-  const manager = createSessionManager(driver)
-  const id = driver.generateId()
-  await driver.write(id, await driver.parse(cookies.get(name) ?? ''))
-  const session = await manager.load(id)
-  return {
-    session,
-    async commit(secure: boolean) {
-      await session.save()
-      const value = await driver.serialize(await driver.read(session.id))
-      cookies.set(name, value, { path: '/', httpOnly: true, sameSite: 'lax', secure })
-    },
-  }
-}
-```
-
-A tampered cookie fails the signature check and yields an empty session. The secret comes from `SESSION_SECRET`: a Workers secret in production (`wrangler secret put SESSION_SECRET`), `.env` locally.
+`createSession({ driver: 'cookie', secret })` is the whole setup. `createHandle` opens the session from the `fsid` cookie and writes the signed payload back after the response, whenever it changed. A tampered cookie fails the signature check and yields an empty session; so does one older than `maxAge` (two hours by default). The secret comes from `SESSION_SECRET`: a Workers secret in production (`wrangler secret put SESSION_SECRET`), `.env` locally.
 
 ## Wiring it in SvelteKit
 
-Everything is built inside the request. flatdb caches a collection's index in memory and refreshes it only on its own writes, so a module-level database serves stale reads on Workers as soon as another isolate has written. The auth factories and the cookie session follow the same rule because they are free to build and the session's data comes from the cookie, not from memory.
+Everything is built inside the request. flatdb caches a collection's index in memory and refreshes it only on its own writes, so a module-level database serves stale reads on Workers as soon as another isolate has written. The auth factories and the session manager follow the same rule because they are free to build and the session's data comes from the cookie, not from memory.
 
-The hook builds the stack and hands the request to the adapter's `createHandle`, which validates the auth cookie and sets `locals.authSession`. Building the handle per request costs nothing: it is a closure over the stack.
+The hook builds the stack and hands the request to the adapter's `createHandle`: it opens the flash session from its cookie, validates the auth cookie, sets `locals.session` and `locals.authSession`, and writes the session cookie after the response. Building the handle per request costs nothing: it is a closure over the stack.
 
 ```ts
 // src/hooks.server.ts
@@ -149,9 +122,9 @@ import type { Handle } from '@sveltejs/kit'
 import { env } from '$env/dynamic/private'
 import { FsAdapter, R2Adapter } from '@loewen-digital/flatdb'
 import { createHandle } from '@loewen-digital/fullstack/adapters/sveltekit'
+import { createSession } from '@loewen-digital/fullstack/session'
 import { createDb } from '$lib/server/db'
 import { createAppAuth } from '$lib/server/auth'
-import { loadCookieSession } from '$lib/server/session'
 
 export const handle: Handle = async ({ event, resolve }) => {
   if (!env.SESSION_SECRET) throw new Error('SESSION_SECRET is not set')
@@ -159,16 +132,13 @@ export const handle: Handle = async ({ event, resolve }) => {
   const bucket = event.platform?.env.CONTENT
   const db = createDb(bucket ? new R2Adapter({ bucket, prefix: 'data' }) : new FsAdapter('./data'))
   const { authDb, auth } = createAppAuth(db)
-  const { session, commit } = await loadCookieSession(env.SESSION_SECRET, event.cookies)
+  const session = createSession({ driver: 'cookie', secret: env.SESSION_SECRET })
 
   event.locals.db = db
   event.locals.authDb = authDb
   event.locals.auth = auth
-  event.locals.session = session
 
-  const response = await createHandle({ auth })({ event, resolve })
-  await commit(event.url.protocol === 'https:')
-  return response
+  return createHandle({ auth, session })({ event, resolve })
 }
 ```
 
@@ -283,7 +253,7 @@ Email verification and password reset work unchanged: `auth.sendVerificationEmai
 
 - **`nodejs_compat` is required** twice over: flatdb's entry exports `FsAdapter`, whose `node:fs` import has to resolve, and fullstack's `auth` uses `node:crypto` for scrypt and token generation.
 - **`R2Adapter` takes the binding from `platform.env`**, as in the hook above. `prefix` namespaces all keys, so one bucket can hold the database next to other files.
-- **One database per request.** Adapter, collections, `createFlatdbAuthAdapter`, `createAuth` and the cookie session are built inside `handle`, never at module level. Concurrent writes to a collection's index are safe: flatdb writes `_index.json` with a compare-and-swap on the etag and retries. Two requests updating the same document at once end last-writer-wins.
+- **One database per request.** Adapter, collections, `createFlatdbAuthAdapter`, `createAuth` and the session manager are built inside `handle`, never at module level. Concurrent writes to a collection's index are safe: flatdb writes `_index.json` with a compare-and-swap on the etag and retries. Two requests updating the same document at once end last-writer-wins.
 - `SESSION_SECRET` is a Workers secret; `$env/dynamic/private` reads it through `adapter-cloudflare`.
 
 ## Local development and tests

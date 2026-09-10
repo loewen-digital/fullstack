@@ -77,6 +77,16 @@ describe('createHandle (SvelteKit adapter)', () => {
       })
     })
 
+    it('memory driver keeps only the session id in the cookie', async () => {
+      const session = createSession({ driver: 'memory' })
+      const handle = createHandle({ session })
+      const event = makeEvent()
+
+      await handle({ event, resolve: makeResolve() })
+
+      expect(event.cookies.get('fsid')).toBe(event.locals.session!.id)
+    })
+
     it('sets session cookie with httpOnly and sameSite', async () => {
       const session = createSession({ driver: 'memory' })
       const handle = createHandle({ session })
@@ -96,6 +106,87 @@ describe('createHandle (SvelteKit adapter)', () => {
         httpOnly: true,
         sameSite: 'lax',
       }))
+    })
+  })
+
+  describe('cookie session driver', () => {
+    const secret = 'test-secret'
+
+    async function run(
+      event: TestEvent,
+      inside: (session: FullstackLocals['session'] & object) => void,
+      security?: ReturnType<typeof createSecurity>,
+    ): Promise<void> {
+      // A fresh createSession per request: another process, or another Workers isolate
+      const handle = createHandle({ session: createSession({ driver: 'cookie', secret }), security })
+      await handle({
+        event,
+        resolve: async (e) => {
+          inside((e.locals as FullstackLocals).session!)
+          return new Response('ok')
+        },
+      })
+    }
+
+    it('carries flash and old input in the cookie: a fresh instance reads them from the cookies alone', async () => {
+      const event1 = makeEvent()
+      await run(event1, (s) => {
+        s.flash('notice', 'Welcome back')
+        s.flashInput({ email: 'a@example.com' })
+      })
+      const cookie = event1.cookies.get('fsid')
+      expect(cookie).toBeDefined()
+      expect(cookie).toMatch(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/)
+
+      const event2 = makeEvent()
+      event2.cookies.set('fsid', cookie!, { path: '/' })
+      let seen: Record<string, unknown> = {}
+      await run(event2, (s) => {
+        seen = { notice: s.getFlash('notice'), email: s.getOldInput('email') }
+      })
+      expect(seen).toEqual({ notice: 'Welcome back', email: 'a@example.com' })
+
+      const event3 = makeEvent()
+      event3.cookies.set('fsid', event2.cookies.get('fsid')!, { path: '/' })
+      await run(event3, (s) => {
+        seen = { notice: s.getFlash('notice'), email: s.getOldInput('email') }
+      })
+      expect(seen).toEqual({ notice: undefined, email: undefined })
+    })
+
+    it('treats a tampered or unsigned cookie as no session and replaces it', async () => {
+      const event1 = makeEvent()
+      await run(event1, (s) => s.set('role', 'admin'))
+      const cookie = event1.cookies.get('fsid')!
+      const [payload, sig] = cookie.split('.') as [string, string]
+
+      for (const bad of [`${payload.slice(0, -1)}${payload.endsWith('A') ? 'B' : 'A'}.${sig}`, payload]) {
+        const event2 = makeEvent()
+        event2.cookies.set('fsid', bad, { path: '/' })
+        let role: unknown = 'unset'
+        await run(event2, (s) => {
+          role = s.get('role')
+        })
+        expect(role).toBeUndefined()
+        expect(event2.cookies.get('fsid')).not.toBe(bad)
+      }
+    })
+
+    it('keeps the session id stable, so CSRF tokens verify on the next request', async () => {
+      const security = createSecurity()
+
+      let token = ''
+      const event1 = makeEvent()
+      await run(event1, () => {}, security)
+      token = await getCsrfToken(event1.locals, security)
+
+      const event2 = makeEvent({
+        request: new Request('http://localhost/', { method: 'POST', headers: { 'x-csrf-token': token } }),
+      })
+      event2.cookies.set('fsid', event1.cookies.get('fsid')!, { path: '/' })
+      await run(event2, () => {}, security)
+
+      expect(event2.locals.csrfVerified).toBe(true)
     })
   })
 

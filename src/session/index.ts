@@ -1,16 +1,17 @@
 import type { SessionConfig } from '../config/types.js'
-import type { SessionDriver, SessionHandle, SessionManager, SessionData } from './types.js'
+import type { SessionDriver, SessionHandle, SessionManager, SessionData, SessionPayload } from './types.js'
 import { flash, getFlash, rotateFlash } from './flash.js'
 import { flashInput, getOldInput, rotateOldInput } from './old-input.js'
 import { createMemoryDriver } from './drivers/memory.js'
 import { createCookieDriver } from './drivers/cookie.js'
 
-export type { SessionDriver, SessionHandle, SessionManager, SessionData }
+export type { SessionDriver, SessionHandle, SessionManager, SessionData, SessionPayload }
 export type { SessionConfig } from '../config/types.js'
 export { rotateFlash } from './flash.js'
 export { rotateOldInput } from './old-input.js'
 export { createMemoryDriver } from './drivers/memory.js'
 export { createCookieDriver } from './drivers/cookie.js'
+export type { CookieSessionDriver } from './drivers/cookie.js'
 export { createRedisDriver } from './drivers/redis.js'
 
 /**
@@ -21,6 +22,9 @@ export { createRedisDriver } from './drivers/redis.js'
  *   const handle = await session.load(existingSessionId)
  *   handle.set('userId', 42)
  *   await handle.save()
+ *
+ * In a request cycle, `open(cookie)` and `commit(handle)` translate between the
+ * session cookie's value and the handle for any driver (the framework adapters do this).
  */
 export function createSession(config: SessionConfig): SessionManager {
   const ttlSeconds = parseTtl(config.maxAge ?? '2h')
@@ -30,7 +34,10 @@ export function createSession(config: SessionConfig): SessionManager {
   if (config.driver === 'memory') {
     driver = createMemoryDriver(ttlSeconds)
   } else if (config.driver === 'cookie') {
-    driver = createCookieDriver(config.secret ?? 'change-me', ttlSeconds)
+    if (!config.secret) {
+      throw new Error('Cookie session driver requires a `secret`: the session cookie is signed with it.')
+    }
+    driver = createCookieDriver(config.secret, ttlSeconds)
   } else if (config.driver === 'redis') {
     throw new Error(
       'Redis session driver requires a Redis client. ' +
@@ -48,67 +55,89 @@ export function createSession(config: SessionConfig): SessionManager {
  * Use this when you need to supply a custom or pre-configured driver.
  */
 export function createSessionManager(driver: SessionDriver, ttlSeconds = 7200): SessionManager {
+  // The data behind every handle this manager opened; `commit` serializes it for stateless drivers.
+  const dataOf = new WeakMap<SessionHandle, SessionData>()
+
+  function openHandle(id: string, data: SessionData): SessionHandle {
+    // Promote flash + old input from previous request
+    rotateFlash(data)
+    rotateOldInput(data)
+
+    let currentId = id
+
+    const handle: SessionHandle = {
+      get id() {
+        return currentId
+      },
+
+      get<T = unknown>(key: string): T | undefined {
+        return data[key] as T | undefined
+      },
+
+      set(key: string, value: unknown): void {
+        data[key] = value
+      },
+
+      forget(key: string): void {
+        delete data[key]
+      },
+
+      async regenerate(): Promise<void> {
+        await driver.destroy(currentId)
+        currentId = driver.generateId()
+      },
+
+      async destroy(): Promise<void> {
+        await driver.destroy(currentId)
+        for (const key of Object.keys(data)) delete data[key]
+      },
+
+      async save(): Promise<void> {
+        await driver.write(currentId, data, ttlSeconds)
+      },
+
+      flash(key: string, value: unknown): void {
+        flash(data, key, value)
+      },
+
+      getFlash<T = unknown>(key: string): T | undefined {
+        return getFlash<T>(data, key)
+      },
+
+      flashInput(input: Record<string, unknown>): void {
+        flashInput(data, input)
+      },
+
+      getOldInput<T = unknown>(key: string): T | undefined {
+        return getOldInput<T>(data, key)
+      },
+    }
+
+    dataOf.set(handle, data)
+    return handle
+  }
+
+  async function load(sessionId?: string): Promise<SessionHandle> {
+    const data = sessionId ? await driver.read(sessionId) : {}
+    return openHandle(sessionId ?? driver.generateId(), data)
+  }
+
   return {
     driver,
+    load,
 
-    async load(sessionId?: string): Promise<SessionHandle> {
-      const id = sessionId ?? driver.generateId()
-      const data: SessionData = await driver.read(id)
+    async open(cookie?: string): Promise<SessionHandle> {
+      if (!driver.parse) return load(cookie)
+      const payload: SessionPayload | null = cookie ? await driver.parse(cookie) : null
+      return openHandle(payload?.id ?? driver.generateId(), payload?.data ?? {})
+    },
 
-      // Promote flash + old input from previous request
-      rotateFlash(data)
-      rotateOldInput(data)
-
-      let currentId = id
-
-      const handle: SessionHandle = {
-        get id() {
-          return currentId
-        },
-
-        get<T = unknown>(key: string): T | undefined {
-          return data[key] as T | undefined
-        },
-
-        set(key: string, value: unknown): void {
-          data[key] = value
-        },
-
-        forget(key: string): void {
-          delete data[key]
-        },
-
-        async regenerate(): Promise<void> {
-          await driver.destroy(currentId)
-          currentId = driver.generateId()
-        },
-
-        async destroy(): Promise<void> {
-          await driver.destroy(currentId)
-        },
-
-        async save(): Promise<void> {
-          await driver.write(currentId, data, ttlSeconds)
-        },
-
-        flash(key: string, value: unknown): void {
-          flash(data, key, value)
-        },
-
-        getFlash<T = unknown>(key: string): T | undefined {
-          return getFlash<T>(data, key)
-        },
-
-        flashInput(input: Record<string, unknown>): void {
-          flashInput(data, input)
-        },
-
-        getOldInput<T = unknown>(key: string): T | undefined {
-          return getOldInput<T>(data, key)
-        },
-      }
-
-      return handle
+    async commit(handle: SessionHandle): Promise<string> {
+      await handle.save()
+      if (!driver.serialize) return handle.id
+      const data = dataOf.get(handle)
+      if (!data) throw new Error('commit(): the handle was not opened by this session manager')
+      return driver.serialize(handle.id, data)
     },
   }
 }

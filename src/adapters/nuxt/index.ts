@@ -144,8 +144,7 @@ export function createNuxtMiddleware(stack: AdapterStack, options: NuxtMiddlewar
     let sessionHandle: SessionHandle | undefined
 
     if (stack.session) {
-      const sessionId = getRequestCookie(event, sessionCookie)
-      sessionHandle = await stack.session.load(sessionId)
+      sessionHandle = await stack.session.open(getRequestCookie(event, sessionCookie))
       ;(event.context as FullstackNuxtContext).session = sessionHandle
     }
 
@@ -188,12 +187,11 @@ export function createNuxtMiddleware(stack: AdapterStack, options: NuxtMiddlewar
     }
 
     // ── 4. Persist session ───────────────────────────────────────────────────
-    if (sessionHandle) {
-      await sessionHandle.save()
+    if (stack.session && sessionHandle) {
+      const value = await stack.session.commit(sessionHandle)
 
-      const existingId = getRequestCookie(event, sessionCookie)
-      if (sessionHandle.id !== existingId) {
-        setResponseCookie(event, sessionCookie, sessionHandle.id, {
+      if (value !== getRequestCookie(event, sessionCookie)) {
+        setResponseCookie(event, sessionCookie, value, {
           path: '/',
           httpOnly: true,
           sameSite: 'Lax',
