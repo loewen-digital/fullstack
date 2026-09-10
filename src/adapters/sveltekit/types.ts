@@ -1,5 +1,10 @@
 /**
- * SvelteKit adapter type augmentation.
+ * SvelteKit adapter types.
+ *
+ * The adapter has no runtime dependency on `@sveltejs/kit`. It types only the parts of
+ * SvelteKit's `RequestEvent` and `Handle` it touches, in a shape SvelteKit's own types
+ * fit structurally under `strict: true`. `__tests__/kit-types.test.ts` checks that
+ * against `@sveltejs/kit`.
  *
  * Import this file in your app.d.ts to extend App.Locals:
  *
@@ -44,37 +49,59 @@ export interface FullstackLocals {
   csrfVerified?: boolean
 }
 
-// ── Minimal SvelteKit-compatible types ────────────────────────────────────────
-// These mirror @sveltejs/kit's public API without requiring it as a dep.
-// The adapter is compatible with SvelteKit's Handle type via structural typing.
+// ── The slice of SvelteKit the adapter uses ───────────────────────────────────
+// Members are method signatures on purpose: TypeScript checks their parameters
+// bivariantly, so SvelteKit's `Cookies` and `resolve`, which take SvelteKit's full
+// types, stay assignable under `strictFunctionTypes`.
 
-export interface SvelteKitCookies {
-  get(name: string, opts?: { decode?: (v: string) => string }): string | undefined
-  getAll(opts?: { decode?: (v: string) => string }): Array<{ name: string; value: string }>
-  set(name: string, value: string, opts?: Record<string, unknown>): void
-  delete(name: string, opts?: Record<string, unknown>): void
-  serialize(name: string, value: string, opts?: Record<string, unknown>): string
+/**
+ * Cookie options the adapter passes to `cookies.set` and `cookies.delete`:
+ * a subset of the `cookie` package's serialize options plus SvelteKit's required `path`.
+ */
+export interface SvelteKitCookieOptions {
+  path: string
+  domain?: string
+  expires?: Date
+  httpOnly?: boolean
+  maxAge?: number
+  sameSite?: boolean | 'lax' | 'strict' | 'none'
+  secure?: boolean
 }
 
+/** The part of SvelteKit's `Cookies` the adapter uses. */
+export interface SvelteKitCookies {
+  get(name: string): string | undefined
+  set(name: string, value: string, opts: SvelteKitCookieOptions): void
+  delete(name: string, opts: SvelteKitCookieOptions): void
+}
+
+/** The part of SvelteKit's `RequestEvent` the adapter uses. */
 export interface SvelteKitRequestEvent {
   request: Request
   url: URL
-  params: Record<string, string>
-  locals: Record<string, unknown>
+  /**
+   * `App.Locals` of the app. Any interface fits, index signature or not;
+   * the adapter narrows it to `FullstackLocals` when it writes.
+   */
+  locals: object
   cookies: SvelteKitCookies
   route: { id: string | null }
 }
 
-export type SvelteKitResolve = (
-  event: SvelteKitRequestEvent,
-  opts?: {
-    transformPageChunk?: (opts: { html: string; done: boolean }) => string | undefined | Promise<string | undefined>
-    filterSerializedResponseHeaders?: (name: string, value: string) => boolean
-    preload?: (opts: { type: string; path: string }) => boolean
-  },
-) => Promise<Response>
+/** The part of SvelteKit's `ResolveOptions` the adapter forwards. */
+export interface SvelteKitResolveOptions {
+  transformPageChunk?(input: { html: string; done: boolean }): string | undefined | Promise<string | undefined>
+  filterSerializedResponseHeaders?(name: string, value: string): boolean
+  preload?(input: { type: string; path: string }): boolean
+}
 
-export type SvelteKitHandle = (input: {
+/** The argument SvelteKit passes to a `Handle`. */
+export interface SvelteKitHandleInput {
   event: SvelteKitRequestEvent
-  resolve: SvelteKitResolve
-}) => Promise<Response>
+  resolve(event: SvelteKitRequestEvent, opts?: SvelteKitResolveOptions): Response | Promise<Response>
+}
+
+export type SvelteKitResolve = SvelteKitHandleInput['resolve']
+
+/** Structurally a SvelteKit `Handle`; assignable to it and usable in `sequence()`. */
+export type SvelteKitHandle = (input: SvelteKitHandleInput) => Promise<Response>

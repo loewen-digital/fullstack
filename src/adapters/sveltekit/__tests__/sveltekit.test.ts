@@ -2,25 +2,24 @@ import { describe, it, expect, vi } from 'vitest'
 import { createHandle, getCsrfToken, setAuthCookie, clearAuthCookie, validateForm } from '../index.js'
 import { createSession } from '../../../session/index.js'
 import { createSecurity } from '../../../security/index.js'
-import type { SvelteKitRequestEvent, SvelteKitResolve } from '../types.js'
+import type { FullstackLocals, SvelteKitRequestEvent, SvelteKitResolve } from '../types.js'
 
 // ── Test helpers ───────────────────────────────────────────────────────────
 
-function makeEvent(overrides: Partial<SvelteKitRequestEvent> = {}): SvelteKitRequestEvent {
+type TestEvent = SvelteKitRequestEvent & { locals: FullstackLocals }
+
+function makeEvent(overrides: Partial<SvelteKitRequestEvent> = {}): TestEvent {
   const cookies = new Map<string, string>()
 
   return {
     request: new Request('http://localhost/'),
     url: new URL('http://localhost/'),
-    params: {},
     locals: {},
     route: { id: null },
     cookies: {
       get: (name) => cookies.get(name),
-      getAll: () => [...cookies.entries()].map(([name, value]) => ({ name, value })),
       set: (name, value) => { cookies.set(name, value) },
       delete: (name) => { cookies.delete(name) },
-      serialize: (name, value) => `${name}=${value}`,
     },
     ...overrides,
   }
@@ -55,7 +54,7 @@ describe('createHandle (SvelteKit adapter)', () => {
       await handle({
         event: event1,
         resolve: async (e) => {
-          const s = e.locals.session as Awaited<ReturnType<typeof session.load>>
+          const s = (e.locals as FullstackLocals).session!
           s.set('userId', 42)
           return new Response('ok')
         },
@@ -66,12 +65,12 @@ describe('createHandle (SvelteKit adapter)', () => {
 
       // Second request — read the value using the session cookie
       const event2 = makeEvent()
-      event2.cookies.set('fsid', sessionId!)
+      event2.cookies.set('fsid', sessionId!, { path: '/' })
 
       await handle({
         event: event2,
         resolve: async (e) => {
-          const s = e.locals.session as Awaited<ReturnType<typeof session.load>>
+          const s = (e.locals as FullstackLocals).session!
           expect(s.get('userId')).toBe(42)
           return new Response('ok')
         },
@@ -144,7 +143,7 @@ describe('createHandle (SvelteKit adapter)', () => {
           headers: { 'x-csrf-token': token },
         }),
       })
-      event.cookies.set('fsid', sessionId)
+      event.cookies.set('fsid', sessionId, { path: '/' })
 
       await handle({ event, resolve: makeResolve() })
 
@@ -195,7 +194,7 @@ describe('setAuthCookie / clearAuthCookie', () => {
 
   it('clears auth cookie', () => {
     const event = makeEvent()
-    event.cookies.set('fs_token', 'some-token')
+    event.cookies.set('fs_token', 'some-token', { path: '/' })
     clearAuthCookie(event)
     expect(event.cookies.get('fs_token')).toBeUndefined()
   })

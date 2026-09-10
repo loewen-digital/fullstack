@@ -14,12 +14,21 @@
  *   export const handle = sequence(createHandle(stack), myOtherHandle)
  */
 
-import type { SvelteKitHandle, SvelteKitRequestEvent } from './types.js'
+import type { FullstackLocals, SvelteKitHandle, SvelteKitRequestEvent } from './types.js'
 import type { SessionManager, SessionHandle } from '../../session/index.js'
 import type { AuthInstance, AuthSession } from '../../auth/index.js'
 import type { SecurityInstance } from '../../security/index.js'
 
-export type { FullstackLocals, SvelteKitHandle, SvelteKitRequestEvent, SvelteKitCookies } from './types.js'
+export type {
+  FullstackLocals,
+  SvelteKitCookieOptions,
+  SvelteKitCookies,
+  SvelteKitHandle,
+  SvelteKitHandleInput,
+  SvelteKitRequestEvent,
+  SvelteKitResolve,
+  SvelteKitResolveOptions,
+} from './types.js'
 
 // The minimal stack shape the adapter requires.
 // Users can pass any StackModules-compatible object; only the present modules are used.
@@ -66,13 +75,15 @@ export function createHandle(stack: AdapterStack, options: HandleOptions = {}): 
   const csrfExempt = new Set(options.csrfExempt ?? [])
 
   return async ({ event, resolve }) => {
+    const locals = event.locals as FullstackLocals
+
     // ── 1. Load session ────────────────────────────────────────────────────
     let sessionHandle: SessionHandle | undefined
 
     if (stack.session) {
       const sessionId = event.cookies.get(sessionCookie)
       sessionHandle = await stack.session.load(sessionId)
-      event.locals.session = sessionHandle
+      locals.session = sessionHandle
     }
 
     // ── 2. Validate auth token ─────────────────────────────────────────────
@@ -84,13 +95,13 @@ export function createHandle(stack: AdapterStack, options: HandleOptions = {}): 
         authSession = await stack.auth.validateSession(token)
       }
 
-      event.locals.authSession = authSession
-      event.locals.user = null // populated below if session valid
+      locals.authSession = authSession
+      locals.user = null // populated below if session valid
 
       if (authSession) {
         // The auth module doesn't expose findUserById directly.
         // We expose the raw session; the app can look up the user from its own DB.
-        event.locals.user = { id: authSession.userId, email: '' }
+        locals.user = { id: authSession.userId, email: '' }
       }
     }
 
@@ -115,9 +126,9 @@ export function createHandle(stack: AdapterStack, options: HandleOptions = {}): 
           csrfVerified = await stack.security.verifyCsrfToken(sessionId, csrfToken)
         }
 
-        event.locals.csrfVerified = csrfVerified
+        locals.csrfVerified = csrfVerified
       } else {
-        event.locals.csrfVerified = true
+        locals.csrfVerified = true
       }
     }
 

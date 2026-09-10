@@ -80,7 +80,7 @@ Add your own fields to `userSchema` as you like; `auth` reads and writes only `e
 
 ## Auth
 
-`createFlatdbAuthAdapter` turns the three collections into the `AuthDbAdapter` that `createAuth` takes. Keep the adapter around as well: `findUserByEmail` returns the `AuthUser` a login needs. The auth cookie carries the opaque session token; its name and options live here so the hook, login and logout agree.
+`createFlatdbAuthAdapter` turns the three collections into the `AuthDbAdapter` that `createAuth` takes. Keep the adapter around as well: `findUserByEmail` returns the `AuthUser` a login needs. The auth cookie carries the opaque session token; the SvelteKit adapter's `createHandle`, `setAuthCookie` and `clearAuthCookie` agree on its name (`fs_token`), only the lifetime is yours.
 
 ```ts
 // src/lib/server/auth.ts
@@ -88,13 +88,8 @@ import { createAuth } from '@loewen-digital/fullstack/auth'
 import { createFlatdbAuthAdapter } from '@loewen-digital/fullstack/auth/flatdb'
 import type { AppDb } from './db'
 
-const SESSION_TTL = 7 * 24 * 3600
-
-export const AUTH_COOKIE = 'fs_token'
-
-export function authCookieOptions(secure: boolean) {
-  return { path: '/', httpOnly: true, sameSite: 'lax' as const, secure, maxAge: SESSION_TTL }
-}
+/** Auth sessions and their cookie live this long, in seconds. */
+export const SESSION_TTL = 7 * 24 * 3600
 
 export function createAppAuth(db: AppDb) {
   const authDb = createFlatdbAuthAdapter(db)
@@ -146,15 +141,16 @@ A tampered cookie fails the signature check and yields an empty session. The sec
 
 Everything is built inside the request. flatdb caches a collection's index in memory and refreshes it only on its own writes, so a module-level database serves stale reads on Workers as soon as another isolate has written. The auth factories and the cookie session follow the same rule because they are free to build and the session's data comes from the cookie, not from memory.
 
-The hook validates the auth cookie itself. `createHandle`, `setAuthCookie` and `clearAuthCookie` from the SvelteKit adapter do not accept SvelteKit's `RequestEvent` type yet ([#8](https://github.com/loewen-digital/fullstack/issues/8)); what they do is three lines each.
+The hook builds the stack and hands the request to the adapter's `createHandle`, which validates the auth cookie and sets `locals.authSession`. Building the handle per request costs nothing: it is a closure over the stack.
 
 ```ts
 // src/hooks.server.ts
 import type { Handle } from '@sveltejs/kit'
 import { env } from '$env/dynamic/private'
 import { FsAdapter, R2Adapter } from '@loewen-digital/flatdb'
+import { createHandle } from '@loewen-digital/fullstack/adapters/sveltekit'
 import { createDb } from '$lib/server/db'
-import { AUTH_COOKIE, createAppAuth } from '$lib/server/auth'
+import { createAppAuth } from '$lib/server/auth'
 import { loadCookieSession } from '$lib/server/session'
 
 export const handle: Handle = async ({ event, resolve }) => {
@@ -165,17 +161,12 @@ export const handle: Handle = async ({ event, resolve }) => {
   const { authDb, auth } = createAppAuth(db)
   const { session, commit } = await loadCookieSession(env.SESSION_SECRET, event.cookies)
 
-  // UPSTREAM: https://github.com/loewen-digital/fullstack/issues/8 — createHandle's event type
-  // rejects SvelteKit's RequestEvent; the auth cookie is validated here instead.
-  const token = event.cookies.get(AUTH_COOKIE)
-
   event.locals.db = db
   event.locals.authDb = authDb
   event.locals.auth = auth
   event.locals.session = session
-  event.locals.authSession = token ? await auth.validateSession(token) : null
 
-  const response = await resolve(event)
+  const response = await createHandle({ auth })({ event, resolve })
   await commit(event.url.protocol === 'https:')
   return response
 }
@@ -212,7 +203,8 @@ export {}
 ```ts
 // src/routes/login/+page.server.ts
 import { fail, redirect } from '@sveltejs/kit'
-import { AUTH_COOKIE, authCookieOptions } from '$lib/server/auth'
+import { setAuthCookie } from '@loewen-digital/fullstack/adapters/sveltekit'
+import { SESSION_TTL } from '$lib/server/auth'
 import type { Actions } from './$types'
 
 export const actions: Actions = {
@@ -240,7 +232,7 @@ export const actions: Actions = {
     }
 
     const authSession = await auth.createSession(user)
-    event.cookies.set(AUTH_COOKIE, authSession.token, authCookieOptions(event.url.protocol === 'https:'))
+    setAuthCookie(event, authSession.token, { maxAge: SESSION_TTL })
     session.flash('notice', 'Welcome back')
     redirect(303, '/dashboard')
   },
@@ -264,14 +256,14 @@ Logout destroys the server-side session and clears its cookie; the flash session
 ```ts
 // src/routes/logout/+page.server.ts
 import { redirect } from '@sveltejs/kit'
-import { AUTH_COOKIE } from '$lib/server/auth'
+import { clearAuthCookie } from '@loewen-digital/fullstack/adapters/sveltekit'
 import type { Actions } from './$types'
 
 export const actions: Actions = {
   default: async (event) => {
-    const token = event.cookies.get(AUTH_COOKIE)
-    if (token) await event.locals.auth.destroySession(token)
-    event.cookies.delete(AUTH_COOKIE, { path: '/' })
+    const { auth, authSession } = event.locals
+    if (authSession) await auth.destroySession(authSession.token)
+    clearAuthCookie(event)
     redirect(303, '/login')
   },
 }
