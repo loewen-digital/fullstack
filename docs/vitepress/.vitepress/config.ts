@@ -55,6 +55,12 @@ export default defineConfig({
           ],
         },
         {
+          text: 'Guides',
+          items: [
+            { text: 'Auth on flatdb', link: '/guides/auth-on-flatdb' },
+          ],
+        },
+        {
           text: 'Modules',
           items: [
             { text: 'Validation', link: '/modules/validation' },

@@ -5,7 +5,9 @@ description: HTTP session management with flash messages, old input, and swappab
 
 # Session
 
-The `session` module provides HTTP session management, flash messages, and old input persistence. It is used internally by the `auth` module but can also be used independently for any session-based state.
+The `session` module provides HTTP session management, flash messages, and old input persistence. It is independent of the `auth` module: login state lives in `auth`'s own sessions, this module carries request-to-request state such as flash messages.
+
+Running next to `auth` on `@loewen-digital/flatdb`, locally and on Cloudflare Workers: see [Auth on flatdb](/guides/auth-on-flatdb). That guide also shows how to carry the cookie driver's payload in the cookie, which `createHandle` does not do yet ([#6](https://github.com/loewen-digital/fullstack/issues/6)).
 
 ## Import
 
@@ -61,7 +63,7 @@ const old = s.oldInput('email') // previously submitted email
 
 | Driver | Description |
 |---|---|
-| `cookie` | Signed, encrypted cookie. No server storage required. |
+| `cookie` | Signed cookie (HMAC-SHA256), not encrypted: readable by the client, tamper-proof. No server storage. About 4 KB; keep secrets out of it. |
 | `memory` | In-process map. Useful for tests and simple use cases. |
 | `redis` | Stores session data in Redis. Suitable for multi-instance deployments. |
 
@@ -70,7 +72,7 @@ const old = s.oldInput('email') // previously submitted email
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `driver` | `'cookie' \| 'memory' \| 'redis'` | `'cookie'` | Storage driver |
-| `secret` | `string` | — | Signing/encryption secret (cookie driver) |
+| `secret` | `string` | — | Signing secret (cookie driver) |
 | `ttl` | `number` | `86400` | Session lifetime in seconds |
 | `cookie.name` | `string` | `'session'` | Cookie name |
 | `cookie.secure` | `boolean` | `true` | Set Secure flag on cookie |

@@ -7,6 +7,8 @@ description: Authentication with sessions, passwords, tokens, and OAuth
 
 The `auth` module handles the full authentication lifecycle: user lookup, password verification, session creation, remember-me tokens, and OAuth flows. It depends on the `db` module for user storage.
 
+Storage is an `AuthDbAdapter`: implement it against your schema, or run on `@loewen-digital/flatdb` with `createFlatdbAuthAdapter` from `@loewen-digital/fullstack/auth/flatdb`. The [Auth on flatdb](/guides/auth-on-flatdb) guide covers that setup locally and on Cloudflare Workers, with the `session` module on the cookie driver.
+
 ## Import
 
 ```ts

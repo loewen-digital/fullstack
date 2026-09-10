@@ -30,6 +30,9 @@ npm install ioredis
 # S3 / R2 storage
 npm install @aws-sdk/client-s3
 
+# flatdb as auth storage (see the Auth on flatdb guide)
+npm install @loewen-digital/flatdb zod
+
 # Resend email
 npm install resend
 
