@@ -85,7 +85,7 @@ export interface StackDeps {
   /**
    * DB adapter for the auth module.
    * Required when `config.auth` is present.
-   * Implement the AuthDbAdapter interface against your Drizzle schema.
+   * Implement the AuthDbAdapter interface against your storage.
    */
   authDb?: AuthDbAdapter
 }
@@ -166,7 +166,7 @@ export function createStack<C extends FullstackConfig>(
       throw new ConfigError(
         'auth requires a DB adapter. ' +
         'Pass { authDb: myAdapter } as the second argument to createStack().\n' +
-        'The AuthDbAdapter interface maps auth operations to your Drizzle schema.',
+        'The AuthDbAdapter interface maps auth operations to your storage (Drizzle, flatdb, ...).',
       )
     }
     const authCfg = config.auth as AuthConfig

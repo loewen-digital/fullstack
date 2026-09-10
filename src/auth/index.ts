@@ -14,7 +14,8 @@ export { createOAuthProvider } from './oauth.js'
 /**
  * Create an auth instance.
  *
- * The `db` parameter is a DB adapter — implement it against your Drizzle schema.
+ * The `db` parameter is an `AuthDbAdapter`: implement it against your storage,
+ * or use `createFlatdbAuthAdapter` from `@loewen-digital/fullstack/auth/flatdb`.
  *
  * Usage:
  *   const auth = createAuth({ sessionTtl: 604800 }, { db: myAuthAdapter })

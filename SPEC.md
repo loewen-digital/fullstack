@@ -201,6 +201,7 @@ The core **never** imports or depends on any framework-specific code. Every modu
     ".": "./dist/index.js",
     "./validation": "./dist/validation/index.js",
     "./auth": "./dist/auth/index.js",
+    "./auth/flatdb": "./dist/auth/adapters/flatdb.js",
     "./db": "./dist/db/index.js",
     "./session": "./dist/session/index.js",
     "./security": "./dist/security/index.js",

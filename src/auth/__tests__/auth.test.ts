@@ -128,6 +128,21 @@ describe('session management', () => {
     const result = await auth.validateSession(session.token)
     expect(result).toBeNull()
   })
+
+  it('removes the user\'s expired sessions on login, and only those', async () => {
+    const alice = (await db.findUserByEmail('alice@example.com'))!
+    const bob = (await db.findUserByEmail('bob@example.com'))!
+    const expiredAuth = createAuth({ sessionTtl: -1 }, { db })
+    const aliceStale = await expiredAuth.createSession(alice)
+    const bobStale = await expiredAuth.createSession(bob)
+    const aliceLive = await auth.createSession(alice)
+
+    await auth.createSession(alice)
+
+    expect(await db.findSession(aliceStale.token)).toBeNull()
+    expect(await db.findSession(aliceLive.token)).not.toBeNull()
+    expect(await db.findSession(bobStale.token)).not.toBeNull()
+  })
 })
 
 describe('one-time tokens', () => {

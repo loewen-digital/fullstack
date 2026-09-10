@@ -5,12 +5,17 @@ const SESSION_TOKEN_BYTES = 32
 
 /**
  * Create a new authenticated session for a user.
+ *
+ * The user's expired sessions are removed first, so the session store stays
+ * bounded without a scheduled job (docs/decisions/0002).
  */
 export async function createAuthSession(
   db: AuthDbAdapter,
   user: AuthUser,
   ttlSeconds = 7 * 24 * 3600, // 7 days
 ): Promise<AuthSession> {
+  await db.deleteExpiredSessions(user.id)
+
   const token = randomBytes(SESSION_TOKEN_BYTES).toString('hex')
   const now = new Date()
   const expiresAt = new Date(now.getTime() + ttlSeconds * 1000)

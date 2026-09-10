@@ -7,6 +7,9 @@ is the topmost released one here.
 
 ## Unreleased
 
+- `@loewen-digital/fullstack/auth/flatdb`: `createFlatdbAuthAdapter({ users, sessions, tokens })` runs `createAuth` on the app's own `@loewen-digital/flatdb` collections (auto mode). flatdb's `_id` is the user id, dates are stored as ISO strings and come back as `Date`. flatdb is an optional peer dependency; the adapter imports nothing from it, so `@loewen-digital/fullstack/auth` stays as it was. (#3)
+- Login removes the user's expired auth sessions: `createSession` calls `AuthDbAdapter.deleteExpiredSessions(userId)` before it inserts the new one, so the session store stays bounded without a scheduled job. Decision: [0002](docs/decisions/0002-expired-sessions-on-login.md). (#3)
+- The `AuthDbAdapter` docs and the `createStack` error no longer say the adapter is written against a Drizzle schema; it is storage-agnostic.
 - Releases run from tags: pushing `v<version>` runs lint, typecheck, tests and build, publishes to npm through trusted publishing (no token, provenance included) and creates the GitHub Release with this file's matching section as notes. The tag must equal the version in `package.json`. Replaces `publish.yml` (token-based) and `changelog.yml` with `cliff.toml` (notes generated from commit messages). Decision: [0001](docs/decisions/0001-release-on-tag.md).
 - `repository`, `bugs`, `homepage` in `package.json`, so npm shows the source and can attest provenance.
 - Node 24 is the required version (`engines.node` in `package.json`); CI, deploy and the agent workflow read it from there.

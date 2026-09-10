@@ -7,6 +7,7 @@ const entries: Record<string, string> = {
   'config/index': 'src/config/index.ts',
   'validation/index': 'src/validation/index.ts',
   'auth/index': 'src/auth/index.ts',
+  'auth/adapters/flatdb': 'src/auth/adapters/flatdb.ts',
   'db/index': 'src/db/index.ts',
   'session/index': 'src/session/index.ts',
   'security/index': 'src/security/index.ts',

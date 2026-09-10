@@ -1,8 +1,9 @@
 /**
  * Auth module types.
  *
- * The auth module is DB-agnostic: it receives adapter functions for all
- * database operations so it works with any Drizzle schema.
+ * The auth module is storage-agnostic: it receives an `AuthDbAdapter` for all
+ * persistence, so it runs on Drizzle, flatdb or anything else that can look up
+ * users, sessions and tokens.
  */
 
 /** Minimum shape required of a user record by the auth module. */
@@ -33,7 +34,10 @@ export interface AuthToken {
   createdAt: Date
 }
 
-/** DB adapter interface — implement these against your Drizzle schema. */
+/**
+ * Persistence interface of the auth module. Implement it against your storage
+ * (a Drizzle schema, flatdb collections via `@loewen-digital/fullstack/auth/flatdb`, ...).
+ */
 export interface AuthDbAdapter {
   findUserByEmail(email: string): Promise<AuthUser | null>
   findUserById(id: string | number): Promise<AuthUser | null>
