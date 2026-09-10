@@ -13,6 +13,7 @@ export { createMemoryDriver } from './drivers/memory.js'
 export { createCookieDriver } from './drivers/cookie.js'
 export type { CookieSessionDriver } from './drivers/cookie.js'
 export { createRedisDriver } from './drivers/redis.js'
+export type { RedisClient } from './drivers/redis.js'
 
 /**
  * Create a session manager.
