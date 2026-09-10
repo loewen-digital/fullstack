@@ -133,7 +133,7 @@ describe('createRemixAction', () => {
   })
 
   it('marks CSRF as unverified for POST without token', async () => {
-    const security = createSecurity()
+    const security = createSecurity({ csrf: { secret: 'test-secret' } })
     const session = createSession({ driver: 'memory' })
     const wrap = createRemixAction({ security, session })
 
@@ -148,7 +148,7 @@ describe('createRemixAction', () => {
   })
 
   it('marks CSRF as verified when valid token provided', async () => {
-    const security = createSecurity()
+    const security = createSecurity({ csrf: { secret: 'test-secret' } })
     const session = createSession({ driver: 'memory' })
 
     const sessionHandle = await session.load()
@@ -173,7 +173,7 @@ describe('createRemixAction', () => {
   })
 
   it('skips CSRF for exempt paths', async () => {
-    const security = createSecurity()
+    const security = createSecurity({ csrf: { secret: 'test-secret' } })
     const wrap = createRemixAction(
       { security },
       { csrfExemptPaths: ['/webhooks'] },
@@ -190,7 +190,7 @@ describe('createRemixAction', () => {
   })
 
   it('GET requests do not set csrfVerified', async () => {
-    const security = createSecurity()
+    const security = createSecurity({ csrf: { secret: 'test-secret' } })
     const wrap = createRemixAction({ security })
 
     let verified: boolean | undefined
@@ -264,7 +264,7 @@ describe('clearAuthCookieHeader', () => {
 
 describe('getCsrfToken', () => {
   it('generates a token from session', async () => {
-    const security = createSecurity()
+    const security = createSecurity({ csrf: { secret: 'test-secret' } })
     const session = createSession({ driver: 'memory' })
     const handle = await session.load()
 
@@ -274,7 +274,7 @@ describe('getCsrfToken', () => {
   })
 
   it('generates a token without a session', async () => {
-    const security = createSecurity()
+    const security = createSecurity({ csrf: { secret: 'test-secret' } })
     const token = await getCsrfToken({}, security)
     expect(typeof token).toBe('string')
   })

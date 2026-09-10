@@ -173,7 +173,7 @@ describe('createHandle (SvelteKit adapter)', () => {
     })
 
     it('keeps the session id stable, so CSRF tokens verify on the next request', async () => {
-      const security = createSecurity()
+      const security = createSecurity({ csrf: { secret: 'test-secret' } })
 
       let token = ''
       const event1 = makeEvent()
@@ -192,7 +192,7 @@ describe('createHandle (SvelteKit adapter)', () => {
 
   describe('CSRF protection', () => {
     it('allows GET requests without CSRF token', async () => {
-      const security = createSecurity()
+      const security = createSecurity({ csrf: { secret: 'test-secret' } })
       const handle = createHandle({ security })
       const event = makeEvent({
         request: new Request('http://localhost/', { method: 'GET' }),
@@ -204,7 +204,7 @@ describe('createHandle (SvelteKit adapter)', () => {
     })
 
     it('marks CSRF as unverified when POST has no token', async () => {
-      const security = createSecurity()
+      const security = createSecurity({ csrf: { secret: 'test-secret' } })
       const session = createSession({ driver: 'memory' })
       const handle = createHandle({ security, session })
       const event = makeEvent({
@@ -217,7 +217,7 @@ describe('createHandle (SvelteKit adapter)', () => {
     })
 
     it('verifies CSRF token from x-csrf-token header', async () => {
-      const security = createSecurity()
+      const security = createSecurity({ csrf: { secret: 'test-secret' } })
       const session = createSession({ driver: 'memory' })
       const handle = createHandle({ security, session })
 
@@ -266,7 +266,7 @@ describe('createHandle (SvelteKit adapter)', () => {
 
 describe('getCsrfToken', () => {
   it('generates a CSRF token for the session', async () => {
-    const security = createSecurity()
+    const security = createSecurity({ csrf: { secret: 'test-secret' } })
     const session = createSession({ driver: 'memory' })
     const sessionHandle = await session.load()
 

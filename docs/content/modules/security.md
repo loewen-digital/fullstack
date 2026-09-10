@@ -87,7 +87,7 @@ const allowed = security.sanitize.allowTags(userInput, ['b', 'i', 'a', 'p'])
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `csrf.secret` | `string` | — | Secret for CSRF token signing |
+| `csrf.secret` | `string` | — | Signs CSRF tokens. Without it `generateCsrfToken` and `verifyCsrfToken` throw |
 | `csrf.cookieName` | `string` | `'csrf_token'` | Cookie name for the CSRF token |
 | `cors.origin` | `string \| string[] \| '*'` | `'*'` | Allowed origins |
 | `cors.methods` | `string[]` | common verbs | Allowed HTTP methods |

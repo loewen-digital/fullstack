@@ -20,21 +20,26 @@ export { generateCsrfToken, verifyCsrfToken } from './csrf.js'
  *   const valid = await security.verifyCsrfToken(sessionId, token)
  */
 export function createSecurity(config: SecurityConfig = {}): SecurityInstance {
-  const csrfSecret =
-    typeof config.csrf === 'object' && config.csrf !== null
-      ? config.csrf.secret
-      : 'default-csrf-secret-change-me'
+  // CSRF tokens are HMACs over the session id; without a secret of your own they are forgeable.
+  const csrfSecret = typeof config.csrf === 'object' && config.csrf !== null ? config.csrf.secret : undefined
+
+  function requireCsrfSecret(): string {
+    if (!csrfSecret) {
+      throw new Error('CSRF tokens need a secret: createSecurity({ csrf: { secret } }).')
+    }
+    return csrfSecret
+  }
 
   const defaultCorsConfig: CorsConfig = config.cors ?? {}
   const defaultRateLimitConfig: RateLimitConfig = config.rateLimit ?? {}
 
   return {
     async generateCsrfToken(sessionId: string): Promise<string> {
-      return generateCsrfToken(sessionId, csrfSecret)
+      return generateCsrfToken(sessionId, requireCsrfSecret())
     },
 
     async verifyCsrfToken(sessionId: string, token: string): Promise<boolean> {
-      return verifyCsrfToken(sessionId, token, csrfSecret)
+      return verifyCsrfToken(sessionId, token, requireCsrfSecret())
     },
 
     corsHeaders(origin: string | null, overrideConfig?: CorsConfig): Headers {

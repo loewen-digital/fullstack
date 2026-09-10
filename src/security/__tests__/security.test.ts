@@ -2,6 +2,13 @@ import { describe, it, expect, vi } from 'vitest'
 import { createSecurity, corsHeaders, createRateLimiter, sanitize, escapeHtml } from '../index.js'
 
 describe('createSecurity', () => {
+  it('refuses CSRF tokens without a secret', async () => {
+    const security = createSecurity()
+    await expect(security.generateCsrfToken('session-1')).rejects.toThrow('CSRF tokens need a secret')
+    await expect(security.verifyCsrfToken('session-1', 'x.y')).rejects.toThrow('CSRF tokens need a secret')
+    expect(security.sanitize('<b>ok</b>')).toBeTypeOf('string')
+  })
+
   it('creates a security instance', () => {
     const security = createSecurity({ csrf: { secret: 'test-secret' } })
     expect(security).toBeDefined()

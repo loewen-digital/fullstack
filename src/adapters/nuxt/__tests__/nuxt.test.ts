@@ -113,7 +113,7 @@ describe('createNuxtMiddleware', () => {
 
   describe('CSRF protection', () => {
     it('allows GET requests without CSRF token', async () => {
-      const security = createSecurity()
+      const security = createSecurity({ csrf: { secret: 'test-secret' } })
       const middleware = createNuxtMiddleware({ security })
       const event = makeEvent({ method: 'GET' })
 
@@ -122,7 +122,7 @@ describe('createNuxtMiddleware', () => {
     })
 
     it('marks CSRF as unverified when POST has no token', async () => {
-      const security = createSecurity()
+      const security = createSecurity({ csrf: { secret: 'test-secret' } })
       const session = createSession({ driver: 'memory' })
       const middleware = createNuxtMiddleware({ security, session })
       const event = makeEvent({ method: 'POST' })
@@ -133,7 +133,7 @@ describe('createNuxtMiddleware', () => {
     })
 
     it('verifies CSRF token from x-csrf-token header', async () => {
-      const security = createSecurity()
+      const security = createSecurity({ csrf: { secret: 'test-secret' } })
       const session = createSession({ driver: 'memory' })
 
       const sessionHandle = await session.load()
@@ -156,7 +156,7 @@ describe('createNuxtMiddleware', () => {
     })
 
     it('skips CSRF for exempt paths', async () => {
-      const security = createSecurity()
+      const security = createSecurity({ csrf: { secret: 'test-secret' } })
       const middleware = createNuxtMiddleware(
         { security },
         { csrfExemptPaths: ['/api/webhooks'] },
@@ -180,7 +180,7 @@ describe('createNuxtMiddleware', () => {
 
 describe('getCsrfToken', () => {
   it('generates a token for the current session', async () => {
-    const security = createSecurity()
+    const security = createSecurity({ csrf: { secret: 'test-secret' } })
     const session = createSession({ driver: 'memory' })
     const handle = await session.load()
 
@@ -190,7 +190,7 @@ describe('getCsrfToken', () => {
   })
 
   it('generates a token when no session is present', async () => {
-    const security = createSecurity()
+    const security = createSecurity({ csrf: { secret: 'test-secret' } })
     const token = await getCsrfToken({}, security)
     expect(typeof token).toBe('string')
   })
@@ -258,7 +258,7 @@ describe('cookie parsing', () => {
 
 describe('HEAD and OPTIONS bypass CSRF', () => {
   it.each(['HEAD', 'OPTIONS'])('%s requests skip CSRF check', async (method) => {
-    const security = createSecurity()
+    const security = createSecurity({ csrf: { secret: 'test-secret' } })
     const middleware = createNuxtMiddleware({ security })
     const event = makeEvent({ method })
 

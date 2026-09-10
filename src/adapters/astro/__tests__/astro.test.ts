@@ -132,7 +132,7 @@ describe('createAstroMiddleware', () => {
 
   describe('CSRF protection', () => {
     it('allows GET requests without CSRF token', async () => {
-      const security = createSecurity()
+      const security = createSecurity({ csrf: { secret: 'test-secret' } })
       const middleware = createAstroMiddleware({ security })
       const context = makeContext({ method: 'GET' })
       const next = makeNext()
@@ -143,7 +143,7 @@ describe('createAstroMiddleware', () => {
     })
 
     it('marks csrfVerified false for POST without token', async () => {
-      const security = createSecurity()
+      const security = createSecurity({ csrf: { secret: 'test-secret' } })
       const session = createSession({ driver: 'memory' })
       const middleware = createAstroMiddleware({ security, session })
       const context = makeContext({ method: 'POST' })
@@ -154,7 +154,7 @@ describe('createAstroMiddleware', () => {
     })
 
     it('marks csrfVerified true for POST with valid token', async () => {
-      const security = createSecurity()
+      const security = createSecurity({ csrf: { secret: 'test-secret' } })
       const session = createSession({ driver: 'memory' })
 
       const sessionHandle = await session.load()
@@ -175,7 +175,7 @@ describe('createAstroMiddleware', () => {
     })
 
     it('marks csrfVerified true for x-xsrf-token header', async () => {
-      const security = createSecurity()
+      const security = createSecurity({ csrf: { secret: 'test-secret' } })
       const session = createSession({ driver: 'memory' })
 
       const sessionHandle = await session.load()
@@ -195,7 +195,7 @@ describe('createAstroMiddleware', () => {
     })
 
     it('skips CSRF for exempt paths', async () => {
-      const security = createSecurity()
+      const security = createSecurity({ csrf: { secret: 'test-secret' } })
       const middleware = createAstroMiddleware(
         { security },
         { csrfExemptPaths: ['/api/webhooks'] },
@@ -211,7 +211,7 @@ describe('createAstroMiddleware', () => {
     })
 
     it('does not set csrfVerified for safe methods', async () => {
-      const security = createSecurity()
+      const security = createSecurity({ csrf: { secret: 'test-secret' } })
       const middleware = createAstroMiddleware({ security })
 
       for (const method of ['GET', 'HEAD', 'OPTIONS']) {
@@ -236,7 +236,7 @@ describe('createAstroMiddleware', () => {
 
   describe('next() is always called', () => {
     it('calls next even when CSRF fails', async () => {
-      const security = createSecurity()
+      const security = createSecurity({ csrf: { secret: 'test-secret' } })
       const middleware = createAstroMiddleware({ security })
       const context = makeContext({ method: 'POST' })
       const next = makeNext()
@@ -251,7 +251,7 @@ describe('createAstroMiddleware', () => {
 
 describe('getCsrfToken', () => {
   it('generates a token from session', async () => {
-    const security = createSecurity()
+    const security = createSecurity({ csrf: { secret: 'test-secret' } })
     const session = createSession({ driver: 'memory' })
     const handle = await session.load()
 
@@ -261,7 +261,7 @@ describe('getCsrfToken', () => {
   })
 
   it('generates a token without session', async () => {
-    const security = createSecurity()
+    const security = createSecurity({ csrf: { secret: 'test-secret' } })
     const token = await getCsrfToken({}, security)
     expect(typeof token).toBe('string')
   })
