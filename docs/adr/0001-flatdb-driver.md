@@ -1,8 +1,8 @@
 # 0001 · flatdb as storage for session and auth
 
-- Status: accepted
+- Status: accepted; amended 2026-09-10 (Decision 1 designed, not built; see Follow-ups)
 - Date: 2026-09-08
-- Issue: #1. Follow-ups: #2 (session driver), #3 (auth adapter), #4 (guide)
+- Issue: #1. Follow-ups: #3 (auth adapter), #4 (guide); #2 (session driver) parked
 
 ## Context
 
@@ -37,6 +37,8 @@ Why not a `PathCollection`: a collection rewrites `sessions/_index.json`, which 
 
 `createSession({ driver: 'flatdb' })` throws the same guidance the redis branch throws ("import `createFlatdbDriver` from `@loewen-digital/fullstack/session/flatdb` and pass your adapter"). The adapter comes from the app, on Workers from `platform.env`, so string config cannot build it.
 
+**Amendment 2026-09-10: designed, not built.** The login state does not live in the `session` module. `createAuth` keeps its sessions through `AuthDbAdapter` in the app's collections (Decision 2), server-side and revocable. What the `session` module carries in the starter is flash messages and old input, and the existing cookie driver covers that: no storage, no latency, no prune, and no dependency on flatdb's adapter contract, which is public as a type but nowhere documented as a store to use directly. The design above stays valid. #2 is parked until an app needs server-side session state on flatdb; #4 documents auth on flatdb next to `session: { driver: 'cookie' }` and states the cookie driver's limits (about 4 KB, signed but not encrypted, no secrets in it).
+
 ### 2. Auth: keep `AuthDbAdapter`, ship a reference implementation on flatdb collections
 
 `AuthDbAdapter` in `src/auth/types.ts` is already a repository interface: eleven functions, no Drizzle type in any signature. It stays the seam. `createAuth` and the rest of `src/auth` do not change; the comments that say "implement against your Drizzle schema" are corrected.
@@ -57,7 +59,7 @@ No new `store` or `document` module: flatdb is the document store. A fullstack w
 - Neither file imports `@loewen-digital/flatdb`. Like `createRedisDriver` with its `RedisClient`, each declares the slice it needs as a local interface: `FlatdbStorage` (`read`, `write`, `delete`, `list`) and `FlatdbCollection<T>` (`findById`, `findOne`, `find`, `insert`, `update`, `delete`). Any flatdb adapter or collection satisfies them structurally, and the emitted `.d.ts` files stand on their own.
 - `@loewen-digital/flatdb` is declared as an optional peer dependency (`peerDependencies` plus `peerDependenciesMeta.optional`), so the version contract is visible to consumers without forcing an install.
 - Subpath exports `./session/flatdb` to `dist/session/drivers/flatdb.js` and `./auth/flatdb` to `dist/auth/adapters/flatdb.js`, with matching Vite entries and lines in `SPEC.md`. `src/session/index.ts` and `src/auth/index.ts` never import these files, so `@loewen-digital/fullstack/session` and `/auth` stay flatdb-free and `sideEffects: false` keeps everything else tree-shakeable.
-- Tests run against flatdb's real `MemoryAdapter` and collections: a structural contract is worth testing against the real implementation. flatdb is being published to npm and becomes a devDependency from there; #2 adds it.
+- Tests run against flatdb's real `MemoryAdapter` and collections: a structural contract is worth testing against the real implementation. flatdb is being published to npm and becomes a devDependency from there; #3 adds it.
 
 ### 4. Runtime: Workers-safe by construction
 
@@ -68,20 +70,22 @@ No new `store` or `document` module: flatdb is the document store. A fullstack w
 
 ## Consequences
 
-- Two new entry points; no existing module changes its public API.
-- #2 and #3 as filed assume path-mode collections and an index-based prune. Their acceptance criteria are rewritten to this decision: adapter-based session driver with a scanning prune, auto-mode collections for auth.
-- Session data lives as readable JSON objects, one per session, in the same bucket or folder as the app's data. The prefix must not collide with a collection name; the guide (#4) says so.
-- Expired session-module sessions are removed lazily on read and by `pruneExpiredSessions`; without the scheduled prune, abandoned sessions stay in storage. `AuthDbAdapter.deleteExpiredSessions` is declared but `src/auth` never calls it; #3 decides whether `createSession` calls it on login.
+- One new entry point now (`./auth/flatdb`), a second (`./session/flatdb`) if #2 is ever built; no existing module changes its public API.
+- #2 and #3 as filed assume path-mode collections and an index-based prune. Their acceptance criteria are rewritten to this decision: adapter-based session driver with a scanning prune, auto-mode collections for auth. #2 is then parked by the amendment.
+- If #2 is built: session data lives as readable JSON objects, one per session, in the same bucket or folder as the app's data, and the prefix must not collide with a collection name.
+- If #2 is built: expired session-module sessions are removed lazily on read and by `pruneExpiredSessions`; without the scheduled prune, abandoned sessions stay in storage.
+- `AuthDbAdapter.deleteExpiredSessions` is declared but `src/auth` never calls it; #3 decides whether `createSession` calls it on login.
 
 ## Alternatives considered
 
 - **Session driver on a `PathCollection`**, the shape #2 proposed: rejected for the per-request index rewrite, see Decision 1.
 - **Cloudflare KV as the session store**: native TTL, but neither flatdb nor local-first. A possible separate driver later.
+- **Cookie driver for the session module**: chosen for the starter by the amendment; it already covers flash and old input. The flatdb driver stays the answer for server-side session state.
 - **A generic `store` module wrapping flatdb collections**: rejected, see Decision 2.
 - **`import type` from flatdb instead of structural interfaces**: couples the emitted types to an optional package; the redis driver already shows the structural route.
 
 ## Follow-ups
 
-- #2 session driver on flatdb
+- #2 session driver on flatdb: parked, closed as not planned; reopen when an app needs server-side session state on flatdb
 - #3 reference `AuthDbAdapter` on flatdb
-- #4 flatdb usage guide
+- #4 guide: auth on flatdb, `session` module on the cookie driver
