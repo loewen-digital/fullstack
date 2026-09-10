@@ -5,7 +5,7 @@
  * Rules for a page:
  * - A block whose first line is `// <path>.ts` is written to that path. Files under `src/routes/`
  *   get a `./$types` stub next to them, `$lib/*` points at the page's `src/lib/`, and
- *   `$env/dynamic/private` is stubbed.
+ *   `$env/dynamic/private` and the Workers globals `R2Bucket` and `ScheduledEvent` are stubbed.
  * - Every other block is appended, in order, to one module per page, so a later block may use
  *   what an earlier one declared. Names an earlier block already imported are dropped from
  *   later named imports.
@@ -20,11 +20,21 @@ const ROOT = fileURLToPath(new URL('../..', import.meta.url))
 // Inside node_modules, so that bare imports (@sveltejs/kit, @types/node) resolve from the samples.
 const OUT = join(ROOT, 'node_modules/.cache/docs-samples')
 
-const PAGES = ['modules/auth', 'modules/session', 'adapters/sveltekit']
+const PAGES = ['modules/auth', 'modules/session', 'adapters/sveltekit', 'guides/auth-on-flatdb']
 
 const ENV_STUB = `declare module '$env/dynamic/private' {
   export const env: Record<string, string | undefined>
 }
+`
+const WORKERS_STUB = `import type { R2BucketLike } from '@loewen-digital/flatdb'
+declare global {
+  type R2Bucket = R2BucketLike
+  interface ScheduledEvent {
+    cron: string
+    scheduledTime: number
+  }
+}
+export {}
 `
 const TYPES_STUB = `import type { Actions as KitActions, RequestHandler as KitRequestHandler, ServerLoad } from '@sveltejs/kit'
 export type PageServerLoad = ServerLoad
@@ -65,6 +75,7 @@ function writeSamples(name: string, blocks: Block[]): { dir: string; files: stri
   }
 
   write('env.d.ts', ENV_STUB)
+  write('workers.d.ts', WORKERS_STUB)
 
   const fragments: string[] = []
   const imported = new Set<string>()
