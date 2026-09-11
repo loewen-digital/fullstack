@@ -25,7 +25,7 @@ export interface AstroCookies {
   has(key: string): boolean
   set(key: string, value: string, options?: AstroCookieSetOptions): void
   delete(key: string, options?: Pick<AstroCookieSetOptions, 'domain' | 'path'>): void
-  headers(): string[]
+  headers(): Iterable<string>
 }
 
 export interface AstroLocals {
@@ -44,7 +44,11 @@ export interface AstroAPIContext {
   request: Request
   url: URL
   params: Record<string, string | undefined>
-  locals: AstroLocals
+  /**
+   * Astro types this as `App.Locals`, an interface the app augments. It has no index
+   * signature, so only `object` accepts it; the middleware writes `FullstackAstroLocals` into it.
+   */
+  locals: object
   cookies: AstroCookies
   site?: URL | undefined
   generator?: string

@@ -31,9 +31,9 @@ function makeEvent(overrides: Partial<{
       },
       res: {
         statusCode: 200,
-        setHeader(name: string, value: string) {
+        setHeader(name: string, value: string | string[]) {
           if (name.toLowerCase() === 'set-cookie') {
-            responseCookies.push(value)
+            responseCookies.splice(0, responseCookies.length, ...(Array.isArray(value) ? value : [value]))
           }
         },
         getHeader(name: string) {
@@ -49,7 +49,7 @@ function makeEvent(overrides: Partial<{
 }
 
 function getSetCookies(event: ReturnType<typeof makeEvent>): string[] {
-  return event._responseCookies.flatMap((v) => v.split(', '))
+  return event._responseCookies
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────────
@@ -233,6 +233,23 @@ describe('setAuthCookie / clearAuthCookie', () => {
     const cookies = getSetCookies(event)
     const cleared = cookies.find((c) => c.startsWith('custom_auth='))
     expect(cleared).toContain('Max-Age=0')
+  })
+})
+
+describe('several cookies on one response', () => {
+  it('keeps one Set-Cookie header per cookie', async () => {
+    const session = createSession({ driver: 'memory' })
+    const middleware = createNuxtMiddleware({ session })
+    const event = makeEvent()
+
+    await middleware(event) // writes the session cookie
+    setAuthCookie(event, 'tok') // a login handler adds the auth cookie
+
+    const cookies = getSetCookies(event)
+    expect(cookies).toHaveLength(2)
+    expect(cookies[0]).toMatch(/^fsid=/)
+    expect(cookies[1]).toMatch(/^fs_token=tok/)
+    expect(cookies.some((c) => c.includes(', '))).toBe(false)
   })
 })
 

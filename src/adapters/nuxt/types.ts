@@ -39,8 +39,8 @@ export interface H3Event {
     }
     res: {
       statusCode: number
-      setHeader(name: string, value: string): void
-      getHeader(name: string): string | string[] | undefined
+      setHeader(name: string, value: string | string[]): void
+      getHeader(name: string): number | string | string[] | undefined
     }
   }
   /** H3 context bag — fullstack stores session, user, etc. here */

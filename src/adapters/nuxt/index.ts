@@ -99,12 +99,10 @@ function setResponseCookie(
 ): void {
   const serialized = serializeCookie(name, value, options)
   const existing = event.node?.res.getHeader('Set-Cookie')
-  const cookies = existing
-    ? Array.isArray(existing)
-      ? [...existing, serialized]
-      : [existing as string, serialized]
-    : [serialized]
-  event.node?.res.setHeader('Set-Cookie', cookies.join(', '))
+  // One Set-Cookie header per cookie: a comma-joined value is one malformed cookie to a browser.
+  const cookies =
+    existing === undefined ? [serialized] : Array.isArray(existing) ? [...existing, serialized] : [String(existing), serialized]
+  event.node?.res.setHeader('Set-Cookie', cookies)
 }
 
 function deleteResponseCookie(event: H3Event, name: string): void {

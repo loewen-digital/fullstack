@@ -8,7 +8,7 @@ import {
 } from '../index.js'
 import { createSession } from '../../../session/index.js'
 import { createSecurity } from '../../../security/index.js'
-import type { AstroAPIContext, AstroMiddlewareNext } from '../types.js'
+import type { AstroAPIContext, AstroLocals, AstroMiddlewareNext } from '../types.js'
 
 // ── Test helpers ───────────────────────────────────────────────────────────────
 
@@ -40,7 +40,7 @@ function makeContext(overrides: {
   url?: string
   headers?: Record<string, string>
   cookies?: Record<string, string>
-} = {}): AstroAPIContext & { cookies: ReturnType<typeof makeCookies> } {
+} = {}): AstroAPIContext & { locals: AstroLocals; cookies: ReturnType<typeof makeCookies> } {
   const url = new URL(overrides.url ?? 'http://localhost/')
   const cookies = makeCookies(overrides.cookies ?? {})
 
