@@ -1,72 +1,83 @@
 ---
 title: Vite Plugin
-description: Vite integration for development utilities and the Dev UI
+description: fullstackPlugin loads fullstack.config.ts, exposes it as a virtual module and serves the Dev UI in development
 ---
 
 # Vite Plugin
 
-The `@loewen-digital/fullstack` Vite plugin adds development tooling to your build: the Dev UI panel, virtual module support, and hot-reload awareness for configuration changes.
+`fullstackPlugin()` does three things: it loads `fullstack.config.ts` from the project root and exposes it as the virtual module `virtual:fullstack/config` (with a generated `fullstack.d.ts` so the import is typed), it reloads when that file changes, and in `vite dev` it mounts the [Dev UI](/tooling/dev-ui) at `/__fullstack/`. SvelteKit runs on Vite, so the plugin goes next to `sveltekit()`.
 
 ## Import
 
 ```ts
-import { fullstack } from '@loewen-digital/fullstack/vite'
+import { fullstackPlugin } from '@loewen-digital/fullstack/vite'
 ```
 
 ## Setup
 
-Add the plugin to your `vite.config.ts`:
-
 ```ts
+// vite.config.ts
 import { defineConfig } from 'vite'
 import { sveltekit } from '@sveltejs/kit/vite'
-import { fullstack } from '@loewen-digital/fullstack/vite'
+import { fullstackPlugin } from '@loewen-digital/fullstack/vite'
 
 export default defineConfig({
-  plugins: [
-    sveltekit(),
-    fullstack({
-      // Enable the Dev UI at /_fullstack
-      devUI: true,
-    }),
-  ],
+  plugins: [sveltekit(), fullstackPlugin()],
 })
 ```
 
-## Features
-
-### Dev UI
-
-When `devUI: true`, the plugin mounts a development panel at `/_fullstack` (in `dev` mode only). The Dev UI provides:
-
-- **Mail preview** — view all emails sent via the `console` driver in a browser
-- **Queue inspector** — view pending, processing, and failed jobs
-- **Cache explorer** — inspect cache keys and values
-- **Session viewer** — debug session contents for the current user
-- **Log viewer** — tail structured logs in real time
-
-The Dev UI is never included in production builds.
-
-### Configuration hot-reload
-
-When your `fullstack.config.ts` changes, the plugin triggers a module reload without requiring a full server restart.
-
-### Type generation
-
-The plugin can generate TypeScript types from your database schema and route configuration:
+The config file is `fullstack.config.ts` (or `.js`) in the Vite root, a default export of `defineConfig`. Without one the config is `{}`.
 
 ```ts
-fullstack({
-  devUI: true,
-  generateTypes: true, // writes to src/fullstack.d.ts
+// fullstack.config.ts
+import { defineConfig } from '@loewen-digital/fullstack'
+
+export default defineConfig({
+  db: { driver: 'sqlite', url: './app.db', migrations: './drizzle' },
+  cache: { driver: 'memory', ttl: '10m' },
 })
 ```
+
+The same file is what the [CLI](/tooling/cli) reads for `migrate` and `seed`.
+
+## The virtual module
+
+`virtual:fullstack/config` is the loaded config as a default export, serialized to JSON at build time. `fullstack.d.ts` in the root declares it (the plugin writes the file on every build and config change; commit it or ignore it, it is regenerated):
+
+```ts
+// fullstack.d.ts
+declare module 'virtual:fullstack/config' {
+  import type { FullstackConfig } from '@loewen-digital/fullstack/config'
+  const config: FullstackConfig
+  export default config
+}
+```
+
+```ts
+// src/lib/server/stack.ts
+import config from 'virtual:fullstack/config'
+import { createStack } from '@loewen-digital/fullstack'
+
+export const stack = createStack(config)
+```
+
+The module is inlined wherever it is imported, client code included. Keep secrets out of `fullstack.config.ts`, or import the module only from server files; read secrets from the environment where the stack is built.
+
+## Reloading
+
+In `vite dev` the plugin watches the config file. A change reloads it, rewrites `fullstack.d.ts`, invalidates the virtual module and triggers a full page reload.
+
+## Dev UI
+
+`configureServer` runs only for the dev server, so the Dev UI and its API under `/__fullstack/` exist in `vite dev` and in nothing else: a production build carries no route, no HTML and no store. The panels read the in-memory dev store that the console mail driver, the memory queue driver, the console log transport and the memory cache driver fill while `NODE_ENV` is not `production`.
 
 ## Config options
 
+`fullstackPlugin(options)` reads these.
+
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `devUI` | `boolean` | `false` | Enable the Dev UI panel in development |
-| `devUI.path` | `string` | `'/_fullstack'` | URL path for the Dev UI |
-| `generateTypes` | `boolean` | `false` | Auto-generate TypeScript types from schema |
-| `configFile` | `string` | `'fullstack.config'` | Path to the stack config file |
+| `configRoot` | `string` | Vite's `root` | Directory that holds `fullstack.config.ts` |
+| `generateTypes` | `boolean` | `true` | Write `fullstack.d.ts` with the virtual module's declaration on build and on config change |
+
+There is no option for the Dev UI or its path: it is on in `vite dev` at `/__fullstack/`, off everywhere else.

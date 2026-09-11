@@ -1,69 +1,43 @@
 ---
 title: Dev UI
-description: Browser-based development panel for inspecting mail, queue, cache, and logs
+description: The panel at /__fullstack/ shows mail, jobs, logs, cache and the loaded config while vite dev runs
 ---
 
 # Dev UI
 
-The Dev UI is a browser-based development panel embedded via the Vite plugin. It gives you visibility into what your application is doing — without `console.log` or external dashboards.
+The Dev UI is a single page the [Vite plugin](/tooling/vite-plugin) serves at `/__fullstack/` while `vite dev` runs. It shows what the in-memory drivers did in the current process: mail from the console driver, jobs from the memory queue driver, entries from the console log transport, the memory cache's keys, and the config the plugin loaded. Nothing is configured; nothing of it is in a production build.
 
-## Enabling the Dev UI
+## Opening it
 
-Add the Vite plugin with `devUI: true`:
+With `fullstackPlugin()` in `vite.config.ts`, start the dev server and open `http://localhost:5173/__fullstack/`. The page polls its API every few seconds.
 
-```ts
-// vite.config.ts
-import { fullstack } from '@loewen-digital/fullstack/vite'
+## Where the data comes from
 
-export default {
-  plugins: [
-    fullstack({ devUI: true }),
-  ],
-}
-```
+The drivers write to a dev store while `NODE_ENV` is not `production`; the store keeps the last 500 entries of each kind and lives in the dev server's process.
 
-Then visit `http://localhost:5173/_fullstack` while your dev server is running.
+| Panel | Source | Shows |
+|---|---|---|
+| Overview | all stores | counts of mails, jobs and log entries |
+| Mail | `createMail({ driver: 'console' })` | every message sent: from, to, cc, bcc, subject, text and HTML |
+| Queue | `createQueue({ driver: 'memory' })` | every job with its status (`pending`, `processing`, `completed`, `failed`), attempts and the failure reason |
+| Logs | `consoleTransport()` of `createLogger` | level, message, timestamp and context of every entry |
+| Cache | `createCache({ driver: 'memory' })` | key, value and expiry of every live entry |
+| Config | the plugin | the loaded `fullstack.config.ts` as JSON |
 
-## Mail preview
-
-The mail panel shows every email sent through the `console` driver during the current session:
-
-- Full message preview with HTML rendering
-- Headers, recipients, subject, and body
-- One-click resend to a real address for manual testing
-
-Configure the `console` driver in development:
+Mail, jobs and logs can be cleared from their panel. A driver with a service behind it (Resend, Redis, a file transport) does not report here; keep the console and memory drivers in development.
 
 ```ts
-const mail = createMail({
-  driver: process.env.NODE_ENV === 'production' ? 'resend' : 'console',
-  from: { name: 'My App', address: 'hello@example.com' },
-})
+import { createMail } from '@loewen-digital/fullstack/mail'
+import { createLogger } from '@loewen-digital/fullstack/logging'
+
+export const mail = createMail({ driver: 'console', from: 'My App <hello@example.com>' }) // every send shows in Mail
+export const logger = createLogger({ level: 'debug' }) // the default console transport feeds Logs
 ```
 
-## Queue inspector
+## The API
 
-The queue panel shows the state of all jobs in your in-memory or database queue:
+The page reads `GET /__fullstack/api/mail`, `/queue`, `/logs`, `/cache` and `/config`, and clears with `POST /__fullstack/api/mail/clear`, `/queue/clear` and `/logs/clear`. They return JSON and are as reachable as the dev server is; the same is true of the config, so keep secrets out of `fullstack.config.ts`.
 
-- **Pending** — jobs waiting to be processed
-- **Processing** — jobs currently being handled
-- **Completed** — recently finished jobs with execution time
-- **Failed** — jobs that threw an error, with stack traces
+## Not in the Dev UI
 
-You can retry failed jobs and clear queues directly from the UI.
-
-## Cache explorer
-
-Browse all cache keys and their current values. Useful for verifying that caching is working as expected and for manually invalidating entries during development.
-
-## Session viewer
-
-Inspect the session contents for any authenticated user. Useful for debugging session-based auth flows, flash messages, and old input.
-
-## Log viewer
-
-A live-tailing log viewer that displays structured log entries from the `console` logger. Supports filtering by level (debug, info, warn, error) and free-text search.
-
-## Production safety
-
-The Dev UI is completely excluded from production builds. The Vite plugin detects `NODE_ENV=production` and omits all Dev UI routes and assets. There is no runtime cost in production.
+There is no session viewer, no resend of a mail, and no retry of a failed job from the page; `queue.retry(id)` in code does the last one. In a production build the plugin registers no middleware and the drivers skip the store, so the UI costs nothing there.

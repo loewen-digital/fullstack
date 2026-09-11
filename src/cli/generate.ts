@@ -55,16 +55,19 @@ export function generateFactory(name: string): void {
   const fileName = `${name.toLowerCase()}.factory.ts`
   const filePath = resolve(process.cwd(), 'database', 'factories', fileName)
 
-  const content = `import { defineFactory } from '@loewen-digital/fullstack/testing'
-
-export const ${pascal}Factory = defineFactory<{
-  // TODO: define ${pascal} shape
-}>({
-  definition: () => ({
-    // TODO: provide default values
-  }),
-})
-`
+  // One function per field, the shape defineFactory takes; every make() calls them again.
+  const content = [
+    "import { defineFactory, sequence } from '@loewen-digital/fullstack/testing'",
+    '',
+    'const seq = sequence()',
+    '',
+    `export const ${pascal}Factory = defineFactory({`,
+    '  // TODO: one function per field',
+    '  id: () => seq(),',
+    `  name: () => '${pascal} ' + seq(),`,
+    '})',
+    '',
+  ].join('\n')
   writeFile(filePath, content)
 }
 

@@ -51,6 +51,9 @@ export const PAGES = [
   'testing/overview',
   'testing/fakes',
   'testing/factories',
+  'tooling/vite-plugin',
+  'tooling/dev-ui',
+  'tooling/cli',
   'guides/auth-on-flatdb',
 ]
 

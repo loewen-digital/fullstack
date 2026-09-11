@@ -8,6 +8,7 @@ import type {
   FactoryDefinition,
   Factory,
   MigrationStatus,
+  AnyDrizzleDb,
 } from './types.js'
 import { paginate as paginateHelper } from './pagination.js'
 import { runMigrations, rollbackMigration, getMigrationStatus } from './migrations.js'
@@ -15,7 +16,7 @@ import { runSeed } from './seeds.js'
 import { createFactory } from './factories.js'
 
 export type { DbConfig }
-export type { DbInstance, PaginationResult, PaginationOptions, MigrationStatus, FactoryDefinition, Factory }
+export type { DbInstance, PaginationResult, PaginationOptions, MigrationStatus, FactoryDefinition, Factory, AnyDrizzleDb }
 export { paginate as paginateHelper } from './pagination.js'
 
 /**
