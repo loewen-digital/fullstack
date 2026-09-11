@@ -1,20 +1,22 @@
 ---
 title: Driver Pattern
-description: How the driver pattern enables swappable backends in @loewen-digital/fullstack
+description: Modules with I/O take a driver; the driver decides where data goes, the module's API stays the same
 ---
 
 # Driver Pattern
 
-Every module with I/O — mail, storage, cache, sessions, queues, search — uses a **driver pattern**. You choose a driver at configuration time. The rest of your application code never changes when you swap backends.
+Every module with I/O (mail, storage, cache, session, queue, search, db, logging) does its work through a driver. The module's methods stay the same whichever driver is behind them; swapping the backend changes one line where the module is built.
 
-## What is a driver?
+## What a driver is
 
-A driver is an object that implements a well-defined interface. For example, the `StorageDriver` interface looks like this:
+A driver is an object that implements the module's driver interface. For storage that is `StorageDriver`:
 
 ```ts
+import type { FileMeta } from '@loewen-digital/fullstack/storage'
+
 interface StorageDriver {
-  get(key: string): Promise<ReadableStream | null>
-  put(key: string, data: ReadableStream | Uint8Array | string, meta?: FileMeta): Promise<void>
+  get(key: string): Promise<Uint8Array | null>
+  put(key: string, data: Uint8Array | string | ReadableStream, meta?: FileMeta): Promise<void>
   delete(key: string): Promise<void>
   exists(key: string): Promise<boolean>
   list(prefix?: string): Promise<string[]>
@@ -22,77 +24,85 @@ interface StorageDriver {
 }
 ```
 
-The `createStorage()` factory accepts a driver name. Under the hood, it loads the corresponding implementation dynamically:
+The instance the module returns (`StorageInstance`) adds what is driver-independent, such as `getText`, and forwards the rest.
+
+## Choosing a driver
+
+Two kinds of driver, two ways to get an instance:
+
+- **Named drivers** need nothing but their name. `createX({ driver: 'memory' })` builds them.
+- **Drivers with options** (credentials, a client, a path) are built with their own factory and handed to `createXInstance(driver)`. Naming one in `createX` throws and points to that factory.
 
 ```ts
-const storage = createStorage({ driver: 'local', local: { root: './uploads' } })
-const storage = createStorage({ driver: 's3', s3: { bucket: 'my-bucket', region: 'us-east-1' } })
-const storage = createStorage({ driver: 'r2', r2: { bucket: 'my-bucket', accountId: '...' } })
-const storage = createStorage({ driver: 'memory' }) // great for tests
+import {
+  createStorage,
+  createStorageInstance,
+  createLocalDriver,
+  createS3Driver,
+  createR2Driver,
+} from '@loewen-digital/fullstack/storage'
+
+const inMemory = createStorage({ driver: 'memory' }) // tests
+const onDisk = createStorageInstance(createLocalDriver({ root: './uploads', baseUrl: '/uploads' }))
+const onS3 = createStorageInstance(
+  createS3Driver({ bucket: 'my-bucket', region: 'eu-central-1', accessKeyId: '...', secretAccessKey: '...' }),
+)
+const onR2 = createStorageInstance(
+  createR2Driver({ accountId: '...', bucket: 'my-bucket', accessKeyId: '...', secretAccessKey: '...' }),
+)
 ```
 
-The `storage.put()`, `storage.get()`, `storage.delete()` calls are identical regardless of which driver is active.
+`onDisk.put('avatar.png', bytes)` and `onS3.put('avatar.png', bytes)` are the same call.
 
-## Available drivers per module
+## Drivers per module
 
-| Module | Drivers |
-|---|---|
-| `mail` | `console`, `smtp`, `resend`, `postmark` |
-| `storage` | `local`, `s3`, `r2`, `memory` |
-| `cache` | `memory`, `redis`, `kv` |
-| `session` | `cookie`, `memory`, `redis` |
-| `queue` | `memory`, `redis`, `database` |
-| `search` | `sqlite-fts`, `meilisearch`, `typesense` |
-| `logging` | `console`, `file`, `http` |
-| `db` | `sqlite`, `postgres`, `mysql` |
+| Module | Named (`createX({ driver })`) | With options (`createXDriver(options)` into `createXInstance`) |
+|---|---|---|
+| `mail` | `console` | `createSmtpDriver` (needs `nodemailer`), `createResendDriver`, `createPostmarkDriver` |
+| `storage` | `memory` | `createLocalDriver`, `createS3Driver`, `createR2Driver` |
+| `cache` | `memory` | `createRedisDriver` (a Redis client), `createKvDriver` (a KV namespace) |
+| `session` | `memory`, `cookie` (needs `secret`) | `createRedisDriver` into `createSessionManager` |
+| `queue` | `memory` | `createRedisDriver`, `createCloudflareDriver` (a Queue binding) |
+| `search` | `sqlite-fts` | `createMeilisearchDriver`, `createTypesenseDriver`; a custom driver into `createSearch({ driver })` |
+| `db` | `sqlite` (bundled `better-sqlite3`) | none yet; `postgres`, `mysql` and `d1` are declared and throw |
+| `logging` | `consoleTransport()` is the default | `fileTransport`, `externalTransport`, passed as `transports` |
 
 ## Swapping drivers per environment
 
-The canonical pattern is to use lightweight drivers in development and real services in production:
+Decide by what the environment provides. The memory driver in development and tests, Redis where `REDIS_URL` is set:
 
 ```ts
-const cache = createCache({
-  driver: process.env.REDIS_URL ? 'redis' : 'memory',
-  redis: { url: process.env.REDIS_URL },
-})
+import { createCache, createCacheInstance, createRedisDriver } from '@loewen-digital/fullstack/cache'
 
-const mail = createMail({
-  driver: process.env.NODE_ENV === 'production' ? 'resend' : 'console',
-  resend: { apiKey: process.env.RESEND_API_KEY! },
-  from: { name: 'My App', address: 'hello@example.com' },
-})
+declare const redis: Parameters<typeof createRedisDriver>[0]['client'] // ioredis or node-redis v4+
+
+export const cache = process.env.REDIS_URL
+  ? createCacheInstance(createRedisDriver({ client: redis, prefix: 'app:' }))
+  : createCache({ driver: 'memory' })
 ```
 
 ## Writing a custom driver
 
-You can implement any driver interface yourself and pass it directly to the factory:
+Implement the interface and pass the object to `createXInstance`. A driver can wrap another one; this one namespaces every key, so two tenants share one store without seeing each other's entries:
 
 ```ts
-import type { CacheDriver } from '@loewen-digital/fullstack/cache'
+import { createCacheInstance, createMemoryDriver, type CacheDriver } from '@loewen-digital/fullstack/cache'
 
-const upstashDriver: CacheDriver = {
-  async get(key) { /* ... */ },
-  async set(key, value, ttl) { /* ... */ },
-  async delete(key) { /* ... */ },
-  async has(key) { /* ... */ },
-  async flush() { /* ... */ },
+function withPrefix(inner: CacheDriver, prefix: string): CacheDriver {
+  return {
+    get: <T>(key: string) => inner.get<T>(`${prefix}${key}`),
+    set: (key, value, ttl) => inner.set(`${prefix}${key}`, value, ttl),
+    has: (key) => inner.has(`${prefix}${key}`),
+    delete: (key) => inner.delete(`${prefix}${key}`),
+    flush: () => inner.flush(),
+  }
 }
 
-const cache = createCache({ driver: upstashDriver })
+const tenantCache = createCacheInstance(withPrefix(createMemoryDriver(), 'tenant-a:'))
 ```
 
-This makes it easy to support any backend without waiting for an official driver to be released.
+Nothing has to be registered: a driver is a value, and the module only sees the interface.
 
-## Dynamic imports
+## What a driver pulls in
 
-Drivers are loaded with dynamic `import()` under the hood. This means driver code that you don't use is not included in your bundle. If you never configure the `s3` driver, the AWS SDK is never imported.
-
-```ts
-// Internal implementation sketch
-const driver = await import(
-  config.driver === 's3'    ? './drivers/s3.js'    :
-  config.driver === 'r2'    ? './drivers/r2.js'    :
-  config.driver === 'local' ? './drivers/local.js' :
-                              './drivers/memory.js'
-)
-```
+The drivers are small and reach their service through `fetch`: Resend, Postmark, S3, R2, Meilisearch and Typesense need no SDK. The Redis, KV and Cloudflare Queue drivers take the client or binding you already have and import nothing. Two drivers load a package, and only when they are built: SMTP imports `nodemailer` on first send, the sqlite db driver requires `better-sqlite3` when `createDb` runs.

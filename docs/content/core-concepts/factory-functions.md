@@ -1,89 +1,124 @@
 ---
 title: Factory Functions
-description: How and why @loewen-digital/fullstack uses factory functions instead of classes or service providers
+description: Every module is a createX(config) call that returns a plain object; no classes, no container
 ---
 
 # Factory Functions
 
-Every module in `@loewen-digital/fullstack` is created with a `createX(config)` factory function. This is a deliberate design choice that prioritises simplicity, testability, and type safety.
+Every module in `@loewen-digital/fullstack` is created by a `createX(config)` function that returns a plain object with methods. No classes to extend, no service container to register with, no decorators: a function call, an object back.
 
 ## The pattern
 
 ```ts
-// Every module follows this shape:
-const instance = createX(config)
-```
-
-For example:
-
-```ts
-import { createMail } from '@loewen-digital/fullstack/mail'
 import { createCache } from '@loewen-digital/fullstack/cache'
-import { createAuth } from '@loewen-digital/fullstack/auth'
+import { createMail } from '@loewen-digital/fullstack/mail'
+import { createAuth, type AuthDbAdapter } from '@loewen-digital/fullstack/auth'
 
-const mail  = createMail({ driver: 'smtp', /* ... */ })
+declare const authDb: AuthDbAdapter // your storage, see the auth page
+
 const cache = createCache({ driver: 'memory' })
-const auth  = createAuth({ db, session: { driver: 'cookie', secret } })
+const mail = createMail({ driver: 'console', from: 'My App <hello@example.com>' })
+const auth = createAuth({ sessionTtl: 7 * 24 * 3600 }, { db: authDb })
 ```
 
-## Why factory functions?
+Dependencies between modules are the second argument: `auth` takes its storage adapter, `notifications` takes `mail`. Nothing is looked up from a global.
 
-### No magic, no framework dependency
+## Two-level factories
 
-Service containers, decorators, and dependency injection frameworks are powerful but they require buy-in. Factory functions are plain TypeScript — no reflection metadata, no decorators, no DI container to configure. You call a function, you get back an object.
-
-### Inferred TypeScript types
-
-The return type of each factory function is **inferred from the config you pass**. If you configure the SMTP driver, TypeScript knows the mail instance has SMTP-specific properties. No manual type assertions required.
+Modules with drivers have two factories. `createX(config)` takes a driver name and builds the drivers that need nothing else (`memory`, `console`, `cookie`, `sqlite`). `createXInstance(driver)` takes a driver object, for drivers with credentials or clients, and for your own.
 
 ```ts
-const mail = createMail({ driver: 'resend', resend: { apiKey: '...' } })
-// mail is typed as MailInstance — TypeScript knows exactly what's available
+import { createMailInstance, createResendDriver } from '@loewen-digital/fullstack/mail'
+import { createCacheInstance, createMemoryDriver } from '@loewen-digital/fullstack/cache'
+
+const resend = createMailInstance(createResendDriver({ apiKey: process.env.RESEND_API_KEY! }), {
+  driver: 'resend',
+  from: 'My App <hello@example.com>',
+})
+const cacheOnDriver = createCacheInstance(createMemoryDriver(), 3600) // default TTL in seconds
+```
+
+The [driver pattern](/core-concepts/driver-pattern) page has the full list.
+
+## Why factory functions
+
+### No framework dependency
+
+A factory is plain TypeScript: no reflection metadata, no container configuration, nothing a bundler has to understand. It runs wherever the code runs, in a SvelteKit hook, a Worker, a test.
+
+### Types where they matter
+
+The instance types are fixed per module (`MailInstance`, `CacheInstance`, ...); a driver does not change them. Inference happens where the shape depends on your input: `createStack` returns only the modules the config names, `validate` types its `data` from the rules, `createDb(config, schema)` types `drizzle` from the schema.
+
+```ts
+import { createStack } from '@loewen-digital/fullstack'
+import { validate } from '@loewen-digital/fullstack/validation'
+
+const stack = createStack({ cache: { driver: 'memory' }, mail: { driver: 'console' } })
+// stack.cache and stack.mail exist; stack.db is a type error
+
+async function parse(input: Record<string, unknown>) {
+  const result = await validate(input, { email: 'required|email', age: 'optional|number' })
+  if (result.ok) return result.data // { email: string; age?: number }
+  return null
+}
 ```
 
 ### Easy to test
 
-Swap any module for a test double by passing a different config or driver:
+The bundled drivers are the test doubles: the console mail driver keeps every message in `sent`, memory drivers hold data in a `Map`, and an `AuthDbAdapter` on `MemoryAdapter` from flatdb (or a hand-written one) gives `auth` a store without a database.
 
 ```ts
-// In tests, use in-memory drivers — no external services needed
-const mail  = createMail({ driver: 'memory' })
-const cache = createCache({ driver: 'memory' })
-const auth  = createAuth({ db: testDb, session: { driver: 'memory' } })
+import { createMail } from '@loewen-digital/fullstack/mail'
+
+async function sendsWelcomeMail() {
+  const mail = createMail({ driver: 'console', silent: true }) // no console output
+  await mail.send({ to: 'user@example.com', subject: 'Welcome', text: 'Hi' })
+  return mail.sent.length === 1 && mail.sent[0]?.subject === 'Welcome'
+}
 ```
 
 ### Multiple instances
 
-If you need two different mail configurations in the same app (e.g., transactional vs. marketing), just create two instances:
+Two mail configurations in one app are two calls. Each instance holds only what its config and driver hold.
 
 ```ts
-const transactional = createMail({ driver: 'resend', from: { address: 'tx@example.com' } })
-const marketing     = createMail({ driver: 'postmark', from: { address: 'news@example.com' } })
+import { createMailInstance, createResendDriver, createPostmarkDriver } from '@loewen-digital/fullstack/mail'
+
+const transactional = createMailInstance(createResendDriver({ apiKey: process.env.RESEND_API_KEY! }), {
+  driver: 'resend',
+  from: 'tx@example.com',
+})
+const marketing = createMailInstance(createPostmarkDriver({ serverToken: process.env.POSTMARK_TOKEN! }), {
+  driver: 'postmark',
+  from: 'news@example.com',
+})
 ```
 
 ### Tree-shakeable
 
-Because everything is an explicit import and function call, bundlers can tree-shake unused modules. If you never import `createQueue`, it never ends up in your bundle.
+Every module is its own subpath (`@loewen-digital/fullstack/mail`), so what you do not import is not in the bundle. Inside a module the drivers are small and talk HTTP through `fetch`; the two that load a package (`nodemailer` for SMTP, `better-sqlite3` for db) do so lazily.
 
 ## The returned instance
 
-Factory functions return a plain object with methods — not a class instance. This means:
-
-- No `this` binding issues
-- Methods can be destructured safely
-- Easy to serialize configuration (the instance itself holds no hidden state beyond what the config describes)
+A factory returns an object literal of closures over its config and driver, not a class instance. There is no `this`, so methods can be passed around and destructured.
 
 ```ts
+import { createMail } from '@loewen-digital/fullstack/mail'
+
 const { send } = createMail({ driver: 'console' })
-await send({ to: 'user@example.com', subject: 'Hello', text: 'World' })
+
+async function notify() {
+  await send({ to: 'user@example.com', subject: 'Hello', text: 'World' })
+}
 ```
 
-## Comparison with alternatives
+## Compared with the alternatives
 
-| Approach | @loewen-digital/fullstack | DI Container | Singleton |
+| | Factory functions | DI container | Module singleton |
 |---|---|---|---|
-| Framework agnostic | Yes | Sometimes | Yes |
-| Multiple instances | Yes | With scoping | No |
-| TypeScript inference | Full | Partial | Full |
-| Test isolation | Easy | Medium | Hard |
-| Bundle size | Tree-shakeable | Often heavy | Varies |
+| Framework agnostic | yes | depends on the container | yes |
+| Several instances | a second call | with scopes | no |
+| Types | from the config and rules you pass | partial | full |
+| Test setup | a bundled driver | container configuration | mocking modules |
+| Bundle | subpath imports, tree-shakeable | the container plus reflection | varies |

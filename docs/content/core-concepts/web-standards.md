@@ -1,109 +1,115 @@
 ---
 title: Web Standards First
-description: Why @loewen-digital/fullstack uses Web Platform APIs instead of Node.js-specific abstractions
+description: Request, Response, Headers, FormData, Uint8Array and crypto.subtle instead of Node-specific types
 ---
 
 # Web Standards First
 
-`@loewen-digital/fullstack` is built on Web Platform APIs — the same APIs available in browsers, Deno, Bun, Cloudflare Workers, and Node.js 18+. This is not a stylistic choice; it is what makes the library genuinely framework-agnostic.
+`@loewen-digital/fullstack` is written against the Web Platform APIs that browsers, Node, Bun, Deno and Cloudflare Workers share. That is what makes the core framework-agnostic: a module that takes a `Request` runs behind any framework that hands one over, and every meta-framework does.
 
-## The APIs we use
+## The APIs in use
 
-| Web Standard | Used for |
+| Web Standard | Where |
 |---|---|
-| `Request` | Incoming HTTP requests in all modules |
-| `Response` | Outgoing HTTP responses |
-| `Headers` | HTTP headers manipulation |
-| `URL` / `URLSearchParams` | URL parsing and query strings |
-| `FormData` | Form input parsing |
-| `ReadableStream` | Streaming file data |
-| `Uint8Array` | Binary data (instead of `Buffer`) |
-| `crypto.subtle` | Password hashing, token generation, HMAC |
-| `fetch` | Outgoing HTTP calls in drivers |
+| `Request` | `validateForm` and the adapters read forms and JSON from it; incoming webhooks are verified from it |
+| `Response` | `errorToResponse` turns any error into one; the adapters return them |
+| `Headers` | `corsHeaders` returns them, ready to merge into a response |
+| `URL` | OAuth authorization URLs, cookie and redirect handling |
+| `FormData` | Form parsing in `validateForm` |
+| `ReadableStream` | Streamed uploads in `storage.put` and mail attachments |
+| `Uint8Array` | Every byte buffer: storage contents, attachments, hashes |
+| `crypto.subtle` | HMAC-SHA256 for CSRF tokens, signed session cookies and webhook signatures |
+| `crypto.randomUUID`, `crypto.getRandomValues` | Ids and nonces |
+| `fetch` | Every HTTP driver: Resend, Postmark, S3, R2, Meilisearch, Typesense, external log transport |
 
-## Why not Node.js APIs?
+## Why not the Node APIs
 
-Node.js has its own HTTP abstractions (`IncomingMessage`, `ServerResponse`, `Buffer`, `node:http`). These work fine in Node, but they don't exist in Deno, Bun, or Cloudflare Workers. By building on Web Standards, your application code is portable across all these runtimes.
+Node's own HTTP types (`IncomingMessage`, `ServerResponse`, `Buffer`, `node:http`) exist only in Node. A module written against them needs a shim on every other runtime, and a framework adapter has to translate on the way in and out.
 
-Modern meta-frameworks (SvelteKit, Remix, Astro, Nuxt Nitro) already expose Web Standard `Request` and `Response` objects in their server handlers. This means our adapters are thin — often just a few lines.
+Every meta-framework (SvelteKit, Nuxt via Nitro, Remix, Astro) hands its server code a Web Standard `Request` and expects a `Response`. So the adapters are thin: they pass the request through and read a few framework-specific things such as `locals` and cookies.
 
-## Concrete example: reading a request
+## Reading a request
 
-Instead of:
+Node style, one runtime:
 
 ```ts
-// Node.js style — does not work in Deno or Workers
 import type { IncomingMessage } from 'node:http'
 
-function getBody(req: IncomingMessage): Promise<string> {
+function readBodyFromNode(req: IncomingMessage): Promise<string> {
   return new Promise((resolve) => {
     let body = ''
-    req.on('data', chunk => body += chunk)
+    req.on('data', (chunk: string) => (body += chunk))
     req.on('end', () => resolve(body))
   })
 }
 ```
 
-We use:
+Web Standard, every runtime:
 
 ```ts
-// Web Standard — works everywhere
-async function getBody(req: Request): Promise<string> {
-  return req.text()
+function readBody(request: Request): Promise<string> {
+  return request.text()
 }
 ```
 
 ## `Uint8Array` instead of `Buffer`
 
-`Buffer` is a Node.js class that extends `Uint8Array`. We use plain `Uint8Array` so that code runs on all runtimes:
+`Buffer` is a Node subclass of `Uint8Array`. The package accepts and returns the base class, so bytes from `storage.get`, a `FormData` file or `crypto.subtle` all fit without conversion.
 
 ```ts
-// We do this:
-const bytes: Uint8Array = await crypto.subtle.digest('SHA-256', data)
+async function sha256(data: Uint8Array<ArrayBuffer>): Promise<Uint8Array> {
+  return new Uint8Array(await crypto.subtle.digest('SHA-256', data))
+}
 
-// Not this:
-const hash = crypto.createHash('sha256').update(data).digest() // Buffer
-```
-
-## `crypto.subtle` for cryptography
-
-All cryptographic operations — password hashing, token signing, HMAC verification — use `crypto.subtle`, which is part of the Web Crypto API and available in every modern runtime:
-
-```ts
-import { createAuth } from '@loewen-digital/fullstack/auth'
-
-// Under the hood, auth uses crypto.subtle.importKey + crypto.subtle.deriveBits
-// for Argon2id-style password hashing — no native addons required
-```
-
-## Runtime compatibility
-
-| API | Node 20+ | Deno | Bun | CF Workers |
-|---|---|---|---|---|
-| `Request` / `Response` | Yes | Yes | Yes | Yes |
-| `Headers` | Yes | Yes | Yes | Yes |
-| `FormData` | Yes | Yes | Yes | Yes |
-| `ReadableStream` | Yes | Yes | Yes | Yes |
-| `crypto.subtle` | Yes | Yes | Yes | Yes |
-| `fetch` | Yes | Yes | Yes | Yes |
-| `Uint8Array` | Yes | Yes | Yes | Yes |
-
-## Framework adapter example
-
-Because we use `Request`, the SvelteKit adapter is trivial:
-
-```ts
-// src/adapters/sveltekit/index.ts
-import type { Handle } from '@sveltejs/kit'
-import type { AuthInstance } from '@loewen-digital/fullstack/auth'
-
-export function createHandle(auth: AuthInstance): Handle {
-  return async ({ event, resolve }) => {
-    // event.request is already a Web Standard Request
-    event.locals.user = await auth.user(event.request)
-    return resolve(event)
-  }
+async function digestOf(text: string) {
+  return sha256(new TextEncoder().encode(text))
 }
 ```
 
-No conversion or wrapping needed — the framework already speaks the same language.
+## `crypto.subtle` for signatures
+
+Everything that signs or verifies uses the Web Crypto API: CSRF tokens are an HMAC over the session id, the cookie session driver signs its payload, incoming webhooks are checked against their signature header. The standalone security functions show the shape:
+
+```ts
+import { generateCsrfToken, verifyCsrfToken } from '@loewen-digital/fullstack/security'
+
+async function roundTrip(sessionId: string, secret: string) {
+  const token = await generateCsrfToken(sessionId, secret) // HMAC-SHA256 through crypto.subtle
+  return verifyCsrfToken(sessionId, token, secret) // true
+}
+```
+
+## Where Node is still needed
+
+A few things have no Web Standard yet, and there the package uses Node built-ins. On Cloudflare Workers they run with the `nodejs_compat` flag; on Bun and Deno they work as they are.
+
+| Module | Node API | Why |
+|---|---|---|
+| `auth` | `node:crypto` scrypt and `randomBytes` | Password hashing; Web Crypto has no memory-hard KDF |
+| `db` | `better-sqlite3` | The bundled sqlite driver is a native binding |
+| `storage` local driver, logging file transport | `node:fs` | Files on disk |
+| `mail` SMTP driver | `nodemailer` | SMTP is a TCP protocol |
+
+## A handler on any runtime
+
+Because the modules take and return the standard types, a handler written once runs behind every adapter, or with none:
+
+```ts
+import { errorToResponse, NotFoundError } from '@loewen-digital/fullstack/errors'
+import { corsHeaders } from '@loewen-digital/fullstack/security'
+import type { StorageInstance } from '@loewen-digital/fullstack/storage'
+
+export function createFileHandler(storage: StorageInstance) {
+  return async (request: Request): Promise<Response> => {
+    const cors = corsHeaders(request.headers.get('origin'), { origins: ['https://app.example.com'] })
+    try {
+      const key = new URL(request.url).pathname.slice('/files/'.length)
+      const text = await storage.getText(key)
+      if (text === null) throw new NotFoundError(`No file ${key}`)
+      return new Response(text, { headers: cors })
+    } catch (err) {
+      return errorToResponse(err, cors)
+    }
+  }
+}
+```

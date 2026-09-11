@@ -14,6 +14,7 @@ import { runMigrations, rollbackMigration, getMigrationStatus } from './migratio
 import { runSeed } from './seeds.js'
 import { createFactory } from './factories.js'
 
+export type { DbConfig }
 export type { DbInstance, PaginationResult, PaginationOptions, MigrationStatus, FactoryDefinition, Factory }
 export { paginate as paginateHelper } from './pagination.js'
 

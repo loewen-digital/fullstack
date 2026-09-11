@@ -20,6 +20,12 @@ export const ROOT = fileURLToPath(new URL('../..', import.meta.url))
 const OUT = join(ROOT, 'node_modules/.cache/docs-samples')
 
 export const PAGES = [
+  'getting-started/installation',
+  'getting-started/quick-start',
+  'getting-started/configuration',
+  'core-concepts/factory-functions',
+  'core-concepts/driver-pattern',
+  'core-concepts/web-standards',
   'modules/auth',
   'modules/session',
   'modules/security',
