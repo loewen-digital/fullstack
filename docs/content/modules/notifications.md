@@ -1,11 +1,11 @@
 ---
 title: Notifications
-description: Multi-channel notifications via email, SMS, and other channels
+description: One notification object, delivered on mail, in-app, SMS and push channels
 ---
 
 # Notifications
 
-The `notifications` module delivers structured notifications to users through multiple channels — email, SMS, push, and more — from a single, unified API.
+`createNotifications` delivers a notification to a user on the channels the notification names. Mail goes through a `MailInstance`, in-app notifications are kept in memory with read state, SMS and push go through drivers you supply. A notification is a plain object: `channels()` plus one `toX(user)` method per channel.
 
 ## Import
 
@@ -13,68 +13,98 @@ The `notifications` module delivers structured notifications to users through mu
 import { createNotifications } from '@loewen-digital/fullstack/notifications'
 ```
 
-## Basic usage
+## Setup
+
+`createNotifications(config, deps)` takes the mail instance and the SMS and push drivers as dependencies; `createStack` passes its `mail` for you.
 
 ```ts
 import { createNotifications } from '@loewen-digital/fullstack/notifications'
+import { createMail } from '@loewen-digital/fullstack/mail'
 
-const notifications = createNotifications({
-  channels: {
-    mail: mailInstance,
-  },
-})
+const mail = createMail({ driver: 'console', from: 'My App <hello@example.com>' })
 
-// Send a notification to a user
-await notifications.send(user, {
-  mail: {
-    subject: 'Your order has shipped',
-    text: `Your order #${order.id} is on its way!`,
-  },
-})
+export const notifications = createNotifications({}, { mail })
 ```
 
-## Defining notification classes
-
-For reusable, typed notifications:
+## Defining a notification
 
 ```ts
-import type { Notification } from '@loewen-digital/fullstack/notifications'
+import type { Notification, NotificationUser } from '@loewen-digital/fullstack/notifications'
 
-function orderShipped(order: Order): Notification {
+export function orderShipped(orderId: string, eta: string): Notification {
   return {
-    mail: (user) => ({
-      to: user.email,
-      subject: `Order #${order.id} has shipped`,
-      text: `Your order is on its way. Expected delivery: ${order.estimatedDelivery}`,
+    channels: () => ['mail', 'in-app'],
+    toMail: (user) => ({
+      to: user.email!, // the mail channel needs an address; users without one get the other channels
+      subject: `Order ${orderId} has shipped`,
+      text: `Your order is on its way. Expected delivery: ${eta}`,
+    }),
+    toInApp: () => ({
+      type: 'order.shipped',
+      title: 'Order shipped',
+      message: `Order ${orderId} is on its way`,
+      data: { orderId },
     }),
   }
 }
 
-await notifications.send(user, orderShipped(order))
+async function ship(user: NotificationUser, orderId: string) {
+  await notifications.notify(user, orderShipped(orderId, 'Friday'))
+}
 ```
 
-## Notifying multiple users
+`NotificationUser` is `{ id, email?, phone? }` plus anything else; the channels read `email` and `phone`. `notify` runs the channels one after another. A channel that fails (no driver, no `toX` method, no phone number, a send error) does not stop the others; `notify` throws only when every channel failed.
+
+## In-app notifications
+
+The in-app channel stores what `toInApp` returns, with an id, the user id, `read: false` and a timestamp, in memory on the instance: gone on restart, per isolate on Workers.
 
 ```ts
-await notifications.sendToMany(users, orderShipped(order))
+async function inbox(userId: string | number) {
+  const items = notifications.getInApp(userId) // InAppNotification[]
+  const unread = notifications.unreadCount(userId)
+  return { items, unread }
+}
+
+function seen(notificationId: string, userId: string | number) {
+  notifications.markAsRead(notificationId)
+  notifications.markAllAsRead(userId)
+}
 ```
 
-## Channel routing
+## SMS and push drivers
 
-Each notification can specify which channels to use, and the system dispatches only to configured channels:
+A driver is an object with one `send` method. `toSms` returns the message body, `toPush` a `{ title, body, icon?, data? }` payload.
 
 ```ts
-await notifications.send(user, {
-  mail: { subject: 'Heads up', text: 'Something happened.' },
-  // sms and push will be skipped if not configured
-})
+import type { SmsDriver, PushDriver } from '@loewen-digital/fullstack/notifications'
+
+const sms: SmsDriver = {
+  async send(to, message) {
+    await fetch('https://sms.example.com/send', { method: 'POST', body: JSON.stringify({ to, message }) })
+  },
+}
+
+const push: PushDriver = {
+  async send(userId, payload) {
+    await fetch(`https://push.example.com/users/${userId}`, { method: 'POST', body: JSON.stringify(payload) })
+  },
+}
+
+const withAllChannels = createNotifications({}, { mail, sms, push })
 ```
 
 ## Config options
 
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `channels.mail` | `MailInstance` | — | Mail instance for email notifications |
-| `channels.sms` | `SmsDriver` | — | SMS driver for text notifications |
-| `channels.push` | `PushDriver` | — | Push notification driver |
-| `queue` | `QueueInstance` | — | Optional queue for async delivery |
+`createNotifications(config, deps)` reads these.
+
+| Option | Type | Description |
+|---|---|---|
+| `channels.sms` | `SmsDriver` | SMS driver, used when `deps.sms` is not given |
+| `channels.push` | `PushDriver` | Push driver, used when `deps.push` is not given |
+
+| Dependency | Type | Description |
+|---|---|---|
+| `mail` | `MailInstance` | Required for the `mail` channel |
+| `sms` | `SmsDriver` | Wins over `config.channels.sms` |
+| `push` | `PushDriver` | Wins over `config.channels.push` |

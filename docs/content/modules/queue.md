@@ -1,11 +1,11 @@
 ---
 title: Queue
-description: Background job processing with swappable drivers
+description: Dispatch jobs, process them with registered handlers, retries and a dead-letter list
 ---
 
 # Queue
 
-The `queue` module lets you dispatch work to a background queue and process it asynchronously. This is useful for sending emails, resizing images, syncing data, or any task that should not block an HTTP response.
+`createQueue` takes jobs by name and payload, keeps them in a driver, and `process()` runs the registered handlers over everything pending. A failed job is retried until `maxAttempts`, then lands in `failed()`. The memory driver is built in; Redis and Cloudflare Queues take the client or binding you have.
 
 ## Import
 
@@ -18,63 +18,78 @@ import { createQueue } from '@loewen-digital/fullstack/queue'
 ```ts
 import { createQueue } from '@loewen-digital/fullstack/queue'
 
-const queue = createQueue({ driver: 'memory' })
+export const queue = createQueue({ driver: 'memory' })
 
-// Define a job handler
-queue.register('send-welcome-email', async (payload: { userId: number }) => {
-  const user = await db.query.users.findFirst({ where: (u, { eq }) => eq(u.id, payload.userId) })
-  await mail.send({ to: user.email, subject: 'Welcome!', text: 'Thanks for joining.' })
+queue.handle<{ userId: number }>('send-welcome-email', async (job) => {
+  console.log('welcome', job.payload.userId, `attempt ${job.attempts + 1} of ${job.maxAttempts}`)
 })
 
-// Dispatch a job
-await queue.dispatch('send-welcome-email', { userId: 42 })
+async function register(userId: number) {
+  const job = await queue.dispatch({ name: 'send-welcome-email', payload: { userId } })
+  return job.id
+}
 ```
 
-## Job options
+`dispatch` returns the `Job` (`id`, `name`, `payload`, `attempts`, `maxAttempts`, `backoff`, `timeout`, `createdAt`). A job whose name has no handler fails when processed.
+
+## Processing
+
+`process()` pops jobs until the queue is empty, runs the handler for each, and marks it completed or failed. Nothing runs in the background: call `process()` from a scheduler, a cron Worker, or right after the response that dispatched the work.
 
 ```ts
-await queue.dispatch('send-welcome-email', { userId: 42 }, {
-  delay: 5000,      // delay in milliseconds before the job becomes available
-  retries: 3,       // retry up to 3 times on failure
-  priority: 10,     // higher priority jobs run first
-})
+async function drain() {
+  await queue.process()
+  return queue.size() // 0
+}
+
+setInterval(() => void queue.process(), 5_000) // a simple worker loop in a Node process
 ```
 
-## Processing jobs
+Concurrency is one job at a time per `process()` call.
 
-In a dedicated worker process or a background task:
+## Retries and failed jobs
+
+A handler that throws fails the job. With attempts left it is re-enqueued with `attempts + 1`; at `maxAttempts` it moves to the dead-letter list. `retry(id)` puts a failed job back with `attempts` reset.
 
 ```ts
-// Process jobs continuously
-await queue.work()
-
-// Process a single batch and exit
-await queue.runOnce()
+async function inspectFailures() {
+  const failed = await queue.failed() // Job[]
+  for (const job of failed) await queue.retry(job.id)
+  await queue.flush() // drop pending and failed jobs
+}
 ```
 
-## Error handling
+`backoff`, `timeout` and `delay` on a job definition are stored on the job but not enforced by the memory and Redis drivers: a retry is available immediately and a handler is not cut off.
+
+## Drivers
 
 ```ts
-queue.onError(async (error, job) => {
-  logger.error('Job failed', { job: job.name, payload: job.payload, error })
-})
+import { createQueueInstance, createRedisDriver, createCloudflareDriver } from '@loewen-digital/fullstack/queue'
+
+declare const redis: Parameters<typeof createRedisDriver>[0]['client'] // ioredis or node-redis v4+
+declare const JOBS: Parameters<typeof createCloudflareDriver>[0]['queue'] // a Queue binding on Workers
+
+const onRedis = createQueueInstance(createRedisDriver({ client: redis, prefix: 'app:queue:' }))
+const onCloudflare = createQueueInstance(createCloudflareDriver({ queue: JOBS }))
 ```
 
-## Driver options
-
-| Driver | Description |
-|---|---|
-| `memory` | In-process queue. Jobs are lost on restart. Good for development and tests. |
-| `database` | Persists jobs to the database. No extra infrastructure needed. |
-| `redis` | High-performance Redis-backed queue. Requires `ioredis`. |
+| Driver | Holds | Notes |
+|---|---|---|
+| `memory` (`createQueue({ driver: 'memory' })`) | arrays in the process | lost on restart; jobs show in the [Dev UI](/tooling/dev-ui) outside production |
+| `createRedisDriver({ client, prefix? })` | Redis lists and hashes under `prefix` (`queue:`) | `client` needs `lpush`, `rpop`, `llen`, `lrange`, `hset`, `hget`, `hdel`, `hvals` |
+| `createCloudflareDriver({ queue })` | a Cloudflare Queue | `dispatch` sends the job to the binding; your Worker's `queue()` consumer runs it. `process`, `retry` and `size` do nothing here, Cloudflare delivers and retries |
 
 ## Config options
 
+`createQueue(config)` reads one option; the defaults for a job come from `dispatch`.
+
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `driver` | `'memory' \| 'database' \| 'redis'` | — | Queue driver |
-| `concurrency` | `number` | `1` | Number of jobs to process concurrently |
-| `retries` | `number` | `3` | Default retry count for failed jobs |
-| `retryDelay` | `number` | `5000` | Milliseconds between retry attempts |
-| `redis.url` | `string` | — | Redis connection URL |
-| `database.table` | `string` | `'jobs'` | Database table name for queued jobs |
+| `driver` | `'memory'` | — | Naming `redis` or `cloudflare` here throws and points to the driver factory |
+
+| Job definition | Type | Default | Description |
+|---|---|---|---|
+| `name` | `string` | — | Selects the handler |
+| `payload` | `T` | — | Anything JSON-serializable |
+| `maxAttempts` | `number` | `3` | Attempts before the job is failed for good |
+| `backoff`, `timeout`, `delay` | `number` (seconds) | `60`, `30`, none | Stored on the job; not enforced by the bundled drivers |

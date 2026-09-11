@@ -1,11 +1,11 @@
 ---
 title: Search
-description: Full-text search with SQLite FTS, Meilisearch, and Typesense drivers
+description: Full-text search over JSON documents on SQLite FTS5, Meilisearch or Typesense
 ---
 
 # Search
 
-The `search` module provides full-text search with a consistent API across multiple backends. Start with SQLite FTS for zero-infrastructure search and upgrade to Meilisearch or Typesense when you need more power.
+`createSearch` indexes documents (`{ id, ...fields }`) into named collections and searches them. SQLite FTS5 is built in and needs no service; Meilisearch and Typesense are reached through `fetch` with a driver factory each.
 
 ## Import
 
@@ -18,67 +18,67 @@ import { createSearch } from '@loewen-digital/fullstack/search'
 ```ts
 import { createSearch } from '@loewen-digital/fullstack/search'
 
-const search = createSearch({
-  driver: 'sqlite-fts',
-  db: dbInstance,
-})
+export const search = createSearch({ driver: 'sqlite-fts', url: './search.db' }) // ':memory:' by default
 
-// Index a document
-await search.index('posts').upsert({
-  id: '1',
-  title: 'Getting Started with Fullstack',
-  body: 'A guide to setting up @loewen-digital/fullstack...',
-})
+async function indexPosts() {
+  await search.index('posts', [
+    { id: '1', title: 'Getting started with fullstack', body: 'A guide to the first login', status: 'published' },
+    { id: '2', title: 'Search on SQLite', body: 'FTS5 without a service', status: 'draft' },
+  ])
+}
 
-// Search
-const results = await search.index('posts').search('fullstack guide')
-// results.hits — array of matching documents
-// results.total — total number of matches
+async function find(query: string) {
+  const result = await search.search('posts', query, { filters: { status: 'published' }, limit: 20, offset: 0 })
+  return result // { hits: SearchDocument[], total, query }
+}
 ```
 
-## Bulk indexing
+`index` upserts by `id`; a document with a known id replaces the old one. `delete(collection, id)` removes one, `flush(collection)` all.
 
 ```ts
-const posts = await db.query.posts.findMany()
+async function unpublish(id: string) {
+  await search.delete('posts', id)
+}
 
-await search.index('posts').upsertMany(
-  posts.map((p) => ({ id: String(p.id), title: p.title, body: p.body }))
-)
+async function reindex(all: Array<{ id: string; title: string }>) {
+  await search.flush('posts')
+  await search.index('posts', all)
+}
 ```
 
-## Filtering and sorting
+## What is searched
+
+The SQLite driver concatenates every string and number field of a document into one FTS5 column (`porter ascii` tokenizer) and matches the query as a phrase: `'first login'` finds documents that contain those two words in that order. An empty query lists the collection. `filters` are equality checks applied to the hits after the query, and `total` counts the hits of that page. Meilisearch and Typesense search all fields on their side, turn `filters` into their filter expression and report their own totals.
+
+## Drivers
 
 ```ts
-const results = await search.index('posts').search('typescript', {
-  filter: 'status = published',
-  sort: ['publishedAt:desc'],
-  limit: 20,
-  offset: 0,
+import { createSearch, createMeilisearchDriver, createTypesenseDriver } from '@loewen-digital/fullstack/search'
+
+const onMeilisearch = createSearch({
+  driver: createMeilisearchDriver({ host: 'http://127.0.0.1:7700', apiKey: process.env.MEILI_KEY }),
+})
+
+const onTypesense = createSearch({
+  driver: createTypesenseDriver({ host: 'http://127.0.0.1:8108', apiKey: process.env.TYPESENSE_KEY! }),
 })
 ```
 
-## Removing documents
+| Driver | Options | Notes |
+|---|---|---|
+| `sqlite-fts` (`createSearch({ driver: 'sqlite-fts', url? })`) | `url`: database file, default `:memory:` | two tables per collection (`<name>_docs`, `<name>_fts`), created on first use |
+| `createMeilisearchDriver({ host, apiKey? })` | Meilisearch's REST API | one index per collection |
+| `createTypesenseDriver({ host, apiKey })` | Typesense's REST API | one collection per collection |
 
-```ts
-await search.index('posts').delete('1')
-await search.index('posts').deleteAll()
-```
-
-## Driver options
-
-| Driver | Description |
-|---|---|
-| `sqlite-fts` | SQLite FTS5 full-text search. Zero infrastructure required. |
-| `meilisearch` | [Meilisearch](https://meilisearch.com). Requires `meilisearch` npm package. |
-| `typesense` | [Typesense](https://typesense.org). Requires `typesense` npm package. |
+A custom driver implements `SearchDriver` (`index`, `search`, `delete`, `flush`) and goes into `createSearch({ driver })` like the factories above.
 
 ## Config options
 
+`createSearch(config)` reads these.
+
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `driver` | `'sqlite-fts' \| 'meilisearch' \| 'typesense'` | — | Search driver |
-| `db` | `DbInstance` | — | Database instance (required for `sqlite-fts`) |
-| `meilisearch.host` | `string` | — | Meilisearch server URL |
-| `meilisearch.apiKey` | `string` | — | Meilisearch master/search key |
-| `typesense.nodes` | `Node[]` | — | Typesense server nodes |
-| `typesense.apiKey` | `string` | — | Typesense API key |
+| `driver` | `'sqlite-fts' \| SearchDriver` | — | Naming `meilisearch` or `typesense` as a string throws; pass the driver object |
+| `url` | `string` | `':memory:'` | SQLite database path for `sqlite-fts` |
+
+`host` and `apiKey` are declared on the config type but read by the driver factories, not by `createSearch`.
