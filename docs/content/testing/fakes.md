@@ -1,112 +1,144 @@
 ---
 title: Fakes
-description: Fake implementations for testing mail, queue, events, storage, and more
+description: The mail, queue and storage fakes, and how to observe the other modules in tests
 ---
 
 # Fakes
 
-Fakes are in-memory implementations of modules that record their calls, letting you assert that the right things happened without side effects.
+Three drivers exist for tests: `createFakeMailDriver`, `createFakeQueueDriver` and `createFakeStorageDriver`. They implement the module's driver interface, record what went through them, and expose that for assertions with your test runner's `expect`. `createTestStack` builds them for you as `fakeMail`, `fakeQueue` and `fakeStorage`; on their own they go into the module's `createXInstance`.
 
-## Mail fake
+## Import
 
 ```ts
-import { createMail } from '@loewen-digital/fullstack/mail'
-
-const mail = createMail({ driver: 'memory' })
-
-// ... run code that sends email ...
-
-// Assert a message was sent
-mail.assertSent({ to: 'alice@example.com' })
-mail.assertSent({ subject: 'Welcome!' })
-mail.assertSent({ to: 'alice@example.com', subject: 'Welcome!' })
-
-// Assert nothing was sent
-mail.assertNothingSent()
-
-// Assert count
-mail.assertSentCount(2)
-
-// Access all sent messages
-const sent = mail.sent()
-expect(sent[0].subject).toBe('Welcome!')
+import { createFakeMailDriver, createFakeQueueDriver, createFakeStorageDriver } from '@loewen-digital/fullstack/testing'
 ```
 
-## Queue fake
+## Mail
 
 ```ts
-import { createQueue } from '@loewen-digital/fullstack/queue'
+import { expect } from 'vitest'
+import { createMailInstance } from '@loewen-digital/fullstack/mail'
+import { createFakeMailDriver } from '@loewen-digital/fullstack/testing'
 
-const queue = createQueue({ driver: 'memory' })
+const fakeMail = createFakeMailDriver()
+const mail = createMailInstance(fakeMail, { driver: 'console', from: 'My App <hello@example.com>' })
 
-// ... run code that dispatches jobs ...
+async function assertsMail() {
+  await mail.send({ to: 'alice@example.com', cc: { name: 'Bob', email: 'bob@example.com' }, subject: 'Welcome!', text: 'Hi' })
 
-// Assert a job was dispatched
-queue.assertDispatched('send-welcome-email')
-queue.assertDispatched('send-welcome-email', { userId: 42 })
+  expect(fakeMail.sent).toHaveLength(1)
+  expect(fakeMail.lastSent()?.from).toBe('My App <hello@example.com>')
+  expect(fakeMail.sentTo('bob@example.com')).toHaveLength(1) // to, cc and bcc, by email address
+  expect(fakeMail.sentWithSubject('Welcome!')).toHaveLength(1)
 
-// Assert nothing was dispatched
-queue.assertNothingDispatched()
-
-// Run all pending jobs synchronously (for testing)
-await queue.runAll()
+  fakeMail.clear()
+  expect(fakeMail.sent).toHaveLength(0)
+}
 ```
 
-## Events fake
+| Member | Description |
+|---|---|
+| `sent` | Every `MailMessage` since creation or `clear()` |
+| `lastSent()` | The most recent one, or `undefined` |
+| `sentTo(address)` | Messages whose `to`, `cc` or `bcc` contains the address |
+| `sentWithSubject(subject)` | Messages with exactly that subject |
+| `clear()` | Forget everything |
+
+The console driver with `silent: true` records the same list as `mail.sent`, without the helpers.
+
+## Queue
+
+The fake queue records every dispatched job and processes like the memory driver: `queue.process()` runs the handlers, a failing job is retried up to `maxAttempts` and then lands in `failedJobs`.
 
 ```ts
+import { expect } from 'vitest'
+import { createQueueInstance } from '@loewen-digital/fullstack/queue'
+import { createFakeQueueDriver } from '@loewen-digital/fullstack/testing'
+
+const fakeQueue = createFakeQueueDriver()
+const queue = createQueueInstance(fakeQueue)
+
+async function assertsJobs() {
+  const handled: number[] = []
+  queue.handle<{ userId: number }>('send-welcome-email', (job) => {
+    handled.push(job.payload.userId)
+  })
+  queue.handle('always-fails', () => {
+    throw new Error('boom')
+  })
+
+  await queue.dispatch({ name: 'send-welcome-email', payload: { userId: 42 } })
+  await queue.dispatch({ name: 'always-fails', payload: {}, maxAttempts: 2 })
+
+  expect(fakeQueue.dispatched.map((job) => job.name)).toEqual(['send-welcome-email', 'always-fails'])
+
+  await queue.process() // runs everything pending, including the retries
+  expect(handled).toEqual([42])
+  expect(fakeQueue.failedJobs).toHaveLength(1)
+  expect(fakeQueue.dispatched).toHaveLength(2) // dispatched keeps the history until clear()
+
+  fakeQueue.clear()
+}
+```
+
+| Member | Description |
+|---|---|
+| `dispatched` | Every job pushed since creation or `clear()`, processed or not |
+| `failedJobs` | Jobs that exhausted `maxAttempts` |
+| `clear()` | Forget dispatched, pending and failed jobs |
+
+## Storage
+
+The fake storage is the memory driver plus a look inside.
+
+```ts
+import { expect } from 'vitest'
+import { createStorageInstance } from '@loewen-digital/fullstack/storage'
+import { createFakeStorageDriver } from '@loewen-digital/fullstack/testing'
+
+const fakeStorage = createFakeStorageDriver('http://localhost/storage')
+const storage = createStorageInstance(fakeStorage)
+
+async function assertsFiles() {
+  await storage.put('avatars/alice.png', new Uint8Array([1, 2, 3]))
+
+  expect(fakeStorage.keys()).toEqual(['avatars/alice.png'])
+  expect(fakeStorage.size).toBe(1)
+  expect(await storage.getUrl('avatars/alice.png')).toBe('http://localhost/storage/avatars/alice.png')
+
+  fakeStorage.clear()
+  expect(await storage.exists('avatars/alice.png')).toBe(false)
+}
+```
+
+| Member | Description |
+|---|---|
+| `keys()` | Every stored key |
+| `size` | Number of stored files |
+| `clear()` | Remove every file |
+
+`createFakeStorageDriver(baseUrl?)` builds URLs as `baseUrl/key`; the default is `http://localhost/storage`.
+
+## The other modules
+
+Cache, session and events have nothing to fake: the memory drivers hold real state you can read back, and a listener records what the bus emitted.
+
+```ts
+import { expect } from 'vitest'
 import { createEventBus } from '@loewen-digital/fullstack/events'
 
-const events = createEventBus()
+type Events = { 'user.registered': { email: string } }
 
-// ... run code that emits events ...
+async function assertsEvents() {
+  const events = createEventBus<Events>()
+  const emitted: Events['user.registered'][] = []
+  events.on('user.registered', (payload) => {
+    emitted.push(payload)
+  })
 
-// Assert events were emitted
-events.assertEmitted('user.registered')
-events.assertEmitted('user.registered', { email: 'alice@example.com' })
-
-// Assert count
-events.assertEmittedCount('user.registered', 1)
+  await events.emit('user.registered', { email: 'alice@example.com' })
+  expect(emitted).toEqual([{ email: 'alice@example.com' }])
+}
 ```
 
-## Storage fake
-
-```ts
-import { createStorage } from '@loewen-digital/fullstack/storage'
-
-const storage = createStorage({ driver: 'memory' })
-
-// Works exactly like real storage but stays in memory
-await storage.put('avatars/alice.png', new Uint8Array([1, 2, 3]))
-expect(await storage.exists('avatars/alice.png')).toBe(true)
-
-// Inspect all stored files
-const files = await storage.list()
-```
-
-## Cache fake
-
-```ts
-import { createCache } from '@loewen-digital/fullstack/cache'
-
-const cache = createCache({ driver: 'memory' })
-
-// Standard cache operations — no Redis needed
-await cache.set('key', 'value', { ttl: 60 })
-expect(await cache.get('key')).toBe('value')
-```
-
-## Notifications fake
-
-```ts
-import { createNotifications } from '@loewen-digital/fullstack/notifications'
-
-const notifications = createNotifications({
-  channels: { mail: createMail({ driver: 'memory' }) },
-})
-
-// ... run code that sends notifications ...
-
-notifications.assertSentTo(user, 'order.shipped')
-notifications.assertNothingSent()
-```
+Notifications take the fake mail through their dependencies: `createNotifications({}, { mail })` with the instance above, and the in-app store is readable through `getInApp(userId)`.

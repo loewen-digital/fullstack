@@ -1,130 +1,95 @@
 ---
 title: Factories
-description: Model factories for generating realistic test data
+description: defineFactory, sequence and pick for test data, with or without a database
 ---
 
 # Factories
 
-Factories generate realistic test data for your database models. They integrate with Drizzle schema and respect your column types and constraints.
+`defineFactory` builds typed objects from per-field default functions, with overrides and named states. It persists nothing: the objects go into Drizzle's `insert`, a flatdb collection or straight into the function under test. Factories bound to a database are on the [db page](/modules/db#factories) (`db.factory`).
 
 ## Import
 
 ```ts
-import { defineFactory, createSeeder } from '@loewen-digital/fullstack/testing'
+import { defineFactory, sequence, pick } from '@loewen-digital/fullstack/testing'
 ```
 
 ## Defining a factory
 
-```ts
-import { defineFactory } from '@loewen-digital/fullstack/testing'
-import { users, posts } from '../db/schema.js'
+Every field is a function, so each `make` gets fresh values and no two objects share a `Date` or an array. `sequence()` returns a counter, `pick([...])` a random choice from the list.
 
-const userFactory = defineFactory(users, {
-  name: () => 'Alice Example',
-  email: (i) => `user${i}@example.com`,
-  passwordHash: () => '$argon2id$...',
+```ts
+import { defineFactory, sequence, pick } from '@loewen-digital/fullstack/testing'
+
+const seq = sequence()
+
+export const userFactory = defineFactory({
+  email: () => `user${seq()}@example.com`,
+  name: pick(['Alice', 'Bob', 'Carol']),
+  role: () => 'user' as 'user' | 'admin',
   createdAt: () => new Date(),
-  active: () => true,
 })
 
-const postFactory = defineFactory(posts, {
-  title: (i) => `Post number ${i}`,
-  body: () => 'Lorem ipsum dolor sit amet...',
-  status: () => 'draft',
-  authorId: () => 1,
-  publishedAt: () => null,
-})
+const alice = userFactory.make({ name: 'Alice' }) // { email: 'user1@example.com', name: 'Alice', role: 'user', createdAt }
+const five = userFactory.makeMany(5, { role: 'admin' })
 ```
 
-## Creating records in tests
-
-```ts
-import { describe, it, expect, beforeEach } from 'vitest'
-import { createTestStack } from '@loewen-digital/fullstack/testing'
-
-describe('post listing', () => {
-  let stack: ReturnType<typeof createTestStack>
-
-  beforeEach(() => {
-    stack = createTestStack()
-  })
-
-  it('returns only published posts', async () => {
-    // Create specific records
-    await userFactory.create(stack.db, { name: 'Alice' })
-    await postFactory.create(stack.db, { status: 'published' })
-    await postFactory.create(stack.db, { status: 'draft' })
-
-    const published = await stack.db.query.posts.findMany({
-      where: (p, { eq }) => eq(p.status, 'published'),
-    })
-
-    expect(published).toHaveLength(1)
-  })
-})
-```
-
-## Creating multiple records
-
-```ts
-// Create 5 users
-const users = await userFactory.createMany(db, 5)
-
-// Create 3 posts for a specific user
-const posts = await postFactory.createMany(db, 3, { authorId: user.id })
-```
-
-## Overriding attributes
-
-Pass any attribute to override the factory default:
-
-```ts
-const admin = await userFactory.create(db, {
-  email: 'admin@example.com',
-  role: 'admin',
-})
-```
+The type of a record is inferred from the definition; `make` and `makeMany` take a `Partial` of it as overrides.
 
 ## States
 
-Define named states for common variations:
+`state(overrides)` returns a new factory with some defaults replaced; the original is unchanged.
 
 ```ts
-const postFactory = defineFactory(posts, {
-  title: (i) => `Post ${i}`,
-  status: () => 'draft',
-}).state('published', {
-  status: 'published',
-  publishedAt: () => new Date(),
-}).state('archived', {
-  status: 'archived',
+export const adminFactory = userFactory.state({ role: () => 'admin' })
+
+const admin = adminFactory.make() // role: 'admin', everything else as before
+```
+
+## Inserting records
+
+The objects fit whatever store the test uses. With Drizzle:
+
+```ts
+import { describe, it, expect, beforeAll } from 'vitest'
+import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'
+import { eq } from 'drizzle-orm'
+import { createDb } from '@loewen-digital/fullstack/db'
+
+const users = sqliteTable('users', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  email: text('email').notNull(),
+  name: text('name').notNull(),
+  role: text('role', { enum: ['user', 'admin'] }).notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 })
 
-// Use a state
-const publishedPost = await postFactory.published().create(db)
-const archivedPost  = await postFactory.archived().create(db)
-```
+const db = createDb({ driver: 'sqlite', url: ':memory:' }, { users })
 
-## Building without persisting
+describe('admins', () => {
+  beforeAll(() => db.migrate('./drizzle'))
 
-```ts
-// Returns a plain object without inserting into the database
-const userData = userFactory.build({ name: 'Bob' })
-```
+  it('lists only admins', async () => {
+    await db.drizzle.insert(users).values([...userFactory.makeMany(3), ...adminFactory.makeMany(2)])
 
-## Seeder integration
-
-Compose factories into seeders for development data:
-
-```ts
-import { createSeeder } from '@loewen-digital/fullstack/testing'
-
-export const seed = createSeeder(async (db) => {
-  const alice = await userFactory.create(db, { email: 'alice@example.com' })
-  await postFactory.createMany(db, 5, { authorId: alice.id, status: 'published' })
+    const admins = await db.drizzle.select().from(users).where(eq(users.role, 'admin'))
+    expect(admins).toHaveLength(2)
+  })
 })
 ```
 
-```bash
-npx fullstack db:seed
+`db.factory({ build, insert })` from the db module wraps the same idea with an `insert` step, when a factory should persist by itself.
+
+## Seeding
+
+Development data is a seed file the [CLI](/tooling/cli) runs with `fullstack seed`; a factory keeps it short. In tests, `seedOnce(db, fn)` from the testing module runs a seed function in `beforeAll`.
+
+```ts
+import { seedOnce } from '@loewen-digital/fullstack/testing'
+
+async function fixtures() {
+  return seedOnce(db, async (db) => {
+    await db.drizzle.insert(users).values(userFactory.makeMany(10))
+    return db.drizzle.select().from(users)
+  })
+}
 ```

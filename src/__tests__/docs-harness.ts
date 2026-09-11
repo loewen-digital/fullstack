@@ -48,6 +48,9 @@ export const PAGES = [
   'adapters/nuxt',
   'adapters/remix',
   'adapters/astro',
+  'testing/overview',
+  'testing/fakes',
+  'testing/factories',
   'guides/auth-on-flatdb',
 ]
 
