@@ -1,11 +1,11 @@
 ---
 title: Events
-description: Lightweight in-process event bus for decoupled application logic
+description: A typed in-process event bus with async listeners
 ---
 
 # Events
 
-The events module is a lightweight, in-process event bus. It lets you decouple application logic by emitting named events and registering listeners — without any external broker or network hop.
+`createEventBus` is an in-process event bus: named events, a payload each, listeners that may be async. No broker, no network, nothing to configure; a type parameter makes event names and payloads type-checked.
 
 ## Import
 
@@ -13,25 +13,9 @@ The events module is a lightweight, in-process event bus. It lets you decouple a
 import { createEventBus } from '@loewen-digital/fullstack/events'
 ```
 
-## Basic usage
-
-```ts
-import { createEventBus } from '@loewen-digital/fullstack/events'
-
-const events = createEventBus()
-
-// Register a listener
-events.on('user.registered', async (payload) => {
-  console.log('New user:', payload.email)
-})
-
-// Emit an event
-await events.emit('user.registered', { id: 1, email: 'alice@example.com' })
-```
-
 ## Typed events
 
-Define your event map for full type safety:
+Give the bus a map from event name to payload. `on`, `once` and `emit` are then checked against it.
 
 ```ts
 import { createEventBus } from '@loewen-digital/fullstack/events'
@@ -39,61 +23,54 @@ import { createEventBus } from '@loewen-digital/fullstack/events'
 type AppEvents = {
   'user.registered': { id: number; email: string }
   'order.placed': { orderId: string; total: number }
-  'payment.failed': { orderId: string; reason: string }
 }
 
-const events = createEventBus<AppEvents>()
+export const events = createEventBus<AppEvents>()
 
-// TypeScript knows the shape of each event's payload
-events.on('order.placed', async ({ orderId, total }) => {
-  await sendOrderConfirmation(orderId, total)
+events.on('user.registered', async ({ email }) => {
+  await sendWelcomeMail(email)
 })
 
-await events.emit('order.placed', { orderId: 'ord_123', total: 49.99 })
+async function register(email: string) {
+  await events.emit('user.registered', { id: 1, email })
+}
+
+async function sendWelcomeMail(to: string) {
+  console.log('welcome', to)
+}
 ```
 
-## Multiple listeners
+Without a type parameter any string is an event and payloads are untyped. `defineEvents<AppEvents>()` returns a typed empty object for the `createEventBus<typeof events>()` style; it does nothing at runtime.
 
-Multiple listeners can be registered for the same event. They are called in registration order:
+## How emit runs listeners
+
+`emit` awaits the listeners one after another in registration order and resolves when all are done. A listener that throws does not stop the others: `emit` runs every listener, then rethrows the first error. There is no error option; wrap `emit` where a failing listener must not fail the caller.
 
 ```ts
-events.on('user.registered', sendWelcomeEmail)
-events.on('user.registered', createDefaultSettings)
-events.on('user.registered', trackSignup)
+async function placeOrder(orderId: string, total: number) {
+  try {
+    await events.emit('order.placed', { orderId, total })
+  } catch (err) {
+    console.error('a listener failed', err) // the order is placed either way
+  }
+}
 ```
 
-## One-time listeners
+## Unsubscribing
+
+`on` and `once` return an unsubscribe function; `off` removes a listener by reference. `once` removes itself before it runs.
 
 ```ts
-events.once('app.boot', () => {
-  console.log('Application started')
-})
-```
+const stop = events.on('order.placed', ({ orderId }) => console.log('placed', orderId))
+stop()
 
-## Removing listeners
+events.once('order.placed', ({ total }) => console.log('first order', total))
 
-```ts
-const handler = async (payload) => { /* ... */ }
-
-events.on('user.registered', handler)
-events.off('user.registered', handler)
-```
-
-## Error handling
-
-By default, errors in listeners propagate to the `emit` caller. You can configure a global error handler:
-
-```ts
-const events = createEventBus({
-  onError: (error, event, payload) => {
-    logger.error('Event listener failed', { event, error })
-  },
-})
+const audit = ({ orderId }: { orderId: string }) => console.log('audit', orderId)
+events.on('order.placed', audit)
+events.off('order.placed', audit)
 ```
 
 ## Config options
 
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `onError` | `(err, event, payload) => void` | rethrows | Global listener error handler |
-| `wildcard` | `boolean` | `false` | Enable `*` wildcard listeners |
+`createEventBus()` takes no config. Wildcard listeners and an error handler are not part of the module.

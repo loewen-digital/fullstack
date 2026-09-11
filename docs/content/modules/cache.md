@@ -1,11 +1,11 @@
 ---
 title: Cache
-description: Key-value caching with memory, Redis, and edge KV drivers
+description: Key-value cache with TTL on memory, Redis or Cloudflare KV
 ---
 
 # Cache
 
-The `cache` module provides a simple key-value cache with optional TTL support. It is useful for storing computed results, rate limit counters, or any data that should expire. Drivers include in-memory, Redis, and edge KV stores.
+`createCache` gives a key-value cache with a TTL in seconds and a `remember` helper. The memory driver is built in; Redis and Cloudflare KV drivers take the client or binding you already have.
 
 ## Import
 
@@ -18,65 +18,59 @@ import { createCache } from '@loewen-digital/fullstack/cache'
 ```ts
 import { createCache } from '@loewen-digital/fullstack/cache'
 
-const cache = createCache({ driver: 'memory' })
+const cache = createCache({ driver: 'memory', ttl: '5m' })
 
-// Store a value (optional TTL in seconds)
-await cache.set('featured-posts', posts, { ttl: 300 })
-
-// Retrieve a value
-const cached = await cache.get('featured-posts')
-
-// Check existence without retrieving
-const exists = await cache.has('featured-posts') // true
-
-// Delete a key
-await cache.delete('featured-posts')
-
-// Clear all keys
-await cache.flush()
+async function featured(posts: string[]) {
+  await cache.set('featured-posts', posts, 300) // TTL in seconds; omitted = config.ttl, none = no expiry
+  const cached = await cache.get<string[]>('featured-posts') // null when missing or expired
+  const exists = await cache.has('featured-posts')
+  const removed = await cache.delete('featured-posts') // true when it existed
+  await cache.flush()
+  return { cached, exists, removed }
+}
 ```
 
-## Remember pattern
+## Remember
 
-The `remember` helper fetches from cache if available; otherwise calls the factory and stores the result:
+`remember(key, ttl, fn)` returns the cached value or computes, stores and returns it. A cached `null` counts as a miss.
 
 ```ts
-const posts = await cache.remember('featured-posts', 300, async () => {
-  return db.query.posts.findMany({ where: (p, { eq }) => eq(p.featured, true) })
-})
+async function loadFeatured(): Promise<string[]> {
+  return ['hello-world'] // your query
+}
+
+async function featuredPosts() {
+  return cache.remember('featured-posts', 300, loadFeatured)
+}
 ```
 
-## Incrementing counters
+## Drivers
+
+The memory driver comes from `createCache({ driver: 'memory' })`. Redis and KV are built with their factories and handed to `createCacheInstance`; both prefix keys (`cache:` by default) so one store can serve several caches.
 
 ```ts
-await cache.increment('api-calls:user:42')        // 1
-await cache.increment('api-calls:user:42')        // 2
-await cache.increment('api-calls:user:42', 5)     // 7
-await cache.decrement('api-calls:user:42')        // 6
+import { createCacheInstance, createRedisDriver, createKvDriver } from '@loewen-digital/fullstack/cache'
+
+declare const redis: Parameters<typeof createRedisDriver>[0]['client'] // ioredis or node-redis v4+
+declare const CACHE_KV: Parameters<typeof createKvDriver>[0]['namespace'] // a KV binding on Workers
+
+const onRedis = createCacheInstance(createRedisDriver({ client: redis, prefix: 'app:' }), 600)
+const onKv = createCacheInstance(createKvDriver({ namespace: CACHE_KV }))
 ```
 
-## Redis driver
+| Driver | Holds | Notes |
+|---|---|---|
+| `memory` | a `Map` in the process | lost on restart, per isolate on Workers; the default for tests |
+| `createRedisDriver({ client, prefix? })` | Redis | `client` needs `get`, `set`, `del`, `exists`, `flushdb`; values are JSON |
+| `createKvDriver({ namespace, prefix? })` | Cloudflare KV | `expirationTtl` needs at least 60 seconds on KV; values are JSON |
 
-```ts
-const cache = createCache({
-  driver: 'redis',
-  redis: { url: process.env.REDIS_URL! },
-})
-```
-
-## Driver options
-
-| Driver | Description |
-|---|---|
-| `memory` | In-process `Map` with TTL support. Data is lost on restart. |
-| `redis` | Redis-backed cache. Requires `ioredis` peer dependency. |
-| `kv` | Cloudflare Workers KV or compatible edge KV store. |
+A custom driver implements `CacheDriver` (`get`, `set`, `has`, `delete`, `flush`); the [driver pattern](/core-concepts/driver-pattern) page shows one.
 
 ## Config options
 
+`createCache(config)` reads these; `createCacheInstance(driver, defaultTtl?)` takes the default TTL as a number of seconds.
+
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `driver` | `'memory' \| 'redis' \| 'kv'` | — | Cache driver |
-| `prefix` | `string` | `''` | Key prefix applied to all cache entries |
-| `redis.url` | `string` | — | Redis connection URL |
-| `redis.tls` | `boolean` | `false` | Enable TLS for Redis connection |
+| `driver` | `'memory'` | — | Naming `redis` or `kv` here throws and points to the driver factory |
+| `ttl` | `string` | none | Default TTL for `set` without one: `'90'`, `'5m'`, `'2h'`, `'1d'` (an unparseable string is one hour) |
