@@ -1,6 +1,7 @@
 /**
  * Type-checks the ```ts blocks of a docs page against the package source, the way a SvelteKit 2
- * project with `strict: true` would compile them. `docs.test.ts` runs it for every page in PAGES.
+ * project with `strict: true` would compile them. `docs.test.ts` runs it for every page in PAGES:
+ * paths under `docs/content/`, plus `README` for the repository README that npm shows.
  *
  * Rules for a page:
  * - A block whose first line is `// <path>.ts` (or `.tsx`) is written to that path. Files under
@@ -55,6 +56,7 @@ export const PAGES = [
   'tooling/dev-ui',
   'tooling/cli',
   'guides/auth-on-flatdb',
+  'README',
 ]
 
 const ENV_STUB = `declare module '$env/dynamic/private' {

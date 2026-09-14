@@ -9,8 +9,9 @@ import { ROOT, PAGES, extractBlocks, writeSamples, compile } from './docs-harnes
 
 describe('docs samples compile', () => {
   for (const page of PAGES) {
-    it(`docs/content/${page}.md`, () => {
-      const markdown = readFileSync(join(ROOT, 'docs/content', `${page}.md`), 'utf8')
+    const file = page === 'README' ? 'README.md' : join('docs/content', `${page}.md`)
+    it(file, () => {
+      const markdown = readFileSync(join(ROOT, file), 'utf8')
       const blocks = extractBlocks(markdown)
       expect(blocks.length).toBeGreaterThan(0)
 
