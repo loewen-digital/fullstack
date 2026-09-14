@@ -1,7 +1,5 @@
 export interface CsrfConfig {
   secret: string
-  /** Token expiry in seconds (default: 7200 = 2 hours) */
-  ttl?: number
 }
 
 export interface CorsConfig {

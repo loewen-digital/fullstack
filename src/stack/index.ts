@@ -23,7 +23,6 @@ import type {
   RealtimeConfig,
 } from '../config/types.js'
 import type { SearchConfig as SearchModuleConfig } from '../search/types.js'
-import type { SecurityConfig as SecurityModuleConfig } from '../security/types.js'
 import type { NotificationsConfig as NotificationsModuleConfig } from '../notifications/types.js'
 import type { DbInstance } from '../db/index.js'
 import type { AuthInstance, AuthDbAdapter } from '../auth/index.js'
@@ -131,7 +130,7 @@ export function createStack<C extends FullstackConfig>(
   }
 
   if (config.security !== undefined) {
-    stack.security = createSecurity(config.security as SecurityModuleConfig)
+    stack.security = createSecurity(config.security)
   }
 
   if (config.i18n !== undefined) {

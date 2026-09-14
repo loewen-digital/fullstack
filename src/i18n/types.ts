@@ -7,8 +7,6 @@ export interface I18nConfig {
   fallback?: string
   /** Pre-loaded translations keyed by locale */
   messages?: Record<string, Record<string, unknown>>
-  /** Directory path to load JSON translation files from (Node only) */
-  directory?: string
 }
 
 export interface I18nInstance {

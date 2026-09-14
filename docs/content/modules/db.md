@@ -132,5 +132,4 @@ async function usersPage(page: number, perPage = 20) {
 | `driver` | `'sqlite'` | — | Only `sqlite` is implemented |
 | `url` | `string` | — | File path, or `':memory:'` |
 | `migrations` | `string` | `'./drizzle'` | Folder `migrate()` and the CLI read |
-| `seeds` | `string` | — | Folder the CLI's `seed` command reads; `createDb` itself does not use it |
 | `schema` (2nd argument) | Drizzle tables | `{}` | Types `db.drizzle` and enables `db.drizzle.query` |

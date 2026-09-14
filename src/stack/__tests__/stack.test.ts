@@ -132,12 +132,20 @@ describe('createStack', () => {
     expect(typeof stack.logging.info).toBe('function')
   })
 
-  it('initializes i18n module when configured', () => {
+  it('initializes i18n module on the locale the config names', () => {
     const stack = createStack({
-      i18n: { defaultLocale: 'en', locales: ['en'] },
+      i18n: { locale: 'de', fallback: 'en', messages: { de: { hello: 'Hallo' } } },
     })
-    expect(stack.i18n).toBeDefined()
-    expect(typeof stack.i18n.t).toBe('function')
+    expect(stack.i18n.getLocale()).toBe('de')
+    expect(stack.i18n.t('hello')).toBe('Hallo')
+  })
+
+  it('hands the security module its own config type', () => {
+    const stack = createStack({
+      security: { csrf: { secret: 'test-secret' }, rateLimit: { windowMs: 1000, max: 2 } },
+    })
+    const limiter = stack.security.createRateLimiter({ windowMs: 1000, max: 2 })
+    expect(limiter.check('k').allowed).toBe(true)
   })
 
   it('initializes permissions module when configured', () => {

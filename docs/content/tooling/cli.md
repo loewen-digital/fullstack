@@ -80,4 +80,3 @@ export default defineConfig({
 |---|---|---|
 | `db.driver`, `db.url` | all commands | The database, `sqlite` only |
 | `db.migrations` | `migrate`, `migrate:status` | Drizzle Kit's output folder, default `./drizzle` |
-| `db.seeds` | nobody yet | `seed` looks in `database/seeds/` regardless |

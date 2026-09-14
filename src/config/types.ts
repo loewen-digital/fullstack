@@ -1,11 +1,18 @@
 // FullstackConfig — master config type
 // Each module config is optional; only configured modules are instantiated.
+// Every key here is read by the module's factory; where a module exports its own config type,
+// it is re-exported instead of copied, so the two cannot drift apart.
+
+import type { SecurityConfig } from '../security/types.js'
+import type { I18nConfig } from '../i18n/types.js'
+
+export type { SecurityConfig, I18nConfig }
 
 export interface DbConfig {
   driver: 'sqlite' | 'postgres' | 'mysql' | 'd1'
   url: string
+  /** Folder `migrate()` reads (default `./drizzle`) */
   migrations?: string
-  seeds?: string
 }
 
 /**
@@ -24,14 +31,12 @@ export interface AuthConfig {
 export interface MailConfig {
   driver: 'console' | 'smtp' | 'resend' | 'postmark' | string
   from?: string
-  templates?: string
   silent?: boolean
   [key: string]: unknown
 }
 
 export interface StorageConfig {
   driver: 'local' | 's3' | 'r2' | 'memory' | string
-  basePath?: string
   [key: string]: unknown
 }
 
@@ -46,21 +51,8 @@ export interface QueueConfig {
   [key: string]: unknown
 }
 
-export interface SecurityConfig {
-  csrf?: boolean | { secret?: string }
-  cors?: {
-    origins?: string[]
-    [key: string]: unknown
-  }
-  rateLimit?: {
-    windowMs?: string
-    max?: number
-  }
-}
-
 export interface LoggingConfig {
   level?: 'debug' | 'info' | 'warn' | 'error' | 'fatal'
-  transport?: 'console' | 'file' | string
   format?: 'dev' | 'prod'
   [key: string]: unknown
 }
@@ -70,12 +62,6 @@ export interface SessionConfig {
   maxAge?: string
   secret?: string
   [key: string]: unknown
-}
-
-export interface I18nConfig {
-  defaultLocale: string
-  locales: string[]
-  directory?: string
 }
 
 export interface NotificationsConfig {

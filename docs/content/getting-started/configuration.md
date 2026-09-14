@@ -100,7 +100,7 @@ export const stack = createStack(config, { authDb })
 
 `auth` needs its adapter through `deps.authDb`; without it `createStack` throws a `ConfigError`. The stack builds modules from driver names only, so drivers with credentials (Resend, Redis, S3) are created next to the stack with their factories, as above.
 
-A `fullstack.config.ts` with `export default defineConfig({ ... })` is what the Vite plugin and the [CLI](/tooling/cli) load: `db.migrations` and `db.seeds` are the paths the migrate and seed commands use.
+A `fullstack.config.ts` with `export default defineConfig({ ... })` is what the Vite plugin and the [CLI](/tooling/cli) load: `db.migrations` is the folder `migrate` reads; `seed` takes its file as an argument.
 
 ## Config keys
 
@@ -108,7 +108,7 @@ A `fullstack.config.ts` with `export default defineConfig({ ... })` is what the 
 
 | Key | Module | Read by |
 |---|---|---|
-| `db` | [db](/modules/db) | `createDb`: `driver`, `url`, `migrations`, `seeds` |
+| `db` | [db](/modules/db) | `createDb`: `driver`, `url`, `migrations` |
 | `auth` | [auth](/modules/auth) | `createAuth`: the three TTLs |
 | `session` | [session](/modules/session) | `createSession`: `driver`, `secret`, `maxAge` |
 | `mail` | [mail](/modules/mail) | `createMail`: `driver`, `from`, `silent` |
@@ -117,7 +117,7 @@ A `fullstack.config.ts` with `export default defineConfig({ ... })` is what the 
 | `queue` | [queue](/modules/queue) | `createQueue`: `driver` |
 | `security` | [security](/modules/security) | `createSecurity`: `csrf`, `cors`, `rateLimit` |
 | `logging` | [logging](/modules/logging) | `createLogger`: `level`, `format` |
-| `i18n` | [i18n](/modules/i18n) | `createI18n`: `defaultLocale`, `locales`, `directory` |
+| `i18n` | [i18n](/modules/i18n) | `createI18n`: `locale`, `fallback`, `messages` |
 | `notifications`, `permissions`, `search`, `webhooks`, `realtime` | the module of that name | its factory |
 
 ## Config types
