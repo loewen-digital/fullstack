@@ -24,7 +24,7 @@ export function createR2Driver(options: R2DriverOptions): StorageDriver {
   }
 
   return {
-    async get(key: string): Promise<Uint8Array | null> {
+    async get(key: string): Promise<Uint8Array<ArrayBuffer> | null> {
       const response = await fetch(objectUrl(key), { method: 'GET' })
       if (response.status === 404) return null
       if (!response.ok) {

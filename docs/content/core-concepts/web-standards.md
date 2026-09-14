@@ -54,7 +54,7 @@ function readBody(request: Request): Promise<string> {
 
 ## `Uint8Array` instead of `Buffer`
 
-`Buffer` is a Node subclass of `Uint8Array`. The package accepts and returns the base class, so bytes from `storage.get`, a `FormData` file or `crypto.subtle` all fit without conversion.
+`Buffer` is a Node subclass of `Uint8Array`. The package accepts the base class, so a `FormData` file, `crypto.subtle` output or a `Buffer` goes into `storage.put` without conversion, and it returns bytes on a plain `ArrayBuffer` of their own (`Uint8Array<ArrayBuffer>`), so what `storage.get` hands back goes straight into `new Response(bytes)` and `new Blob([bytes])`.
 
 ```ts
 async function sha256(data: Uint8Array<ArrayBuffer>): Promise<Uint8Array> {
@@ -104,9 +104,9 @@ export function createFileHandler(storage: StorageInstance) {
     const cors = corsHeaders(request.headers.get('origin'), { origins: ['https://app.example.com'] })
     try {
       const key = new URL(request.url).pathname.slice('/files/'.length)
-      const text = await storage.getText(key)
-      if (text === null) throw new NotFoundError(`No file ${key}`)
-      return new Response(text, { headers: cors })
+      const bytes = await storage.get(key)
+      if (bytes === null) throw new NotFoundError(`No file ${key}`)
+      return new Response(bytes, { headers: cors })
     } catch (err) {
       return errorToResponse(err, cors)
     }

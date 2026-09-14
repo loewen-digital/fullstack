@@ -43,7 +43,7 @@ export function createS3Driver(options: S3DriverOptions): StorageDriver {
   }
 
   return {
-    async get(key: string): Promise<Uint8Array | null> {
+    async get(key: string): Promise<Uint8Array<ArrayBuffer> | null> {
       const response = await signedFetch(objectUrl(key), { method: 'GET' })
       if (response.status === 404) return null
       if (!response.ok) {

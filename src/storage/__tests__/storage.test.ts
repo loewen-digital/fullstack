@@ -124,3 +124,40 @@ describe('createStorageInstance', () => {
     expect(text).toBe('value')
   })
 })
+
+// ── bytes from get() fit Response and Blob (#17) ──────────────────────────────
+
+describe('bytes from get', () => {
+  it('sit on a plain ArrayBuffer of their own, whatever put received', async () => {
+    const storage = createStorageInstance(createMemoryDriver())
+    const pool = Buffer.from('hello world') // Node's pool: a view with an offset into a shared slab
+    const view = new Uint8Array([1, 2, 3, 4, 5]).subarray(1, 4)
+    const shared = new Uint8Array(new SharedArrayBuffer(3))
+    shared.set([7, 8, 9])
+    await storage.put('pool', pool)
+    await storage.put('view', view)
+    await storage.put('shared', shared)
+
+    for (const key of ['pool', 'view', 'shared']) {
+      const bytes = await storage.get(key)
+      expect(bytes).not.toBeNull()
+      expect(bytes!.buffer).toBeInstanceOf(ArrayBuffer)
+      expect(bytes!.byteOffset).toBe(0)
+      expect(bytes!.byteLength).toBe(bytes!.buffer.byteLength)
+    }
+    expect(Array.from((await storage.get('view'))!)).toEqual([2, 3, 4])
+    expect(Array.from((await storage.get('shared'))!)).toEqual([7, 8, 9])
+
+    view.fill(0) // the stored copy does not follow the caller's view
+    expect(Array.from((await storage.get('view'))!)).toEqual([2, 3, 4])
+  })
+
+  it('go straight into Response and Blob (type-checked here, strict)', async () => {
+    const storage = createStorageInstance(createMemoryDriver())
+    await storage.put('a.txt', 'hi')
+    const bytes = await storage.get('a.txt')
+    if (bytes === null) throw new Error('missing')
+    expect(await new Response(bytes).text()).toBe('hi')
+    expect(new Blob([bytes]).size).toBe(2)
+  })
+})

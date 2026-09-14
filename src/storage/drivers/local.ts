@@ -24,7 +24,7 @@ export function createLocalDriver(options: LocalDriverOptions): StorageDriver {
   }
 
   return {
-    async get(key: string): Promise<Uint8Array | null> {
+    async get(key: string): Promise<Uint8Array<ArrayBuffer> | null> {
       try {
         const buffer = await fs.readFile(fullPath(key))
         return new Uint8Array(buffer)

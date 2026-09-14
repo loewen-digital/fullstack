@@ -10,8 +10,11 @@ export interface FileMeta {
 }
 
 export interface StorageDriver {
-  /** Get a file's contents as a Uint8Array, or null if not found */
-  get(key: string): Promise<Uint8Array | null>
+  /**
+   * A file's contents, or null when missing. The bytes sit on a plain `ArrayBuffer` of their own,
+   * so they go straight into `new Response(bytes)` and `new Blob([bytes])`.
+   */
+  get(key: string): Promise<Uint8Array<ArrayBuffer> | null>
   /** Store a file */
   put(key: string, data: Uint8Array | string | ReadableStream, meta?: FileMeta): Promise<void>
   /** Delete a file */
@@ -26,7 +29,7 @@ export interface StorageDriver {
 
 export interface StorageInstance {
   /** Get a file's contents */
-  get(key: string): Promise<Uint8Array | null>
+  get(key: string): Promise<Uint8Array<ArrayBuffer> | null>
   /** Get a file's contents as a UTF-8 string */
   getText(key: string): Promise<string | null>
   /** Store a file */

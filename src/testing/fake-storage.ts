@@ -26,21 +26,22 @@ export interface FakeStorageDriver extends StorageDriver {
 }
 
 export function createFakeStorageDriver(baseUrl = 'http://localhost/storage'): FakeStorageDriver {
-  const store = new Map<string, Uint8Array>()
+  const store = new Map<string, Uint8Array<ArrayBuffer>>()
 
-  function toUint8Array(data: Uint8Array | string | ReadableStream): Promise<Uint8Array> {
+  // Always a copy on a plain ArrayBuffer, like the memory driver: get() never hands out the caller's view.
+  function toUint8Array(data: Uint8Array | string | ReadableStream): Promise<Uint8Array<ArrayBuffer>> {
     if (typeof data === 'string') {
       return Promise.resolve(new TextEncoder().encode(data))
     }
     if (data instanceof Uint8Array) {
-      return Promise.resolve(data)
+      return Promise.resolve(new Uint8Array(data))
     }
     // ReadableStream
     return new Response(data).arrayBuffer().then(buf => new Uint8Array(buf))
   }
 
   return {
-    async get(key: string): Promise<Uint8Array | null> {
+    async get(key: string): Promise<Uint8Array<ArrayBuffer> | null> {
       return store.get(key) ?? null
     },
 

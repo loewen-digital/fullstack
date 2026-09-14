@@ -23,7 +23,7 @@ const storage = createStorageInstance(createLocalDriver({ root: './uploads', bas
 async function roundTrip(bytes: Uint8Array) {
   await storage.put('avatars/alice.png', bytes, { contentType: 'image/png' })
   const exists = await storage.exists('avatars/alice.png') // true
-  const data = await storage.get('avatars/alice.png') // Uint8Array | null
+  const data = await storage.get('avatars/alice.png') // Uint8Array<ArrayBuffer> | null
   const url = await storage.getUrl('avatars/alice.png') // '/uploads/avatars/alice.png'
   const keys = await storage.list('avatars/') // ['avatars/alice.png']
   await storage.delete('avatars/alice.png') // no error when missing
@@ -31,7 +31,7 @@ async function roundTrip(bytes: Uint8Array) {
 }
 ```
 
-`put` takes a `Uint8Array`, a string (stored as UTF-8) or a `ReadableStream`. `getText` decodes a file as UTF-8. Keys are paths with `/`; the local driver strips `..`.
+`put` takes a `Uint8Array`, a string (stored as UTF-8) or a `ReadableStream`. `get` returns bytes on a plain `ArrayBuffer` of their own, never a view on the caller's buffer or a `SharedArrayBuffer`, so `new Response(data)` and `new Blob([data])` take them as they are. `getText` decodes a file as UTF-8. Keys are paths with `/`; the local driver strips `..`.
 
 ## Uploads
 
