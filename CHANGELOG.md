@@ -7,6 +7,8 @@ is the topmost released one here.
 
 ## Unreleased
 
+## v0.2.0 · 2026-09-14 · Adapters expose the session only, config keys all read
+
 - The docs site is the `docs/` project itself (`docs/package.json`, `docs/.vitepress/`, pages in `docs/content`) instead of `docs/vitepress` with `srcDir` pointing out of the project: `cd docs && npm ci && npm run build` now works next to the repository's own `node_modules`, where it failed on `estree-walker`, and the resolve workaround in the config is gone. The deploy workflow runs `npm ci` in `docs`. (#24)
 - `FullstackConfig` promises only what the factories read: `db.seeds`, `mail.templates`, `storage.basePath` and `logging.transport` are gone (nothing read them; `seed` takes its file as an argument), `security` and `i18n` are the modules' own config types instead of diverging copies, so `createStack({ i18n: { locale: 'de' } })` builds a German instance where `{ defaultLocale: 'de' }` used to compile and yield English, and `rateLimit.windowMs` is a number. `csrf.ttl` and `i18n.directory`, declared and never read, are gone from the module types too. (#20)
 - `storage.get` returns `Uint8Array<ArrayBuffer>`, so the bytes go straight into `new Response(bytes)` and `new Blob([bytes])` under TypeScript 5.9 with `strict: true`; before, the wider `Uint8Array` (`ArrayBufferLike`) was rejected there. The memory driver and the fake storage driver copy what `put` receives onto a buffer of their own, so no driver hands out a view on the caller's buffer or a `SharedArrayBuffer`. (#17)
