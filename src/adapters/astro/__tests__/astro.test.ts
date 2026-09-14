@@ -8,6 +8,7 @@ import {
 } from '../index.js'
 import { createSession } from '../../../session/index.js'
 import { createSecurity } from '../../../security/index.js'
+import type { AuthInstance, AuthSession } from '../../../auth/index.js'
 import type { AstroAPIContext, AstroLocals, AstroMiddlewareNext } from '../types.js'
 
 // ── Test helpers ───────────────────────────────────────────────────────────────
@@ -359,5 +360,28 @@ describe('validateBody', () => {
     await sessionHandle.save()
     const next = await session.load(sessionHandle.id)
     expect(next.getFlash('_errors')).toBeDefined()
+  })
+})
+
+// ── auth: the validated session is exposed, no user object (#9) ───────────────
+
+describe('auth integration', () => {
+  const authSession: AuthSession = { id: 's1', userId: 'u1', token: 'good', expiresAt: new Date(Date.now() + 60_000), createdAt: new Date() }
+  const auth = { validateSession: async (token: string) => (token === 'good' ? authSession : null) } as unknown as AuthInstance
+
+  it('puts the validated session on locals and no user object', async () => {
+    const middleware = createAstroMiddleware({ auth })
+    const context = makeContext({ cookies: { fs_token: 'good' } })
+    await middleware(context, makeNext())
+    expect(context.locals.authSession).toEqual(authSession)
+    expect('user' in context.locals).toBe(false)
+  })
+
+  it('sets authSession to null without a valid cookie', async () => {
+    const middleware = createAstroMiddleware({ auth })
+    const context = makeContext()
+    await middleware(context, makeNext())
+    expect(context.locals.authSession).toBeNull()
+    expect('user' in context.locals).toBe(false)
   })
 })

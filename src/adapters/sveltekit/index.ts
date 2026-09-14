@@ -66,7 +66,7 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
  *
  * What it does per request:
  *  1. Opens the session from its cookie (if session module configured) → event.locals.session
- *  2. Reads auth token from cookie → validates session → event.locals.authSession, event.locals.user
+ *  2. Reads auth token from cookie → validates session → event.locals.authSession
  *  3. Enforces CSRF for non-GET mutations (if security module configured)
  *  4. Commits the session after the route resolves and writes the cookie when its value changed
  */
@@ -96,13 +96,6 @@ export function createHandle(stack: AdapterStack, options: HandleOptions = {}): 
       }
 
       locals.authSession = authSession
-      locals.user = null // populated below if session valid
-
-      if (authSession) {
-        // The auth module doesn't expose findUserById directly.
-        // We expose the raw session; the app can look up the user from its own DB.
-        locals.user = { id: authSession.userId, email: '' }
-      }
     }
 
     // ── 3. CSRF check for mutating requests ────────────────────────────────

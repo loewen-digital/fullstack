@@ -9,7 +9,7 @@
  *
  *   export const onRequest = sequence(createAstroMiddleware(stack))
  *
- * The middleware populates Astro.locals with session, authSession, user, and csrfVerified.
+ * The middleware populates Astro.locals with session, authSession and csrfVerified.
  * Access in .astro files and API routes via Astro.locals / context.locals.
  *
  * To extend the Locals type, add to src/env.d.ts:
@@ -79,7 +79,7 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
  *
  * Per request:
  *  1. Loads session → context.locals.session
- *  2. Validates auth token → context.locals.authSession, context.locals.user
+ *  2. Validates auth token → context.locals.authSession
  *  3. Enforces CSRF for non-GET mutations
  *  4. Persists session after the route handler resolves
  */
@@ -113,7 +113,6 @@ export function createAstroMiddleware(
 
       const loc = locals as FullstackAstroLocals
       loc.authSession = authSession
-      loc.user = authSession ? { id: authSession.userId, email: '' } : null
     }
 
     // ── 3. CSRF check ──────────────────────────────────────────────────────

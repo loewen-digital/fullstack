@@ -65,8 +65,7 @@ declare module 'h3' {
 | Property | Type | Set when |
 |---|---|---|
 | `session` | `SessionHandle` | the stack has `session`. Flash, old input, values; committed at the end of the middleware, cookie written when its value changed |
-| `authSession` | `AuthSession \| null` | the stack has `auth`. The validated session behind the auth cookie, or `null` |
-| `user` | `AuthUser \| null` | the stack has `auth`. Carries only `id` (`email` is empty): the adapter has no user store. Load the user yourself by `authSession.userId` |
+| `authSession` | `AuthSession \| null` | the stack has `auth`. The validated session behind the auth cookie, or `null`. Its `userId` is the key to load the user yourself; the adapter has no user store and puts no user object here |
 | `csrfVerified` | `boolean` | the stack has `security` and the method is not GET, HEAD or OPTIONS. See [CSRF](#csrf) |
 
 The session is committed when the middleware returns, before the route handler runs. Values a handler sets afterwards are saved on the next request that goes through the middleware, so flash a message in the handler that redirects and read it after the redirect.

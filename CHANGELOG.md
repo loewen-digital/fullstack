@@ -7,6 +7,7 @@ is the topmost released one here.
 
 ## Unreleased
 
+- The adapters no longer put a `user` on `locals` (SvelteKit, Astro), `event.context` (Nuxt) or the loader args (Remix). It was `{ id, email: '' }`, invented from the session because the adapter has no user store, and its `AuthUser` type carried `passwordHash`, one `return { user }` away from the client. `authSession.userId` is the key; load the user yourself, as the quick start and the guide do. Decision: [0010](docs/decisions/0010-no-user-on-locals.md). (#9)
 - `bin.fullstack` is `dist/cli/index.js` without the leading `./`: npm normalized it at every publish and warned that the entry was "invalid and removed", which it was not; the published 0.1.0 has the binary.
 ## v0.1.0 · 2026-09-14 · First release
 

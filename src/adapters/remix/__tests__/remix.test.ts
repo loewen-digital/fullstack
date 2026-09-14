@@ -10,6 +10,7 @@ import {
 } from '../index.js'
 import { createSession } from '../../../session/index.js'
 import { createSecurity } from '../../../security/index.js'
+import type { AuthInstance, AuthSession } from '../../../auth/index.js'
 import type { RemixFunctionArgs } from '../types.js'
 
 // ── Test helpers ───────────────────────────────────────────────────────────────
@@ -330,5 +331,24 @@ describe('validateBody', () => {
     const next = await session.load(sessionHandle.id)
     const errors = next.getFlash('_errors')
     expect(errors).toBeDefined()
+  })
+})
+
+// ── auth: the validated session is exposed, no user object (#9) ───────────────
+
+describe('auth integration', () => {
+  const authSession: AuthSession = { id: 's1', userId: 'u1', token: 'good', expiresAt: new Date(Date.now() + 60_000), createdAt: new Date() }
+  const auth = { validateSession: async (token: string) => (token === 'good' ? authSession : null) } as unknown as AuthInstance
+
+  it('hands the loader the validated session and no user object', async () => {
+    const fsArgs = await withFullstack(makeArgs({ headers: { cookie: 'fs_token=good' } }), { auth })
+    expect(fsArgs.authSession).toEqual(authSession)
+    expect('user' in fsArgs).toBe(false)
+  })
+
+  it('sets authSession to null without a valid cookie', async () => {
+    const fsArgs = await withFullstack(makeArgs(), { auth })
+    expect(fsArgs.authSession).toBeNull()
+    expect('user' in fsArgs).toBe(false)
   })
 })

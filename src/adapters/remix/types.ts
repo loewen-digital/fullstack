@@ -6,7 +6,7 @@
  */
 
 import type { SessionHandle } from '../../session/index.js'
-import type { AuthSession, AuthUser } from '../../auth/index.js'
+import type { AuthSession } from '../../auth/index.js'
 
 // ── Minimal Remix-compatible types ─────────────────────────────────────────────
 
@@ -45,9 +45,6 @@ export interface FullstackRemixArgs extends RemixFunctionArgs {
 
   /** The authenticated session, if auth module is configured and token is valid. */
   authSession?: AuthSession | null
-
-  /** The authenticated user (basic shape; enrich from DB as needed). */
-  user?: AuthUser | null
 
   /** Whether CSRF verification passed for mutating requests. */
   csrfVerified?: boolean

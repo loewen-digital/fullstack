@@ -54,8 +54,7 @@ Your loader or action receives `FullstackRemixArgs`: Remix's `request`, `params`
 | Property | Type | Set when |
 |---|---|---|
 | `session` | `SessionHandle \| undefined` | the stack has `session`. Flash, old input, values |
-| `authSession` | `AuthSession \| null` | the stack has `auth`. The validated session behind the auth cookie, or `null` |
-| `user` | `AuthUser \| null` | the stack has `auth`. Carries only `id` (`email` is empty): the adapter has no user store. Load the user yourself by `authSession.userId` |
+| `authSession` | `AuthSession \| null` | the stack has `auth`. The validated session behind the auth cookie, or `null`. Its `userId` is the key to load the user yourself; the adapter has no user store and puts no user object here |
 | `csrfVerified` | `boolean` | the stack has `security` and the method is not GET, HEAD or OPTIONS. See [CSRF](#csrf) |
 | `commitSession()` | `() => Promise<string>` | always. Saves the session and returns the `Set-Cookie` header value for it (`httpOnly`, `SameSite=Lax`, `Secure` on HTTPS, 7 days); an empty string without a session module |
 

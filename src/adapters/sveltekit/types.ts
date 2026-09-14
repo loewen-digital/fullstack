@@ -21,7 +21,7 @@
  */
 
 import type { SessionHandle } from '../../session/index.js'
-import type { AuthSession, AuthUser } from '../../auth/index.js'
+import type { AuthSession } from '../../auth/index.js'
 
 export interface FullstackLocals {
   /**
@@ -35,12 +35,6 @@ export interface FullstackLocals {
    * Available when auth module is configured and the request is authenticated.
    */
   authSession?: AuthSession | null
-
-  /**
-   * The authenticated user for the current request.
-   * Populated when auth module is configured and a valid session token is present.
-   */
-  user?: AuthUser | null
 
   /**
    * Whether the current request has passed CSRF verification.

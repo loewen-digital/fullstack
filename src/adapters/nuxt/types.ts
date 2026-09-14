@@ -6,7 +6,7 @@
  */
 
 import type { SessionHandle } from '../../session/index.js'
-import type { AuthSession, AuthUser } from '../../auth/index.js'
+import type { AuthSession } from '../../auth/index.js'
 
 // ── Minimal h3/Nitro-compatible types ─────────────────────────────────────────
 
@@ -15,7 +15,6 @@ export interface H3EventContext {
   /** Populated by the fullstack middleware */
   session?: SessionHandle
   authSession?: AuthSession | null
-  user?: AuthUser | null
   csrfVerified?: boolean
 }
 
@@ -72,11 +71,6 @@ export interface FullstackNuxtContext {
    * The authenticated session for the current request.
    */
   authSession?: AuthSession | null
-
-  /**
-   * The authenticated user (basic shape; app should enrich from DB).
-   */
-  user?: AuthUser | null
 
   /**
    * Whether CSRF verification passed for mutating requests.

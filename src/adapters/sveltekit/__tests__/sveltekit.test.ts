@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { createHandle, getCsrfToken, setAuthCookie, clearAuthCookie, validateForm } from '../index.js'
 import { createSession } from '../../../session/index.js'
 import { createSecurity } from '../../../security/index.js'
+import type { AuthInstance, AuthSession } from '../../../auth/index.js'
 import type { FullstackLocals, SvelteKitRequestEvent, SvelteKitResolve } from '../types.js'
 
 // ── Test helpers ───────────────────────────────────────────────────────────
@@ -352,5 +353,29 @@ describe('validateForm', () => {
     const nextHandle = await session.load(sessionHandle.id)
     const errors = nextHandle.getFlash('_errors')
     expect(errors).toBeDefined()
+  })
+})
+
+// ── auth: the validated session is exposed, no user object (#9) ───────────────
+
+describe('auth integration', () => {
+  const authSession: AuthSession = { id: 's1', userId: 'u1', token: 'good', expiresAt: new Date(Date.now() + 60_000), createdAt: new Date() }
+  const auth = { validateSession: async (token: string) => (token === 'good' ? authSession : null) } as unknown as AuthInstance
+
+  it('puts the validated session on locals and no user object', async () => {
+    const handle = createHandle({ auth })
+    const event = makeEvent()
+    event.cookies.set('fs_token', 'good', { path: '/' })
+    await handle({ event, resolve: makeResolve() })
+    expect(event.locals.authSession).toEqual(authSession)
+    expect('user' in event.locals).toBe(false)
+  })
+
+  it('sets authSession to null without a valid cookie', async () => {
+    const handle = createHandle({ auth })
+    const event = makeEvent()
+    await handle({ event, resolve: makeResolve() })
+    expect(event.locals.authSession).toBeNull()
+    expect('user' in event.locals).toBe(false)
   })
 })

@@ -6,7 +6,7 @@
  */
 
 import type { SessionHandle } from '../../session/index.js'
-import type { AuthSession, AuthUser } from '../../auth/index.js'
+import type { AuthSession } from '../../auth/index.js'
 
 // ── Minimal Astro-compatible types ─────────────────────────────────────────────
 
@@ -33,7 +33,6 @@ export interface AstroLocals {
   /** Populated by fullstack middleware */
   session?: SessionHandle
   authSession?: AuthSession | null
-  user?: AuthUser | null
   csrfVerified?: boolean
 }
 
@@ -80,11 +79,6 @@ export interface FullstackAstroLocals {
    * The authenticated session.
    */
   authSession?: AuthSession | null
-
-  /**
-   * The authenticated user.
-   */
-  user?: AuthUser | null
 
   /**
    * Whether CSRF verification passed for mutating requests.

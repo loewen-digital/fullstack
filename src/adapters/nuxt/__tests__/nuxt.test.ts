@@ -7,6 +7,7 @@ import {
 } from '../index.js'
 import { createSession } from '../../../session/index.js'
 import { createSecurity } from '../../../security/index.js'
+import type { AuthInstance, AuthSession } from '../../../auth/index.js'
 import type { H3Event } from '../types.js'
 
 // ── Test helpers ───────────────────────────────────────────────────────────────
@@ -283,5 +284,28 @@ describe('HEAD and OPTIONS bypass CSRF', () => {
 
     // csrfVerified should not be set since CSRF check is skipped for safe methods
     expect(event.context.csrfVerified).toBeUndefined()
+  })
+})
+
+// ── auth: the validated session is exposed, no user object (#9) ───────────────
+
+describe('auth integration', () => {
+  const authSession: AuthSession = { id: 's1', userId: 'u1', token: 'good', expiresAt: new Date(Date.now() + 60_000), createdAt: new Date() }
+  const auth = { validateSession: async (token: string) => (token === 'good' ? authSession : null) } as unknown as AuthInstance
+
+  it('puts the validated session on event.context and no user object', async () => {
+    const middleware = createNuxtMiddleware({ auth })
+    const event = makeEvent({ headers: { cookie: 'fs_token=good' } })
+    await middleware(event)
+    expect(event.context.authSession).toEqual(authSession)
+    expect('user' in event.context).toBe(false)
+  })
+
+  it('sets authSession to null without a valid cookie', async () => {
+    const middleware = createNuxtMiddleware({ auth })
+    const event = makeEvent({ headers: { cookie: 'fs_token=bad' } })
+    await middleware(event)
+    expect(event.context.authSession).toBeNull()
+    expect('user' in event.context).toBe(false)
   })
 })

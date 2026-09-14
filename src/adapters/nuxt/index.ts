@@ -8,7 +8,7 @@
  *
  *   export default createNuxtMiddleware(stack)
  *
- * The middleware populates event.context with session, authSession, user, and csrfVerified.
+ * The middleware populates event.context with session, authSession and csrfVerified.
  * Access them in API routes and server middleware via event.context.session, etc.
  */
 
@@ -129,7 +129,7 @@ function getRequestPath(event: H3Event): string {
  *
  * What it does per request:
  *  1. Loads session (if session module configured) → event.context.session
- *  2. Validates auth token from cookie → event.context.authSession, event.context.user
+ *  2. Validates auth token from cookie → event.context.authSession
  *  3. Enforces CSRF for non-GET mutations (if security module configured)
  */
 export function createNuxtMiddleware(stack: AdapterStack, options: NuxtMiddlewareOptions = {}): H3EventHandler<void> {
@@ -155,9 +155,7 @@ export function createNuxtMiddleware(stack: AdapterStack, options: NuxtMiddlewar
         authSession = await stack.auth.validateSession(token)
       }
 
-      const ctx = event.context as FullstackNuxtContext
-      ctx.authSession = authSession
-      ctx.user = authSession ? { id: authSession.userId, email: '' } : null
+      ;(event.context as FullstackNuxtContext).authSession = authSession
     }
 
     // ── 3. CSRF check ────────────────────────────────────────────────────────

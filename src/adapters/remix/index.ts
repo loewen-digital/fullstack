@@ -18,8 +18,8 @@
  *   import { loader as wrapLoader } from '~/lib/fullstack.server'
  *
  *   export const loader = wrapLoader(async (args) => {
- *     const { session, user } = args
- *     return json({ user })
+ *     const { session, authSession } = args
+ *     return json({ userId: authSession?.userId ?? null })
  *   })
  */
 
@@ -134,13 +134,11 @@ async function buildFullstackArgs(
 
   // 2. Auth validation
   let authSession: AuthSession | null = null
-  let user: FullstackRemixArgs['user'] = null
   if (stack.auth) {
     const token = getRequestCookie(request, authCookie)
     if (token) {
       authSession = await stack.auth.validateSession(token)
     }
-    user = authSession ? { id: authSession.userId, email: '' } : null
   }
 
   // 3. CSRF check
@@ -182,7 +180,7 @@ async function buildFullstackArgs(
   const fsArgs: FullstackRemixArgs = {
     ...args,
     session: sessionHandle,
-    ...(stack.auth ? { authSession, user } : {}),
+    ...(stack.auth ? { authSession } : {}),
     ...(csrfVerified !== undefined ? { csrfVerified } : {}),
     commitSession,
   }
@@ -199,7 +197,7 @@ async function buildFullstackArgs(
  *
  * Usage:
  *   const withFullstack = createRemixLoader(stack)
- *   export const loader = withFullstack(async ({ session, user }) => { ... })
+ *   export const loader = withFullstack(async ({ session, authSession }) => { ... })
  */
 export function createRemixLoader(stack: AdapterStack, options: RemixAdapterOptions = {}) {
   const opts: Required<RemixAdapterOptions> = {
