@@ -5,7 +5,7 @@ description: Full-text search over JSON documents on SQLite FTS5, Meilisearch or
 
 # Search
 
-`createSearch` indexes documents (`{ id, ...fields }`) into named collections and searches them. SQLite FTS5 is built in and needs no service; Meilisearch and Typesense are reached through `fetch` with a driver factory each.
+`createSearch` indexes documents (`{ id, ...fields }`) into named collections and searches them. SQLite FTS5 needs no service, only `better-sqlite3` installed; Meilisearch and Typesense are reached through `fetch` with a driver factory each.
 
 ## Import
 

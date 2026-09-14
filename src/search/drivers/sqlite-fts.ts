@@ -1,5 +1,23 @@
 import type { SearchDocument, SearchDriver, SearchOptions, SearchResult } from '../types.js'
 import type { default as BetterSqlite3Ctor } from 'better-sqlite3'
+import { createRequire } from 'node:module'
+
+// better-sqlite3 is a native binding and an optional peer dependency: it is loaded when the
+// factory runs, not when this module is imported. The package ships ESM, hence createRequire.
+const load = createRequire(import.meta.url)
+
+function loadBetterSqlite3(): typeof BetterSqlite3Ctor {
+  try {
+    return load('better-sqlite3') as typeof BetterSqlite3Ctor
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'MODULE_NOT_FOUND') {
+      throw new Error('The sqlite driver needs better-sqlite3, an optional peer dependency: npm install better-sqlite3', {
+        cause: error,
+      })
+    }
+    throw error
+  }
+}
 
 /**
  * SQLite FTS5 search driver using better-sqlite3.
@@ -9,10 +27,7 @@ import type { default as BetterSqlite3Ctor } from 'better-sqlite3'
  *   - `{collection}_fts`   — virtual FTS5 table indexing all text fields
  */
 export function createSqliteFtsDriver(urlOrDb?: string): SearchDriver {
-  // Lazy-load better-sqlite3 so that it remains an optional peer dependency
-  // during tests that don't use this driver.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const Database = require('better-sqlite3') as typeof BetterSqlite3Ctor
+  const Database = loadBetterSqlite3()
   const db = new Database(urlOrDb ?? ':memory:')
   db.pragma('journal_mode = WAL')
 

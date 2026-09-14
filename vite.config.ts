@@ -53,6 +53,7 @@ export default defineConfig({
       external: [
         /^node:/,
         /^drizzle-orm/,
+        /^better-sqlite3/,
         /^@sveltejs\/kit/,
         /^nuxt/,
         /^@remix-run/,

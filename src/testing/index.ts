@@ -107,8 +107,8 @@ export interface TestStack {
  */
 export function createTestStack(options: TestStackOptions = {}): TestStack {
   const dbConfig: DbConfig = options.db ?? { driver: 'sqlite', url: ':memory:' }
-
-  const db = createDb(dbConfig)
+  // Opened on first access: a test file that never reads stack.db needs no better-sqlite3.
+  let db: DbInstance | undefined
 
   const fakeMail = createFakeMailDriver()
   const mail = createMailInstance(fakeMail, { driver: 'console' })
@@ -124,7 +124,9 @@ export function createTestStack(options: TestStackOptions = {}): TestStack {
   const session = createSession({ driver: 'memory' })
 
   return {
-    db,
+    get db(): DbInstance {
+      return (db ??= createDb(dbConfig))
+    },
     mail,
     storage,
     queue,

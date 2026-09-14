@@ -21,7 +21,7 @@ const logger = createLogger({ level: 'info', format: 'prod' })
 
 ## Drivers with credentials
 
-A driver name in the config picks a driver that needs nothing else: `console` for mail, `memory` for cache, storage, session and queue, `cookie` for session, `sqlite` for db, `sqlite-fts` for search. A driver that needs credentials or a client is built with its own factory and handed to the module's `createXInstance`; the config it needs is typed on that factory, not on the module config.
+A driver name in the config picks a driver that needs nothing else: `console` for mail, `memory` for cache, storage, session and queue, `cookie` for session, `sqlite` for db and `sqlite-fts` for search (the last two on `better-sqlite3`, which you install). A driver that needs credentials or a client is built with its own factory and handed to the module's `createXInstance`; the config it needs is typed on that factory, not on the module config.
 
 ```ts
 import { createMailInstance, createResendDriver } from '@loewen-digital/fullstack/mail'

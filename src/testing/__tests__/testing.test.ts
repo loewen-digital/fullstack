@@ -11,6 +11,15 @@ import { createStorageInstance } from '../../storage/index.js'
 // ── createTestStack ─────────────────────────────────────────────────────────
 
 describe('createTestStack', () => {
+  it('opens db on first access, not when the stack is built', () => {
+    // 'postgres' makes createDb throw; before, createTestStack itself threw.
+    const stack = createTestStack({ db: { driver: 'postgres', url: 'postgres://x' } })
+    expect(() => stack.db).toThrow(/postgres/)
+
+    const sqlite = createTestStack()
+    expect(sqlite.db).toBe(sqlite.db)
+  })
+
   it('creates all modules with defaults', () => {
     const stack = createTestStack()
     expect(stack.db).toBeDefined()

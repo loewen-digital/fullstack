@@ -118,7 +118,7 @@ async function usersPage(page: number, perPage = 20) {
 
 | Driver | Status |
 |---|---|
-| `sqlite` | `better-sqlite3`, bundled with the package |
+| `sqlite` | `better-sqlite3`, an optional peer dependency: `npm install better-sqlite3`. `createDb` throws with that hint when it is missing |
 | `postgres`, `mysql`, `d1` | Declared in the config type; `createDb` throws for them. Use Drizzle's own driver for these databases directly |
 
 ## Config options

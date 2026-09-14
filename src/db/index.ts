@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module'
 import type { DbConfig } from '../config/types.js'
 import type { default as BetterSqlite3Ctor } from 'better-sqlite3'
 import type * as DrizzleBetterSqlite3 from 'drizzle-orm/better-sqlite3'
@@ -19,10 +20,27 @@ export type { DbConfig }
 export type { DbInstance, PaginationResult, PaginationOptions, MigrationStatus, FactoryDefinition, Factory, AnyDrizzleDb }
 export { paginate as paginateHelper } from './pagination.js'
 
+// better-sqlite3 is a native binding and an optional peer dependency: it is loaded when the
+// factory runs, not when this module is imported. The package ships ESM, hence createRequire.
+const load = createRequire(import.meta.url)
+
+function loadBetterSqlite3(): typeof BetterSqlite3Ctor {
+  try {
+    return load('better-sqlite3') as typeof BetterSqlite3Ctor
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'MODULE_NOT_FOUND') {
+      throw new Error('The sqlite driver needs better-sqlite3, an optional peer dependency: npm install better-sqlite3', {
+        cause: error,
+      })
+    }
+    throw error
+  }
+}
+
 /**
  * Create a database instance wrapping Drizzle ORM.
  *
- * Currently supports: `sqlite` (via better-sqlite3)
+ * Currently supports: `sqlite` (via better-sqlite3, an optional peer: `npm install better-sqlite3`)
  * Postgres, MySQL, and D1 support requires the corresponding peer dependencies.
  *
  * Usage:
@@ -42,11 +60,8 @@ export function createDb<TSchema extends Record<string, unknown> = Record<string
     )
   }
 
-  // Lazy-require so consumers who don't use sqlite don't pay the cost.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const Database = require('better-sqlite3') as typeof BetterSqlite3Ctor
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { drizzle } = require('drizzle-orm/better-sqlite3') as typeof DrizzleBetterSqlite3
+  const Database = loadBetterSqlite3()
+  const { drizzle } = load('drizzle-orm/better-sqlite3') as typeof DrizzleBetterSqlite3
 
   const sqlite = new Database(config.url)
   // Enable WAL mode for better concurrent read performance

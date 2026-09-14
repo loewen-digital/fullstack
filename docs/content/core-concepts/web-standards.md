@@ -86,7 +86,7 @@ A few things have no Web Standard yet, and there the package uses Node built-ins
 | Module | Node API | Why |
 |---|---|---|
 | `auth` | `node:crypto` scrypt and `randomBytes` | Password hashing; Web Crypto has no memory-hard KDF |
-| `db` | `better-sqlite3` | The bundled sqlite driver is a native binding |
+| `db` | `better-sqlite3` | The sqlite driver is a native binding, an optional peer you install |
 | `storage` local driver, logging file transport | `node:fs` | Files on disk |
 | `mail` SMTP driver | `nodemailer` | SMTP is a TCP protocol |
 
