@@ -1,6 +1,5 @@
 import { defineConfig } from 'vite'
 import { resolve } from 'node:path'
-import dts from 'vite-plugin-dts'
 
 const entries: Record<string, string> = {
   'index': 'src/index.ts',
@@ -33,14 +32,8 @@ const entries: Record<string, string> = {
   'cli/index': 'src/cli/index.ts',
 }
 
+// Declarations come from `tsc -p tsconfig.build.json`, the second half of `npm run build`.
 export default defineConfig({
-  plugins: [
-    dts({
-      include: ['src'],
-      exclude: ['src/**/__tests__/**'],
-      tsconfigPath: './tsconfig.build.json',
-    }),
-  ],
   build: {
     lib: {
       entry: Object.fromEntries(
