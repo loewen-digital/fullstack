@@ -125,7 +125,7 @@
     }
   },
   "bin": {
-    "fullstack": "./dist/cli/index.js"
+    "fullstack": "dist/cli/index.js"
   },
   "sideEffects": false,
   "files": [

@@ -7,6 +7,7 @@ is the topmost released one here.
 
 ## Unreleased
 
+- `bin.fullstack` is `dist/cli/index.js` without the leading `./`: npm normalized it at every publish and warned that the entry was "invalid and removed", which it was not; the published 0.1.0 has the binary.
 ## v0.1.0 · 2026-09-14 · First release
 
 - Releases: `release.yml` skips `npm publish` when the tagged version is on npm already and still creates the GitHub Release, so the first version, published by hand before the trusted publisher exists, gets its release from the tag push like every later one. `npm publish` runs `npm run build` first (`prepublishOnly`), so a stale or missing `dist/` cannot ship.
