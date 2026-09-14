@@ -50,7 +50,7 @@ async function invoice(email: string, pdf: Uint8Array) {
 
 ## Templates
 
-`render(template, variables)` replaces `{{ name }}` and `{{ user.name }}` with HTML-escaped values and `{{{ html }}}` with the raw value; missing variables become empty strings. `renderTemplate` is the same function without an instance. Loading template files is yours (`readFile`, an import, a string).
+`render(template, variables)` replaces <span v-pre>`{{ name }}`</span> and <span v-pre>`{{ user.name }}`</span> with HTML-escaped values and <span v-pre>`{{{ html }}}`</span> with the raw value; missing variables become empty strings. `renderTemplate` is the same function without an instance. Loading template files is yours (`readFile`, an import, a string).
 
 ```ts
 const template = '<h1>Hello {{ user.name }}</h1>{{{ body }}}'
