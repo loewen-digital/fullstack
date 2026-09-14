@@ -5,7 +5,9 @@ on:
     branches: [main]
     paths:
       - 'docs/content/**'
-      - 'docs/vitepress/**'
+      - 'docs/.vitepress/**'
+      - 'docs/package.json'
+      - 'docs/package-lock.json'
   workflow_dispatch:
 
 env:
@@ -26,15 +28,15 @@ jobs:
         with:
           node-version-file: package.json
           cache: 'npm'
-          cache-dependency-path: docs/vitepress/package-lock.json
+          cache-dependency-path: docs/package-lock.json
 
       - name: Install dependencies
-        run: npm install
-        working-directory: docs/vitepress
+        run: npm ci
+        working-directory: docs
 
       - name: Build
         run: npm run build
-        working-directory: docs/vitepress
+        working-directory: docs
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/pages-action@v1
@@ -42,5 +44,5 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           projectName: fullstack-docs-vitepress
-          directory: docs/vitepress/.vitepress/dist
+          directory: docs/.vitepress/dist
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}

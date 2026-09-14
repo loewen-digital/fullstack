@@ -1,27 +1,11 @@
 import { defineConfig } from 'vitepress'
-import { createRequire } from 'module'
 
-const require = createRequire(import.meta.url)
-
-// When srcDir points outside the project, Rollup resolves imports from the
-// content directory and can't find node_modules in the vitepress project.
-// This plugin uses Node's own resolution (anchored here) to fix that.
-const resolveFromHere = {
-  name: 'resolve-from-vitepress',
-  resolveId(id: string) {
-    if (id === 'vue' || id === 'vue/server-renderer') {
-      return require.resolve(id)
-    }
-  },
-}
-
+// The VitePress project is docs/ itself and the pages live in docs/content, inside the project
+// root, so Vite resolves every dependency from docs/node_modules and never from the repository's.
 export default defineConfig({
   title: '@loewen-digital/fullstack',
   description: 'Laravel for JS — backend primitives for any meta-framework',
-  srcDir: '../content',
-  vite: {
-    plugins: [resolveFromHere],
-  },
+  srcDir: 'content',
   themeConfig: {
     search: {
       provider: 'local',

@@ -8,5 +8,7 @@ dist/
 *.tsbuildinfo
 coverage/
 docs/api/
+docs/.vitepress/cache/
+docs/.vitepress/.temp/
 examples/*/node_modules/
 examples/*/.svelte-kit/
