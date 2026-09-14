@@ -133,6 +133,7 @@
   ],
   "scripts": {
     "build": "vite build && tsc -p tsconfig.build.json && node scripts/smoke-dist.mjs",
+    "prepublishOnly": "npm run build",
     "dev": "vite build --watch",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -7,6 +7,9 @@ is the topmost released one here.
 
 ## Unreleased
 
+## v0.1.0 · 2026-09-14 · First release
+
+- Releases: `release.yml` skips `npm publish` when the tagged version is on npm already and still creates the GitHub Release, so the first version, published by hand before the trusted publisher exists, gets its release from the tag push like every later one. `npm publish` runs `npm run build` first (`prepublishOnly`), so a stale or missing `dist/` cannot ship.
 - The docs site builds again: the mail page's `{{ name }}` placeholders in prose read as Vue interpolations to VitePress, so the site had not updated since the Nuxt/Remix/Astro pages (#11); every page since is live once this deploys.
 - Memory cache driver: in dev mode (`NODE_ENV` not `production`) every `createCache({ driver: 'memory' })` added a `process` exit listener and a permanent entry in the Dev UI's cache registry, so an app that builds a cache per request leaked both, and Node warned about the listeners from the eleventh cache on. The registry now holds caches weakly and drops the ones the app let go; there is no exit listener.
 - Tooling: `npm audit` is clean apart from one low finding. `npm audit fix` patched the transitive packages, `vitest` is on 4 (every 3.x carries the `@vitest/mocker` file-read advisory), and `vite-plugin-dts` is gone from the build: `tsc -p tsconfig.build.json` already writes the same declarations (byte-identical, checked), and the plugin pulled in `@microsoft/api-extractor` with its `lodash`. What stays: `cookie` below 0.7 behind `@sveltejs/kit` (GHSA-pxg6-pf52-xh8x), which the latest kit still pins; kit is a devDependency used only by the SvelteKit type-mirror test, its code never runs here. (#23)

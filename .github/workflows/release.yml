@@ -5,7 +5,9 @@ name: Release
 # `## v<version> · <date> · <title>`; its lines become the release notes.
 # Publishing uses npm trusted publishing (OIDC): no NPM_TOKEN, provenance is automatic.
 # One-time setup per package: publish the first version by hand, then on npmjs.com under
-# Package Settings → Trusted Publisher add GitHub Actions with this repo and `release.yml`.
+# Package Settings → Trusted Publisher add GitHub Actions with this repo and `release.yml`,
+# then push the tag: a version that is on npm already is not published again, the GitHub
+# Release is still created. That makes a re-run of a failed release safe as well.
 
 on:
   push:
@@ -38,7 +40,15 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm install -g npm@latest
-      - run: npm publish --access public
+      - name: Publish unless this version is on npm already
+        run: |
+          name="$(node -p 'require("./package.json").name')"
+          version="$(node -p 'require("./package.json").version')"
+          if npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "$name@$version is on npm already, skipping publish"
+          else
+            npm publish --access public
+          fi
       - run: gh release create "$GITHUB_REF_NAME" --verify-tag --title "$(cat "$RUNNER_TEMP/title")" --notes-file "$RUNNER_TEMP/notes.md"
         env:
           GH_TOKEN: ${{ github.token }}
