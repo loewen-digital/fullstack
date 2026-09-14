@@ -7,6 +7,8 @@ description: createDb wraps Drizzle ORM on SQLite with migrations, seeds, factor
 
 `createDb(config, schema)` opens a SQLite database through `better-sqlite3` and hands you a Drizzle instance on `db.drizzle`. Queries are Drizzle's; the module adds what Drizzle leaves to you: running migrations, seeding, test-data factories, pagination metadata and closing the connection.
 
+It is the module for apps on a SQL database, and it runs on Node only: `better-sqlite3` is a native binding. The package's own apps keep their data in [flatdb](https://github.com/loewen-digital/flatdb) and call it directly, the way the [quick start](/getting-started/quick-start) does; flatdb's `find(filter, { sort, limit, skip })` and `count` are its pagination. Both packages `db` needs are optional peers: `npm install drizzle-orm better-sqlite3`.
+
 ## Import
 
 ```ts

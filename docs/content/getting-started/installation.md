@@ -17,7 +17,7 @@ description: How to install @loewen-digital/fullstack in your project
 npm install @loewen-digital/fullstack
 ```
 
-That is the only dependency for most modules; `drizzle-orm` comes with it for the `db` module. Everything else talks HTTP through `fetch` or takes a client you hand it.
+The package has no dependencies of its own: the modules talk HTTP through `fetch` or take a client you hand them.
 
 ## Optional packages
 
@@ -27,8 +27,8 @@ Install only what the driver you use needs:
 # auth on flatdb collections (see the Auth on flatdb guide)
 npm install @loewen-digital/flatdb zod
 
-# sqlite driver for db and the sqlite-fts search driver (native binding)
-npm install better-sqlite3
+# db module (Drizzle on SQLite, for apps on a SQL database) and the sqlite-fts search driver
+npm install drizzle-orm better-sqlite3
 npm install -D @types/better-sqlite3
 
 # SMTP mail driver

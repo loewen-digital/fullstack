@@ -97,7 +97,7 @@ const marketing = createMailInstance(createPostmarkDriver({ serverToken: process
 
 ### Tree-shakeable
 
-Every module is its own subpath (`@loewen-digital/fullstack/mail`), so what you do not import is not in the bundle. Inside a module the drivers are small and talk HTTP through `fetch`; the two packages some drivers load (`nodemailer` for SMTP, `better-sqlite3` for the sqlite db and search drivers) are installed by you and loaded lazily.
+Every module is its own subpath (`@loewen-digital/fullstack/mail`), so what you do not import is not in the bundle. Inside a module the drivers are small and talk HTTP through `fetch`; the packages some drivers load (`nodemailer` for SMTP, `drizzle-orm` and `better-sqlite3` for the sqlite db and search drivers) are installed by you and loaded lazily.
 
 ## The returned instance
 

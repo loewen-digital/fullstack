@@ -11,18 +11,19 @@ import { createStorageInstance } from '../../storage/index.js'
 // ── createTestStack ─────────────────────────────────────────────────────────
 
 describe('createTestStack', () => {
-  it('opens db on first access, not when the stack is built', () => {
-    // 'postgres' makes createDb throw; before, createTestStack itself threw.
-    const stack = createTestStack({ db: { driver: 'postgres', url: 'postgres://x' } })
-    expect(() => stack.db).toThrow(/postgres/)
+  it('has a db only when a db config is given', () => {
+    const withDb = createTestStack({ db: { driver: 'sqlite', url: ':memory:' } })
+    expect(withDb.db.drizzle).toBeDefined()
+    withDb.db.close()
 
-    const sqlite = createTestStack()
-    expect(sqlite.db).toBe(sqlite.db)
+    const without = createTestStack()
+    expect('db' in without).toBe(false)
+    // @ts-expect-error no db without a db config
+    void without.db
   })
 
   it('creates all modules with defaults', () => {
     const stack = createTestStack()
-    expect(stack.db).toBeDefined()
     expect(stack.mail).toBeDefined()
     expect(stack.storage).toBeDefined()
     expect(stack.queue).toBeDefined()

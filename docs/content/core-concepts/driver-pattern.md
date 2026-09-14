@@ -64,7 +64,7 @@ const onR2 = createStorageInstance(
 | `session` | `memory`, `cookie` (needs `secret`) | `createRedisDriver` into `createSessionManager` |
 | `queue` | `memory` | `createRedisDriver`, `createCloudflareDriver` (a Queue binding) |
 | `search` | `sqlite-fts` | `createMeilisearchDriver`, `createTypesenseDriver`; a custom driver into `createSearch({ driver })` |
-| `db` | `sqlite` (`better-sqlite3`, an optional peer you install) | none yet; `postgres`, `mysql` and `d1` are declared and throw |
+| `db` | `sqlite` (`drizzle-orm` and `better-sqlite3`, optional peers you install) | none yet; `postgres`, `mysql` and `d1` are declared and throw |
 | `logging` | `consoleTransport()` is the default | `fileTransport`, `externalTransport`, passed as `transports` |
 
 ## Swapping drivers per environment
@@ -105,4 +105,4 @@ Nothing has to be registered: a driver is a value, and the module only sees the 
 
 ## What a driver pulls in
 
-The drivers are small and reach their service through `fetch`: Resend, Postmark, S3, R2, Meilisearch and Typesense need no SDK. The Redis, KV and Cloudflare Queue drivers take the client or binding you already have and import nothing. Three drivers load a package, and only when they are built: SMTP imports `nodemailer` on first send, the sqlite db driver and the `sqlite-fts` search driver load `better-sqlite3` when their factory runs. All three packages are installed by you, not with `@loewen-digital/fullstack`.
+The drivers are small and reach their service through `fetch`: Resend, Postmark, S3, R2, Meilisearch and Typesense need no SDK. The Redis, KV and Cloudflare Queue drivers take the client or binding you already have and import nothing. Three drivers load a package, and only when they are built: SMTP imports `nodemailer` on first send, the sqlite db driver loads `drizzle-orm` and `better-sqlite3` and the `sqlite-fts` search driver `better-sqlite3` when their factory runs. Every one of these packages is installed by you, not with `@loewen-digital/fullstack`.

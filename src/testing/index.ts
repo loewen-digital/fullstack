@@ -8,6 +8,7 @@
  *   import { createTestStack } from '@loewen-digital/fullstack/testing'
  *
  *   const stack = createTestStack()
+ *   // createTestStack({ db: { driver: 'sqlite', url: ':memory:' } }) adds a Drizzle db for SQL apps
  *
  *   // Send mail and assert
  *   await stack.mail.send({ to: 'user@example.com', subject: 'Test', text: 'Hello' })
@@ -51,13 +52,14 @@ import type { FakeQueueDriver } from './fake-queue.js'
 import type { FakeStorageDriver } from './fake-storage.js'
 
 export interface TestStackOptions {
-  /** DB config. Defaults to in-memory SQLite. */
+  /**
+   * Adds a Drizzle `db` on this config (`{ driver: 'sqlite', url: ':memory:' }` for tests), for apps on
+   * a SQL database. Without it the stack has no `db` and needs neither drizzle-orm nor better-sqlite3.
+   */
   db?: DbConfig
 }
 
 export interface TestStack {
-  /** SQLite in-memory database */
-  db: DbInstance
   /** Mail instance backed by fake driver */
   mail: MailInstance
   /** Storage instance backed by fake driver */
@@ -79,6 +81,12 @@ export interface TestStack {
 
   /** Reset all fakes (mail, queue, storage) to a clean state */
   reset(): void
+}
+
+/** A test stack built with a `db` config. */
+export interface TestStackWithDb extends TestStack {
+  /** Drizzle database on the config given to createTestStack */
+  db: DbInstance
 }
 
 /**
@@ -105,11 +113,9 @@ export interface TestStack {
  * afterEach(() => stack.reset())
  * ```
  */
-export function createTestStack(options: TestStackOptions = {}): TestStack {
-  const dbConfig: DbConfig = options.db ?? { driver: 'sqlite', url: ':memory:' }
-  // Opened on first access: a test file that never reads stack.db needs no better-sqlite3.
-  let db: DbInstance | undefined
-
+export function createTestStack(options: TestStackOptions & { db: DbConfig }): TestStackWithDb
+export function createTestStack(options?: TestStackOptions): TestStack
+export function createTestStack(options: TestStackOptions = {}): TestStack | TestStackWithDb {
   const fakeMail = createFakeMailDriver()
   const mail = createMailInstance(fakeMail, { driver: 'console' })
 
@@ -123,10 +129,7 @@ export function createTestStack(options: TestStackOptions = {}): TestStack {
 
   const session = createSession({ driver: 'memory' })
 
-  return {
-    get db(): DbInstance {
-      return (db ??= createDb(dbConfig))
-    },
+  const stack: TestStack = {
     mail,
     storage,
     queue,
@@ -142,4 +145,6 @@ export function createTestStack(options: TestStackOptions = {}): TestStack {
       fakeStorage.clear()
     },
   }
+
+  return options.db ? { ...stack, db: createDb(options.db) } : stack
 }

@@ -5,7 +5,7 @@ description: fullstack migrate, migrate:rollback, migrate:status, seed and gener
 
 # CLI
 
-The package installs a `fullstack` binary. It reads `fullstack.config.ts` from the current directory, needs its `db` section, and runs migrations, seeds and scaffolds against that database.
+The package installs a `fullstack` binary. It reads `fullstack.config.ts` from the current directory, needs its `db` section (and `drizzle-orm` plus `better-sqlite3` installed), and runs migrations, seeds and scaffolds against that database.
 
 ## Usage
 

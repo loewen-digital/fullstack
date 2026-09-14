@@ -15,7 +15,7 @@ import { createTestStack } from '@loewen-digital/fullstack/testing'
 
 ## The test stack
 
-`createTestStack()` returns an in-memory SQLite `db`, `mail`, `storage` and `queue` on fake drivers, `cache` on the memory driver and `session` on the memory driver, plus the three fakes for assertions and `reset()` to clear them. `auth` is not part of it: it needs an `AuthDbAdapter` for your schema (or flatdb's `MemoryAdapter`, see the [guide](/guides/auth-on-flatdb)). `db` opens its database on first access, so a test file that never reads `stack.db` runs without `better-sqlite3` installed.
+`createTestStack()` returns `mail`, `storage` and `queue` on fake drivers, `cache` and `session` on the memory driver, plus the three fakes for assertions and `reset()` to clear them. `createTestStack({ db: { driver: 'sqlite', url: ':memory:' } })` adds a Drizzle `db` on SQLite for apps on a SQL database (typed `TestStackWithDb`); it needs `drizzle-orm` and `better-sqlite3` installed, the plain stack needs neither. `auth` is not part of it: it needs an `AuthDbAdapter` for your schema (or flatdb's `MemoryAdapter`, see the [guide](/guides/auth-on-flatdb)).
 
 ```ts
 import { describe, it, expect, beforeEach } from 'vitest'
@@ -43,7 +43,7 @@ describe('registration', () => {
 })
 ```
 
-A new stack per test is the simplest isolation. Keeping one stack and calling `stack.reset()` in `afterEach` clears mail, queue and storage but leaves the database, cache and sessions as they are. The database starts empty: run `stack.db.migrate('./drizzle')` in `beforeAll` when a test needs tables.
+A new stack per test is the simplest isolation. Keeping one stack and calling `stack.reset()` in `afterEach` clears mail, queue and storage but leaves cache and sessions as they are, and a `db` too: it starts empty, run `stack.db.migrate('./drizzle')` in `beforeAll` when a test needs tables.
 
 ## Modules on their own
 

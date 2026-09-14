@@ -1,6 +1,6 @@
 # @loewen-digital/fullstack
 
-Backend primitives for JavaScript meta-frameworks: auth, sessions, validation, mail, storage, cache, queue, events, logging, errors, permissions, notifications, i18n, search, webhooks, realtime and a Drizzle `db` module. One package with one subpath per module, factory functions instead of a container, swappable drivers, Web Standard `Request` and `Response` everywhere, a framework-agnostic core and adapters for SvelteKit, Nuxt, Remix and Astro.
+Backend primitives for JavaScript meta-frameworks: auth, sessions, validation, mail, storage, cache, queue, events, logging, errors, permissions, notifications, i18n, search, webhooks, realtime, and a Drizzle `db` module for apps on a SQL database. One package with one subpath per module, factory functions instead of a container, swappable drivers, Web Standard `Request` and `Response` everywhere, a framework-agnostic core and adapters for SvelteKit, Nuxt, Remix and Astro.
 
 Documentation: [fullstack-docs-vitepress.pages.dev](https://fullstack-docs-vitepress.pages.dev)
 
@@ -10,7 +10,7 @@ Documentation: [fullstack-docs-vitepress.pages.dev](https://fullstack-docs-vitep
 npm install @loewen-digital/fullstack
 ```
 
-Node 24, ESM only, TypeScript 5. The modules talk HTTP through `fetch` or take a client you hand them, so you install only what your drivers need: `@loewen-digital/flatdb` and `zod` for auth on flatdb, `nodemailer` for SMTP, `better-sqlite3` for the sqlite db and search drivers, a Redis client for the redis drivers. Details on the [installation page](https://fullstack-docs-vitepress.pages.dev/getting-started/installation).
+Node 24, ESM only, TypeScript 5. The modules talk HTTP through `fetch` or take a client you hand them, so you install only what your drivers need: `@loewen-digital/flatdb` and `zod` for auth on flatdb, `nodemailer` for SMTP, `drizzle-orm` and `better-sqlite3` for the `db` module (`better-sqlite3` also for the sqlite search driver), a Redis client for the redis drivers. The package itself has no dependencies. Details on the [installation page](https://fullstack-docs-vitepress.pages.dev/getting-started/installation).
 
 ## What it looks like
 
@@ -61,7 +61,7 @@ All subpaths sit below `@loewen-digital/fullstack`. Each module's page lists its
 | Config | `/config` | `defineConfig`, `loadConfig`, `env()` with typed fallbacks; `createStack(config, { authDb })` from the root builds every configured module |
 | Validation | `/validation` | `validate(data, rules)` with pipe-string or object rules, `defineRules` for your own; no I/O |
 | Auth | `/auth`, `/auth/flatdb` | `createAuth(config, { db })`: password hashing, sessions, email verification, password reset, one-time tokens, OAuth; `createFlatdbAuthAdapter` for flatdb collections |
-| DB | `/db` | `createDb(config, schema)`: Drizzle on SQLite with migrations, seeds, factories and pagination; needs `better-sqlite3` |
+| DB | `/db` | `createDb(config, schema)`: Drizzle on SQLite with migrations, seeds, factories and pagination, for apps on a SQL database, Node-only; needs `drizzle-orm` and `better-sqlite3`. Apps on flatdb call flatdb directly |
 | Session | `/session` | `createSession`: flash messages and old input on `memory`, `cookie` (signed, stateless) or `redis` |
 | Security | `/security` | `createSecurity`: CSRF tokens, CORS headers, a rate limiter, `sanitize` |
 | Mail | `/mail` | `createMail`: `console`, SMTP via `nodemailer`, Resend, Postmark; `{{ }}` templates |
@@ -94,7 +94,7 @@ The core imports nothing from a framework; the adapters do the wiring. Each open
 
 ## Testing
 
-`createTestStack()` returns mail, storage and queue on fake drivers that record what happened, cache and session on memory drivers, and an in-memory SQLite `db` opened on first access.
+`createTestStack()` returns mail, storage and queue on fake drivers that record what happened, and cache and session on memory drivers. Pass `db: { driver: 'sqlite', url: ':memory:' }` to add a Drizzle `db` for a SQL app.
 
 ```ts
 import { createTestStack } from '@loewen-digital/fullstack/testing'

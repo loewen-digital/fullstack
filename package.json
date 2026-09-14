@@ -150,6 +150,7 @@
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.0.0",
     "better-sqlite3": "^12.8.0",
+    "drizzle-orm": "^0.45.2",
     "eslint": "^9.25.0",
     "svelte": "^5.57.0",
     "typedoc": "^0.28.18",
@@ -160,18 +161,19 @@
     "vitest": "^3.1.0",
     "zod": "^3.25.76"
   },
-  "dependencies": {
-    "drizzle-orm": "^0.45.2"
-  },
   "peerDependencies": {
     "@loewen-digital/flatdb": "^0.2.1",
-    "better-sqlite3": "^12.8.0"
+    "better-sqlite3": "^12.8.0",
+    "drizzle-orm": "^0.45.2"
   },
   "peerDependenciesMeta": {
     "@loewen-digital/flatdb": {
       "optional": true
     },
     "better-sqlite3": {
+      "optional": true
+    },
+    "drizzle-orm": {
       "optional": true
     }
   },
