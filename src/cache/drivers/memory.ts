@@ -1,5 +1,5 @@
 import type { CacheDriver } from '../types.js'
-import { devStoreRegisterCache, devStoreUnregisterCache, isDevMode } from '../../dev-store/index.js'
+import { devStoreRegisterCache, isDevMode } from '../../dev-store/index.js'
 
 interface CacheEntry {
   value: unknown
@@ -16,20 +16,7 @@ export function createMemoryDriver(): CacheDriver & { _store: Map<string, CacheE
     return entry.expiresAt !== null && Date.now() > entry.expiresAt
   }
 
-  // Register a snapshot function with the dev store so the Dev UI can inspect cache state
-  if (isDevMode()) {
-    const snapshot = () =>
-      Array.from(store.entries())
-        .filter(([, entry]) => !isExpired(entry))
-        .map(([key, entry]) => ({ key, value: entry.value, expiresAt: entry.expiresAt }))
-
-    devStoreRegisterCache(snapshot)
-
-    // Clean up on process exit (best-effort)
-    process.once('exit', () => devStoreUnregisterCache(snapshot))
-  }
-
-  return {
+  const driver = {
     _store: store,
 
     async get<T = unknown>(key: string): Promise<T | null> {
@@ -63,4 +50,18 @@ export function createMemoryDriver(): CacheDriver & { _store: Map<string, CacheE
       store.clear()
     },
   }
+
+  // The Dev UI lists this cache's entries while the driver is alive; the registry holds it weakly,
+  // so a cache the app drops (one per request in a dev server) is not kept in memory by it.
+  if (isDevMode()) {
+    devStoreRegisterCache(
+      () =>
+        Array.from(store.entries())
+          .filter(([, entry]) => !isExpired(entry))
+          .map(([key, entry]) => ({ key, value: entry.value, expiresAt: entry.expiresAt })),
+      driver,
+    )
+  }
+
+  return driver
 }

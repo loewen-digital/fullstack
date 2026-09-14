@@ -54,7 +54,10 @@ const MAX_ENTRIES = 500
 const mailStore: DevMailEntry[] = []
 const jobStore: DevJobEntry[] = []
 const logStore: DevLogEntry[] = []
-const cacheSnapshotters: CacheSnapshot[] = []
+// Caches are held weakly through their owner: a memory cache the app drops must not stay alive
+// through this registry. Dead refs are pruned on read and, in batches, on register.
+const cacheOwners: WeakRef<object>[] = []
+const cacheSnapshots = new WeakMap<object, CacheSnapshot>()
 
 let idCounter = 0
 function nextId(): string {
@@ -114,17 +117,33 @@ export function devStoreClearLogs(): void {
 // ─── Cache ───────────────────────────────────────────────────────────────────
 
 /** Called by the memory cache driver to register a snapshot function */
-export function devStoreRegisterCache(fn: CacheSnapshot): void {
-  cacheSnapshotters.push(fn)
+/** `fn` stays registered as long as `owner` is alive; `owner` defaults to `fn` itself. */
+export function devStoreRegisterCache(fn: CacheSnapshot, owner: object = fn): void {
+  if (cacheOwners.length >= 64) pruneCaches()
+  cacheSnapshots.set(owner, fn)
+  cacheOwners.push(new WeakRef(owner))
 }
 
 export function devStoreUnregisterCache(fn: CacheSnapshot): void {
-  const idx = cacheSnapshotters.indexOf(fn)
-  if (idx !== -1) cacheSnapshotters.splice(idx, 1)
+  const idx = cacheOwners.findIndex((ref) => {
+    const owner = ref.deref()
+    return owner !== undefined && cacheSnapshots.get(owner) === fn
+  })
+  if (idx !== -1) cacheOwners.splice(idx, 1)
 }
 
 export function devStoreGetCacheEntries(): DevCacheEntry[] {
-  return cacheSnapshotters.flatMap((fn) => fn())
+  pruneCaches()
+  return cacheOwners.flatMap((ref) => {
+    const owner = ref.deref()
+    return owner === undefined ? [] : (cacheSnapshots.get(owner)?.() ?? [])
+  })
+}
+
+function pruneCaches(): void {
+  for (let i = cacheOwners.length - 1; i >= 0; i--) {
+    if (cacheOwners[i]!.deref() === undefined) cacheOwners.splice(i, 1)
+  }
 }
 
 // ─── Utilities ───────────────────────────────────────────────────────────────
@@ -133,7 +152,7 @@ export function devStoreClearAll(): void {
   devStoreClearMail()
   devStoreClearJobs()
   devStoreClearLogs()
-  cacheSnapshotters.length = 0
+  cacheOwners.length = 0
 }
 
 export function isDevMode(): boolean {
