@@ -47,6 +47,13 @@ export interface NuxtMiddlewareOptions {
    * Default: []
    */
   csrfExemptPaths?: string[]
+
+  /**
+   * Whether the cookies the adapter writes carry `Secure`.
+   * Default: `true` when the request came over HTTPS, read from `x-forwarded-proto` (a proxy in
+   * front of Nitro) or the TLS socket; `false` otherwise. Set it explicitly when neither is right.
+   */
+  secure?: boolean
 }
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
@@ -122,6 +129,16 @@ function getRequestPath(event: H3Event): string {
   return event.path ?? event.node?.req.url ?? '/'
 }
 
+/**
+ * HTTPS or not: the first `x-forwarded-proto` value when a proxy set one, else the TLS socket.
+ * `setAuthCookie` and the middleware share it, so both cookies agree on `Secure`.
+ */
+export function isSecureRequest(event: H3Event): boolean {
+  const forwarded = getRequestHeader(event, 'x-forwarded-proto')
+  if (forwarded) return forwarded.split(',')[0]!.trim().toLowerCase() === 'https'
+  return (event.node?.req.socket as { encrypted?: boolean } | undefined)?.encrypted === true
+}
+
 // ── Main middleware factory ─────────────────────────────────────────────────────
 
 /**
@@ -191,7 +208,7 @@ export function createNuxtMiddleware(stack: AdapterStack, options: NuxtMiddlewar
           path: '/',
           httpOnly: true,
           sameSite: 'Lax',
-          // secure only if we can detect HTTPS — Nitro apps should set this themselves
+          secure: options.secure ?? isSecureRequest(event),
         })
       }
     }
@@ -214,6 +231,7 @@ export async function getCsrfToken(
 
 /**
  * Set the auth cookie in the response (e.g. after login).
+ * `secure` defaults to what the middleware uses for the session cookie: see `isSecureRequest`.
  */
 export function setAuthCookie(
   event: H3Event,
@@ -225,7 +243,7 @@ export function setAuthCookie(
     path: '/',
     httpOnly: true,
     sameSite: 'Lax',
-    secure: options.secure ?? false,
+    secure: options.secure ?? isSecureRequest(event),
     maxAge: options.maxAge ?? 7 * 24 * 3600,
   })
 }

@@ -86,7 +86,7 @@ export default defineEventHandler((event) => {
 
 ## Login and logout
 
-`validateBody(event, rules)` reads the JSON or form body from the Node request, validates it with the [validation](/modules/validation) rules, and on failure flashes the errors as `_errors` and the input as old input. `setAuthCookie` stores the session token `httpOnly`, `SameSite=Lax`, for `maxAge` seconds (default 7 days). Nitro can sit behind a proxy, so the adapter does not guess the scheme: pass `secure: true` where the site is served over HTTPS.
+`validateBody(event, rules)` reads the JSON or form body from the Node request, validates it with the [validation](/modules/validation) rules, and on failure flashes the errors as `_errors` and the input as old input. `setAuthCookie` stores the session token `httpOnly`, `SameSite=Lax`, for `maxAge` seconds (default 7 days), and `Secure` when the request came over HTTPS: the adapter reads `x-forwarded-proto` (a proxy in front of Nitro) and falls back to the TLS socket. The middleware decides the same way for the session cookie, so the two cookies agree; `secure` on the middleware options or on `setAuthCookie` overrides it.
 
 ```ts
 // server/api/login.post.ts
@@ -105,7 +105,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const authSession = await auth.createSession(user)
-  setAuthCookie(event, authSession.token, { secure: process.env.NODE_ENV === 'production' })
+  setAuthCookie(event, authSession.token)
   return { userId: user.id }
 })
 ```
@@ -159,14 +159,16 @@ export default defineEventHandler((event) => {
 | `sessionCookie` | `'fsid'` | Name of the session cookie: the session id with the memory and redis drivers, the signed payload with the cookie driver |
 | `authCookie` | `'fs_token'` | Name of the auth cookie; `setAuthCookie` and `clearAuthCookie` take the same option |
 | `csrfExemptPaths` | `[]` | Path prefixes (`/api/webhooks`) that skip the CSRF check |
+| `secure` | HTTPS detection | `Secure` on the cookies the adapter writes; default `true` when `x-forwarded-proto` is `https` or the socket is TLS, else `false` |
 
-The session cookie the middleware writes is `httpOnly`, `SameSite=Lax`, `Path=/`, without `Secure`.
+The session cookie the middleware writes is `httpOnly`, `SameSite=Lax`, `Path=/`, `Secure` on HTTPS as above.
 
 ## Helpers
 
 | Helper | Description |
 |---|---|
-| `setAuthCookie(event, token, { maxAge?, authCookie?, secure? })` | Stores the auth session token; `maxAge` in seconds, default 7 days; `secure` default `false` |
+| `setAuthCookie(event, token, { maxAge?, authCookie?, secure? })` | Stores the auth session token; `maxAge` in seconds, default 7 days; `secure` defaults to the HTTPS detection above |
+| `isSecureRequest(event)` | The detection itself: `x-forwarded-proto` first, then the TLS socket |
 | `clearAuthCookie(event, { authCookie? })` | Deletes it on logout |
 | `getCsrfToken(context, security)` | A CSRF token bound to `context.session`'s id, for the client to send back |
 | `validateBody(event, rules)` | `{ ok: true, data }` or `{ ok: false, errors }` from the JSON or form body; on failure flashes `_errors` and the old input to `context.session` |

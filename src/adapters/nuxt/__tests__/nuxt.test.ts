@@ -8,6 +8,7 @@ import {
 import { createSession } from '../../../session/index.js'
 import { createSecurity } from '../../../security/index.js'
 import type { AuthInstance, AuthSession } from '../../../auth/index.js'
+import { isSecureRequest } from '../index.js'
 import type { H3Event } from '../types.js'
 
 // ── Test helpers ───────────────────────────────────────────────────────────────
@@ -307,5 +308,49 @@ describe('auth integration', () => {
     await middleware(event)
     expect(event.context.authSession).toBeNull()
     expect('user' in event.context).toBe(false)
+  })
+})
+
+// ── Secure cookies (#19) ───────────────────────────────────────────────────────
+
+describe('Secure on the cookies the adapter writes', () => {
+  const session = createSession({ driver: 'memory' })
+
+  it('session cookie is Secure behind a proxy that says https', async () => {
+    const event = makeEvent({ headers: { 'x-forwarded-proto': 'https' } })
+    await createNuxtMiddleware({ session })(event)
+    expect(getSetCookies(event)[0]).toMatch(/; Secure/)
+  })
+
+  it('session cookie is Secure on a TLS socket, plain otherwise', async () => {
+    const tls = makeEvent()
+    tls.node!.req.socket = { encrypted: true }
+    await createNuxtMiddleware({ session })(tls)
+    expect(getSetCookies(tls)[0]).toMatch(/; Secure/)
+
+    const plain = makeEvent()
+    await createNuxtMiddleware({ session })(plain)
+    expect(getSetCookies(plain)[0]).not.toMatch(/Secure/)
+  })
+
+  it('the secure option overrides the detection both ways', async () => {
+    const forced = makeEvent()
+    await createNuxtMiddleware({ session }, { secure: true })(forced)
+    expect(getSetCookies(forced)[0]).toMatch(/; Secure/)
+
+    const off = makeEvent({ headers: { 'x-forwarded-proto': 'https' } })
+    await createNuxtMiddleware({ session }, { secure: false })(off)
+    expect(getSetCookies(off)[0]).not.toMatch(/Secure/)
+  })
+
+  it('setAuthCookie agrees with the middleware', () => {
+    const https = makeEvent({ headers: { 'x-forwarded-proto': 'https, http' } })
+    setAuthCookie(https, 'tok')
+    expect(getSetCookies(https)[0]).toMatch(/^fs_token=tok;.*; Secure/)
+
+    const http = makeEvent()
+    setAuthCookie(http, 'tok')
+    expect(getSetCookies(http)[0]).not.toMatch(/Secure/)
+    expect(isSecureRequest(http)).toBe(false)
   })
 })

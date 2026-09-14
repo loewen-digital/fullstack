@@ -35,6 +35,11 @@ export interface H3Event {
       method?: string
       url?: string
       headers: Record<string, string | string[] | undefined>
+      /**
+       * Node's socket; a TLS socket has `encrypted: true`, which decides `Secure` on cookies.
+       * Typed `unknown` so that `net.Socket`, which declares no `encrypted`, still fits the mirror.
+       */
+      socket?: unknown
     }
     res: {
       statusCode: number
