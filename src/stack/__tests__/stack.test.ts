@@ -31,6 +31,11 @@ function createTestAuthDb(): AuthDbAdapter {
     async deleteExpiredSessions() {
       // no-op for tests
     },
+    async deleteUserSessions(userId) {
+      for (const [key, s] of sessions) {
+        if (s.userId === userId) sessions.delete(key)
+      }
+    },
     async createToken(data) {
       const token: AuthToken = { id: crypto.randomUUID(), ...data }
       tokens.set(token.token, token)

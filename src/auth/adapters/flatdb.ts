@@ -80,6 +80,10 @@ export function createFlatdbAuthAdapter(collections: FlatdbAuthCollections): Aut
       await sessions.delete({ userId, expiresAt: { $lt: new Date().toISOString() } })
     },
 
+    async deleteUserSessions(userId) {
+      await sessions.delete({ userId })
+    },
+
     async createToken(data) {
       const doc = await tokens.insert({
         userId: data.userId,

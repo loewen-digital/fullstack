@@ -1,6 +1,6 @@
 import type { AuthConfig, AuthDbAdapter, AuthInstance, AuthUser, AuthSession, OAuthProviderConfig, OAuthProvider } from './types.js'
 import { hashPassword, verifyPassword } from './password.js'
-import { createAuthSession, validateAuthSession, destroyAuthSession } from './session.js'
+import { createAuthSession, validateAuthSession, destroyAuthSession, destroyUserSessions } from './session.js'
 import { generateToken, verifyToken } from './token.js'
 import { sendVerificationEmail, verifyEmail } from './email-verification.js'
 import { sendPasswordResetEmail, resetPassword } from './password-reset.js'
@@ -53,6 +53,10 @@ export function createAuth(
       return destroyAuthSession(db, token)
     },
 
+    destroyUserSessions(userId: string | number): Promise<void> {
+      return destroyUserSessions(db, userId)
+    },
+
     generateToken(userId: string | number, type: string, ttlSeconds?: number): Promise<string> {
       return generateToken(db, userId, type, ttlSeconds ?? 3600)
     },
@@ -79,7 +83,7 @@ export function createAuth(
       return sendPasswordResetEmail(db, user, sendFn, passwordResetTtl)
     },
 
-    resetPassword(token: string, newPassword: string): Promise<boolean> {
+    resetPassword(token: string, newPassword: string): Promise<AuthUser | null> {
       return resetPassword(db, token, newPassword)
     },
 

@@ -59,6 +59,8 @@ export interface AuthDbAdapter {
   findSession(token: string): Promise<AuthSession | null>
   deleteSession(token: string): Promise<void>
   deleteExpiredSessions(userId: string | number): Promise<void>
+  /** Remove every session of the user; a password reset and `destroyUserSessions` call it */
+  deleteUserSessions(userId: string | number): Promise<void>
   createToken(data: Omit<AuthToken, 'id'>): Promise<AuthToken>
   findToken(token: string, type: string): Promise<AuthToken | null>
   /** Remove one token, consumed or found expired */
@@ -118,6 +120,8 @@ export interface AuthInstance {
   validateSession(token: string): Promise<AuthSession | null>
   /** Destroy a session by token */
   destroySession(token: string): Promise<void>
+  /** Destroy every session of a user: logout everywhere, the recovery step after a takeover */
+  destroyUserSessions(userId: string | number): Promise<void>
   /** Generate a one-time token for a user (email verification, password reset, etc.) */
   generateToken(userId: string | number, type: string, ttlSeconds?: number): Promise<string>
   /** Verify and consume a one-time token, returning the user id on success */
@@ -134,8 +138,11 @@ export interface AuthInstance {
     user: AuthUser,
     sendFn: (email: string, token: string) => Promise<void>,
   ): Promise<void>
-  /** Reset a user's password using the token */
-  resetPassword(token: string, newPassword: string): Promise<boolean>
+  /**
+   * Reset a user's password using the token and revoke every session of the user.
+   * Returns the user, or null when the token is unknown, used or expired.
+   */
+  resetPassword(token: string, newPassword: string): Promise<AuthUser | null>
   /** Create an OAuth provider instance */
   oauthProvider(name: string, config: OAuthProviderConfig): OAuthProvider
 }

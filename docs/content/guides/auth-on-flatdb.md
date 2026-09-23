@@ -238,7 +238,7 @@ export const actions: Actions = {
 }
 ```
 
-Email verification and password reset work unchanged: `auth.sendVerificationEmail(user, send)`, `auth.verifyEmail(token)`, `auth.sendPasswordResetEmail(user, send)`, `auth.resetPassword(token, password)`. The tokens' hashes land in `tokens`; the token itself is only in the mail. Sending a new link deletes the user's earlier tokens of that type, and a token that is presented is deleted, so `tokens` holds at most one live token per user and type.
+Email verification and password reset work unchanged: `auth.sendVerificationEmail(user, send)`, `auth.verifyEmail(token)`, `auth.sendPasswordResetEmail(user, send)`, `auth.resetPassword(token, password)`. The tokens' hashes land in `tokens`; the token itself is only in the mail. A reset returns the user and deletes every document of theirs in `sessions`, so a reset after a takeover logs the attacker out; give the browser that reset the password a fresh session with `auth.createSession(user)` and `setAuthCookie`, or send it to `/login`. `auth.destroyUserSessions(userId)` does the same deletion on its own, for a "log out everywhere" button. Sending a new link deletes the user's earlier tokens of that type, and a token that is presented is deleted, so `tokens` holds at most one live token per user and type.
 
 ## Cloudflare Workers
 

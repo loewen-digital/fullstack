@@ -62,12 +62,14 @@ describe('full auth flow on flatdb', () => {
     expect(verified?.id).toBe(user!.id)
     expect(verified?.emailVerifiedAt).toBeInstanceOf(Date)
 
-    // password reset
+    // password reset: returns the user, revokes the sessions
+    const live = await auth.createSession(user!)
     await auth.sendPasswordResetEmail(user!, async (_email, t) => { sent = t })
-    expect(await auth.resetPassword(sent, 'new-secret')).toBe(true)
-    const updated = await adapter.findUserById(user!.id)
-    expect(await auth.verifyPassword('new-secret', updated!.passwordHash!)).toBe(true)
-    expect(await auth.resetPassword(sent, 'again')).toBe(false)
+    const reset = await auth.resetPassword(sent, 'new-secret')
+    expect(reset?.id).toBe(user!.id)
+    expect(await auth.verifyPassword('new-secret', reset!.passwordHash!)).toBe(true)
+    expect(await auth.validateSession(live.token)).toBeNull()
+    expect(await auth.resetPassword(sent, 'again')).toBeNull()
   })
 
   it('exposes flatdb _id as id and stores dates as ISO strings', async () => {
@@ -128,6 +130,30 @@ describe('full auth flow on flatdb', () => {
     })
     expect(await auth.validateSession('expired-token')).toBeNull()
     expect(await db.sessions.findById(expired.id)).toBeNull()
+  })
+})
+
+describe('deleteUserSessions', () => {
+  it('removes every session of the user and none of another', async () => {
+    const future = new Date(Date.now() + 60_000)
+    const base = { createdAt: new Date(), expiresAt: future }
+    await adapter.createSession({ ...base, userId: 'u1', token: 'u1-a' })
+    await adapter.createSession({ ...base, userId: 'u1', token: 'u1-b' })
+    await adapter.createSession({ ...base, userId: 'u2', token: 'u2-a' })
+
+    await adapter.deleteUserSessions('u1')
+
+    expect(await adapter.findSession('u1-a')).toBeNull()
+    expect(await adapter.findSession('u1-b')).toBeNull()
+    expect(await adapter.findSession('u2-a')).not.toBeNull()
+  })
+
+  it('runs through destroyUserSessions', async () => {
+    const { _id } = await db.users.insert({ email: 'heidi@example.com' })
+    const user = await adapter.findUserById(_id)
+    const session = await auth.createSession(user!)
+    await auth.destroyUserSessions(_id)
+    expect(await auth.validateSession(session.token)).toBeNull()
   })
 })
 

@@ -62,15 +62,23 @@ async function currentUser(token: string | undefined) {
 
 ## Logout
 
+`destroySession(token)` ends one session. `destroyUserSessions(userId)` ends every session of the user, the caller's included: logout on every device, or the response to a stolen cookie.
+
 ```ts
 async function logout(token: string) {
   await auth.destroySession(token) // then clear the cookie
+}
+
+async function logoutEverywhere(userId: string | number) {
+  await auth.destroyUserSessions(userId) // every device; clear the caller's cookie too
 }
 ```
 
 ## Email verification and password reset
 
 Both mint a one-time token, hand it to your send function together with the address, and consume it later. A token works once and expires after `emailVerificationTtl` or `passwordResetTtl`. Sending a new one replaces the user's earlier tokens of that type, so only the latest link works: a verification mail to a previous address cannot verify the current one. A token that is presented is deleted, consumed or expired, so nothing piles up for active users. Only the mail carries the token; the store holds its SHA-256 hash.
+
+A password reset revokes every session of the user: a reset is the recovery path after a takeover, and a session the attacker opened must not survive it. It returns the user, so the browser that reset the password gets a fresh session from `createSession`; or send it to login.
 
 ```ts
 async function sendMail(to: string, subject: string, text: string) {
@@ -95,7 +103,8 @@ async function startReset(user: AuthUser) {
 }
 
 async function finishReset(token: string, newPassword: string) {
-  return auth.resetPassword(token, newPassword) // false when the token is unknown, used or expired
+  const user = await auth.resetPassword(token, newPassword) // AuthUser | null; every session of the user is gone
+  return user ? auth.createSession(user) : null // a fresh session for this browser, its cookie via setAuthCookie
 }
 ```
 
@@ -157,7 +166,7 @@ async function finishGithubLogin(code: string, state: string) {
 | Method | Purpose |
 |---|---|
 | `findUserByEmail(email)`, `findUserById(id)` | Users, `null` when absent |
-| `createSession(data)`, `findSession(token)`, `deleteSession(token)`, `deleteExpiredSessions(userId)` | Sessions |
+| `createSession(data)`, `findSession(token)`, `deleteSession(token)`, `deleteExpiredSessions(userId)`, `deleteUserSessions(userId)` | Sessions: `deleteUserSessions` runs on a password reset and from `destroyUserSessions` |
 | `createToken(data)`, `findToken(token, type)`, `deleteToken(id)`, `deleteTokens(userId, type)` | One-time tokens: `deleteTokens` runs before a new one is issued, `deleteToken` when one is presented |
 | `updateUserPassword(id, passwordHash)`, `markEmailVerified(id)` | Writes to the user |
 

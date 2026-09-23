@@ -41,6 +41,11 @@ function createTestDb(): AuthDbAdapter {
         if (idx !== -1) sessions.splice(idx, 1)
       }
     },
+    async deleteUserSessions(userId) {
+      for (let i = sessions.length - 1; i >= 0; i--) {
+        if (String(sessions[i]!.userId) === String(userId)) sessions.splice(i, 1)
+      }
+    },
     async createToken(data) {
       const token: AuthToken = { id: crypto.randomUUID(), ...data }
       tokens.push(token)
@@ -164,6 +169,20 @@ describe('session management', () => {
     const user = (await db.findUserByEmail('alice@example.com'))!
     const session = await auth.createSession(user)
     expect(await auth.validateSession(await hashToken(session.token))).toBeNull()
+  })
+
+  it('destroyUserSessions logs the user out everywhere, and nobody else', async () => {
+    const alice = (await db.findUserByEmail('alice@example.com'))!
+    const bob = (await db.findUserByEmail('bob@example.com'))!
+    const phone = await auth.createSession(alice)
+    const laptop = await auth.createSession(alice)
+    const bobs = await auth.createSession(bob)
+
+    await auth.destroyUserSessions(alice.id)
+
+    expect(await auth.validateSession(phone.token)).toBeNull()
+    expect(await auth.validateSession(laptop.token)).toBeNull()
+    expect(await auth.validateSession(bobs.token)).not.toBeNull()
   })
 
   it('validateSession returns the presented token, so destroySession takes what it returned', async () => {
@@ -290,17 +309,52 @@ describe('password reset', () => {
       sentToken = token
     })
 
-    const success = await auth.resetPassword(sentToken, 'newPassword123')
-    expect(success).toBe(true)
+    const reset = await auth.resetPassword(sentToken, 'newPassword123')
+    expect(reset?.id).toBe(user.id)
+    expect(reset?.email).toBe('alice@example.com')
 
-    // Verify new password works
+    // The returned user carries the new hash, and the new password works
+    expect(await auth.verifyPassword('newPassword123', reset!.passwordHash!)).toBe(true)
     const updatedUser = (await db.findUserByEmail('alice@example.com'))!
     expect(await auth.verifyPassword('newPassword123', updatedUser.passwordHash!)).toBe(true)
   })
 
-  it('returns false for invalid reset token', async () => {
+  it('returns null for invalid reset token', async () => {
     const result = await auth.resetPassword('bad-token', 'new')
-    expect(result).toBe(false)
+    expect(result).toBeNull()
+  })
+
+  it('a used reset token does not reset again', async () => {
+    const user = (await db.findUserByEmail('alice@example.com'))!
+    let sentToken = ''
+    await auth.sendPasswordResetEmail(user, async (_email, token) => {
+      sentToken = token
+    })
+
+    expect(await auth.resetPassword(sentToken, 'first')).not.toBeNull()
+    expect(await auth.resetPassword(sentToken, 'second')).toBeNull()
+    const after = (await db.findUserByEmail('alice@example.com'))!
+    expect(await auth.verifyPassword('first', after.passwordHash!)).toBe(true)
+  })
+
+  it('revokes every session of the user, and only theirs', async () => {
+    const alice = (await db.findUserByEmail('alice@example.com'))!
+    const bob = (await db.findUserByEmail('bob@example.com'))!
+    const attacker = await auth.createSession(alice)
+    const own = await auth.createSession(alice)
+    const bobs = await auth.createSession(bob)
+    let sentToken = ''
+    await auth.sendPasswordResetEmail(alice, async (_email, token) => {
+      sentToken = token
+    })
+
+    const reset = await auth.resetPassword(sentToken, 'recovered')
+
+    expect(await auth.validateSession(attacker.token)).toBeNull()
+    expect(await auth.validateSession(own.token)).toBeNull()
+    expect(await auth.validateSession(bobs.token)).not.toBeNull()
+    const fresh = await auth.createSession(reset!)
+    expect(await auth.validateSession(fresh.token)).not.toBeNull()
   })
 })
 
