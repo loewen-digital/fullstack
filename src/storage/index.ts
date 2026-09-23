@@ -6,8 +6,9 @@ import { createMemoryDriver } from './drivers/memory.js'
 export type { StorageConfig, StorageDriver, StorageInstance, FileMeta } from './types.js'
 export { createMemoryDriver } from './drivers/memory.js'
 export { createLocalDriver } from './drivers/local.js'
-export { createS3Driver } from './drivers/s3.js'
-export { createR2Driver } from './drivers/r2.js'
+export { createS3Driver, type S3DriverOptions } from './drivers/s3.js'
+export { createR2Driver, type R2DriverOptions } from './drivers/r2.js'
+export { createR2BindingDriver, type R2BindingBucket, type R2BindingDriverOptions } from './drivers/r2-binding.js'
 
 /**
  * Create a storage instance.
@@ -34,8 +35,8 @@ export function createStorage(config: StorageConfig): StorageInstance {
     )
   } else if (config.driver === 'r2') {
     throw new StorageError(
-      'R2 storage driver requires credentials. ' +
-        'Import createR2Driver from @loewen-digital/fullstack/storage and pass your options.',
+      'R2 storage driver requires credentials or the bucket binding. ' +
+        'Import createR2Driver (S3 API) or createR2BindingDriver (Workers binding) from @loewen-digital/fullstack/storage and pass your options.',
     )
   } else if (typeof config.driver === 'object') {
     driver = config.driver as StorageDriver

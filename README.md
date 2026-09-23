@@ -65,7 +65,7 @@ All subpaths sit below `@loewen-digital/fullstack`. Each module's page lists its
 | Session | `/session` | `createSession`: flash messages and old input on `memory`, `cookie` (signed, stateless) or `redis` |
 | Security | `/security` | `createSecurity`: CSRF tokens, CORS headers, a rate limiter, `sanitize` |
 | Mail | `/mail` | `createMail`: `console`, SMTP via `nodemailer`, Resend, Postmark; `{{ }}` templates |
-| Storage | `/storage` | `createStorage`: `memory`, `local`, S3, R2 |
+| Storage | `/storage` | `createStorage`: `memory`, `local`, S3, R2 (S3 API), the R2 bucket binding |
 | Cache | `/cache` | `createCache`: `memory`, Redis, Cloudflare KV; `remember(key, ttl, fn)` |
 | Queue | `/queue` | `createQueue`: `memory`, Redis, Cloudflare Queues; retries and a dead-letter list |
 | Events | `/events` | `createEventBus`, `defineEvents`: a typed in-process bus |

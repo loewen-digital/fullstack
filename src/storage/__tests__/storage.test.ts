@@ -22,7 +22,7 @@ describe('createStorage', () => {
   })
 
   it('throws on r2 driver without config', () => {
-    expect(() => createStorage({ driver: 'r2' })).toThrow('R2 storage driver requires')
+    expect(() => createStorage({ driver: 'r2' })).toThrow('R2 storage driver requires credentials or the bucket binding')
   })
 })
 

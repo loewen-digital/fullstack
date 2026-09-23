@@ -1,4 +1,5 @@
 import type { StorageDriver, FileMeta } from '../types.js'
+import { toBytes } from '../bytes.js'
 
 /**
  * In-memory storage driver for development and testing.
@@ -41,30 +42,3 @@ export function createMemoryDriver(): StorageDriver {
   }
 }
 
-// Always a copy on a plain ArrayBuffer: a view the caller keeps mutating, a Buffer slice of Node's
-// pool or a SharedArrayBuffer view must not become what get() hands out.
-async function toBytes(data: Uint8Array | string | ReadableStream): Promise<Uint8Array<ArrayBuffer>> {
-  if (typeof data === 'string') {
-    return new TextEncoder().encode(data)
-  }
-  if (data instanceof Uint8Array) {
-    return new Uint8Array(data)
-  }
-  // ReadableStream
-  const reader = data.getReader()
-  const chunks: Uint8Array[] = []
-  let totalLength = 0
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    chunks.push(value)
-    totalLength += value.byteLength
-  }
-  const result = new Uint8Array(totalLength)
-  let offset = 0
-  for (const chunk of chunks) {
-    result.set(chunk, offset)
-    offset += chunk.byteLength
-  }
-  return result
-}

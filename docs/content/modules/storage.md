@@ -5,7 +5,7 @@ description: One file API on memory, the local filesystem, S3 or Cloudflare R2
 
 # Storage
 
-`createStorage` stores files by key. The memory driver is built in; local filesystem, S3 and R2 drivers are built with their factories and handed to `createStorageInstance`. The instance reads bytes or text, writes bytes, strings or streams, lists by prefix and hands out URLs.
+`createStorage` stores files by key. The memory driver is built in; the local filesystem, S3, R2 and R2 binding drivers are built with their factories and handed to `createStorageInstance`. The instance reads bytes or text, writes bytes, strings or streams, lists by prefix and hands out URLs.
 
 ## Import
 
@@ -76,14 +76,25 @@ const onR2 = createStorageInstance(
 )
 ```
 
+Inside a Worker the bucket binding replaces the keys: declare it under `r2_buckets` in the wrangler config and hand it to the binding driver, `platform.env.BUCKET` in a SvelteKit hook, `env.BUCKET` in a plain Worker.
+
+```ts
+import { createStorageInstance, createR2BindingDriver } from '@loewen-digital/fullstack/storage'
+
+export function storageFor(bucket: R2Bucket) {
+  return createStorageInstance(createR2BindingDriver({ bucket, publicUrl: 'https://files.example.com' }))
+}
+```
+
 | Driver | Options | `getUrl(key)` returns |
 |---|---|---|
 | `memory` (`createStorage({ driver: 'memory' })`) | none | a placeholder; data lives in a `Map` |
 | `createLocalDriver({ root, baseUrl? })` | files under `root` | `baseUrl/key`, `baseUrl` default `/storage`; serving that path is yours |
-| `createS3Driver({ bucket, region, accessKeyId, secretAccessKey, endpoint?, forcePathStyle? })` | S3 or any S3-compatible service, signed requests through `fetch` | the object URL on the endpoint (public only if the bucket is) |
-| `createR2Driver({ accountId, bucket, accessKeyId, secretAccessKey, publicUrl? })` | R2 through its S3 endpoint | `publicUrl/key`, or the endpoint URL without `publicUrl` |
+| `createS3Driver({ bucket, region, accessKeyId, secretAccessKey, endpoint?, forcePathStyle? })` | S3 or any S3-compatible service, every request signed | the object URL on the endpoint (public only if the bucket is) |
+| `createR2Driver({ accountId, bucket, accessKeyId, secretAccessKey, publicUrl? })` | R2 through its S3 API, outside a Worker | `publicUrl/key`, or the endpoint URL without `publicUrl` |
+| `createR2BindingDriver({ bucket, publicUrl? })` | R2 over the bucket binding, inside a Worker | `publicUrl/key`; a binding has no URL, so it throws without `publicUrl` |
 
-On Cloudflare Workers with an R2 binding, a custom driver over the binding avoids the S3 credentials: implement `StorageDriver` (`get`, `put`, `delete`, `exists`, `list`, `getUrl`) and pass it to `createStorageInstance`.
+The S3 and R2 drivers sign every request with AWS Signature V4 through `crypto.subtle`, so a private bucket works and no SDK ships. Any service that speaks the S3 API (MinIO, Backblaze B2, Ceph) takes `endpoint` and, as a rule, `forcePathStyle`; region `auto` is R2's, `us-east-1` what most others expect. Keys go on the URL encoded once per segment, so `a b.png` is `a%20b.png` and `getUrl` returns a URL that resolves. `put` reads a stream into memory before the upload: S3 wants the length and the payload hash up front, the binding a known length. `list` through the S3 API returns the first 1000 keys; the binding driver walks every page. Multipart uploads and presigned URLs are not covered.
 
 ## Config options
 
@@ -93,4 +104,4 @@ On Cloudflare Workers with an R2 binding, a custom driver over the binding avoid
 |---|---|---|---|
 | `driver` | `'memory'` | — | Naming `local`, `s3` or `r2` here throws and points to the driver factory |
 
-`FileMeta` on `put` carries `contentType`, `contentLength` and `lastModified`; the S3 and R2 drivers send `contentType`, the local and memory drivers keep the bytes only.
+`FileMeta` on `put` carries `contentType`, `contentLength` and `lastModified`; the S3, R2 and binding drivers send `contentType`, the local and memory drivers keep the bytes only.
