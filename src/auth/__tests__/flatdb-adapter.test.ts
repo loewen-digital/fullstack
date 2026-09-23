@@ -83,11 +83,26 @@ describe('full auth flow on flatdb', () => {
     expect(new Date(raw!.expiresAt as string).getTime()).toBe(session.expiresAt.getTime())
 
     const token = await auth.generateToken(user!.id, 'invite')
-    await auth.verifyToken(token, 'invite')
     const rawToken = await db.tokens.findOne({ token: await hashToken(token) })
-    expect(rawToken?.usedAt).toMatch(ISO)
+    expect(rawToken?.expiresAt).toMatch(ISO)
+    expect(rawToken?.createdAt).toMatch(ISO)
     const found = await adapter.findToken(await hashToken(token), 'invite')
-    expect(found?.usedAt).toBeInstanceOf(Date)
+    expect(found?.expiresAt).toBeInstanceOf(Date)
+  })
+
+  it('a consumed token leaves the collection, a new one replaces the earlier of its type', async () => {
+    const { _id } = await db.users.insert({ email: 'grace@example.com' })
+
+    const consumed = await auth.generateToken(_id, 'invite')
+    await auth.verifyToken(consumed, 'invite')
+    expect(await db.tokens.findOne({ token: await hashToken(consumed) })).toBeNull()
+
+    const first = await auth.generateToken(_id, 'invite')
+    const other = await auth.generateToken(_id, 'magic_link')
+    const second = await auth.generateToken(_id, 'invite')
+    expect(await db.tokens.findOne({ token: await hashToken(first) })).toBeNull()
+    expect(await db.tokens.findOne({ token: await hashToken(other) })).not.toBeNull()
+    expect(await auth.verifyToken(second, 'invite')).toBe(_id)
   })
 
   it('the collections hold the SHA-256 hash of a token, never the token', async () => {

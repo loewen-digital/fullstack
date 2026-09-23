@@ -70,7 +70,7 @@ async function logout(token: string) {
 
 ## Email verification and password reset
 
-Both mint a one-time token, hand it to your send function together with the address, and consume it later. A token works once and expires after `emailVerificationTtl` or `passwordResetTtl`. Only the mail carries the token; the store holds its SHA-256 hash.
+Both mint a one-time token, hand it to your send function together with the address, and consume it later. A token works once and expires after `emailVerificationTtl` or `passwordResetTtl`. Sending a new one replaces the user's earlier tokens of that type, so only the latest link works: a verification mail to a previous address cannot verify the current one. A token that is presented is deleted, consumed or expired, so nothing piles up for active users. Only the mail carries the token; the store holds its SHA-256 hash.
 
 ```ts
 async function sendMail(to: string, subject: string, text: string) {
@@ -158,7 +158,7 @@ async function finishGithubLogin(code: string, state: string) {
 |---|---|
 | `findUserByEmail(email)`, `findUserById(id)` | Users, `null` when absent |
 | `createSession(data)`, `findSession(token)`, `deleteSession(token)`, `deleteExpiredSessions(userId)` | Sessions |
-| `createToken(data)`, `findToken(token, type)`, `markTokenUsed(id)` | One-time tokens |
+| `createToken(data)`, `findToken(token, type)`, `deleteToken(id)`, `deleteTokens(userId, type)` | One-time tokens: `deleteTokens` runs before a new one is issued, `deleteToken` when one is presented |
 | `updateUserPassword(id, passwordHash)`, `markEmailVerified(id)` | Writes to the user |
 
 Session and one-time tokens reach the adapter hashed: `createSession` and `createToken` receive the SHA-256 hash of the raw token in `token`, and `findSession`, `deleteSession` and `findToken` are called with the same hash. The adapter stores and compares what it gets and never sees a raw token, so nothing that reads the store can log in or reset a password ([decision 0011](https://github.com/loewen-digital/fullstack/blob/main/docs/decisions/0011-tokens-stored-hashed.md)). `hashToken(raw)` from `@loewen-digital/fullstack/auth` computes the stored value when your own code has to find the record behind a token.

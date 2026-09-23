@@ -40,11 +40,14 @@ function createTestAuthDb(): AuthDbAdapter {
       const t = tokens.get(token)
       return t && t.type === type ? t : null
     },
-    async markTokenUsed(id) {
-      for (const t of tokens.values()) {
-        if (t.id === id) {
-          t.usedAt = new Date()
-        }
+    async deleteToken(id) {
+      for (const [key, t] of tokens) {
+        if (t.id === id) tokens.delete(key)
+      }
+    },
+    async deleteTokens(userId, type) {
+      for (const [key, t] of tokens) {
+        if (t.userId === userId && t.type === type) tokens.delete(key)
       }
     },
     async updateUserPassword(id, passwordHash) {

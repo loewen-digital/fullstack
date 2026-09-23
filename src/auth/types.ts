@@ -28,7 +28,11 @@ export interface AuthSession {
   createdAt: Date
 }
 
-/** A one-time token (email verification, password reset). */
+/**
+ * A one-time token (email verification, password reset). It exists while it is
+ * valid: issuing a new token of the same type for the user deletes the earlier
+ * ones, and presenting it, consumed or expired, deletes it.
+ */
 export interface AuthToken {
   id: string
   userId: string | number
@@ -36,7 +40,6 @@ export interface AuthToken {
   token: string
   type: 'email_verification' | 'password_reset' | string
   expiresAt: Date
-  usedAt?: Date | null
   createdAt: Date
 }
 
@@ -58,7 +61,10 @@ export interface AuthDbAdapter {
   deleteExpiredSessions(userId: string | number): Promise<void>
   createToken(data: Omit<AuthToken, 'id'>): Promise<AuthToken>
   findToken(token: string, type: string): Promise<AuthToken | null>
-  markTokenUsed(id: string): Promise<void>
+  /** Remove one token, consumed or found expired */
+  deleteToken(id: string): Promise<void>
+  /** Remove every token of the user with that type; called before a new one is issued */
+  deleteTokens(userId: string | number, type: string): Promise<void>
   updateUserPassword(id: string | number, passwordHash: string): Promise<void>
   markEmailVerified(id: string | number): Promise<void>
 }

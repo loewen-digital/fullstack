@@ -49,9 +49,14 @@ function createTestDb(): AuthDbAdapter {
     async findToken(token, type) {
       return tokens.find((t) => t.token === token && t.type === type) ?? null
     },
-    async markTokenUsed(id) {
-      const t = tokens.find((x) => x.id === id)
-      if (t) t.usedAt = new Date()
+    async deleteToken(id) {
+      const idx = tokens.findIndex((t) => t.id === id)
+      if (idx !== -1) tokens.splice(idx, 1)
+    },
+    async deleteTokens(userId, type) {
+      for (let i = tokens.length - 1; i >= 0; i--) {
+        if (String(tokens[i]!.userId) === String(userId) && tokens[i]!.type === type) tokens.splice(i, 1)
+      }
     },
     async updateUserPassword(id, passwordHash) {
       const user = users.find((u) => String(u.id) === String(id))
@@ -208,6 +213,37 @@ describe('one-time tokens', () => {
     expect(await auth.verifyToken(hash, 'invite')).toBeNull()
     expect(await auth.verifyToken(token, 'invite')).toBe('1')
   })
+
+  it('a new token replaces the user\'s earlier tokens of that type, and only those', async () => {
+    const first = await auth.generateToken('1', 'invite')
+    const otherType = await auth.generateToken('1', 'magic_link')
+    const otherUser = await auth.generateToken('2', 'invite')
+    const second = await auth.generateToken('1', 'invite')
+
+    expect(await db.findToken(await hashToken(first), 'invite')).toBeNull()
+    expect(await auth.verifyToken(first, 'invite')).toBeNull()
+    expect(await auth.verifyToken(second, 'invite')).toBe('1')
+    expect(await auth.verifyToken(otherType, 'magic_link')).toBe('1')
+    expect(await auth.verifyToken(otherUser, 'invite')).toBe('2')
+  })
+
+  it('a consumed token is deleted from the store', async () => {
+    const token = await auth.generateToken('1', 'invite')
+    const hash = await hashToken(token)
+    expect(await db.findToken(hash, 'invite')).not.toBeNull()
+
+    await auth.verifyToken(token, 'invite')
+    expect(await db.findToken(hash, 'invite')).toBeNull()
+  })
+
+  it('an expired token is deleted when presented', async () => {
+    const token = await auth.generateToken('1', 'invite', -10)
+    const hash = await hashToken(token)
+    expect(await db.findToken(hash, 'invite')).not.toBeNull()
+
+    expect(await auth.verifyToken(token, 'invite')).toBeNull()
+    expect(await db.findToken(hash, 'invite')).toBeNull()
+  })
 })
 
 describe('email verification', () => {
@@ -228,6 +264,20 @@ describe('email verification', () => {
   it('returns null for invalid verification token', async () => {
     const result = await auth.verifyEmail('bad-token')
     expect(result).toBeNull()
+  })
+
+  it('only the most recently sent verification link works', async () => {
+    const user = (await db.findUserByEmail('alice@example.com'))!
+    const sent: string[] = []
+    const collect = async (_email: string, token: string): Promise<void> => {
+      sent.push(token)
+    }
+
+    await auth.sendVerificationEmail(user, collect) // mailed to the old address
+    await auth.sendVerificationEmail({ ...user, email: 'alice@new.example.com' }, collect)
+
+    expect(await auth.verifyEmail(sent[0]!)).toBeNull()
+    expect((await auth.verifyEmail(sent[1]!))?.emailVerifiedAt).toBeTruthy()
   })
 })
 

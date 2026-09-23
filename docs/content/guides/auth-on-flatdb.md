@@ -52,7 +52,6 @@ const tokenSchema = z.object({
   token: z.string(),
   type: z.string(),
   expiresAt: z.string().datetime(),
-  usedAt: z.string().datetime().nullable().optional(),
   createdAt: z.string().datetime(),
 })
 
@@ -239,7 +238,7 @@ export const actions: Actions = {
 }
 ```
 
-Email verification and password reset work unchanged: `auth.sendVerificationEmail(user, send)`, `auth.verifyEmail(token)`, `auth.sendPasswordResetEmail(user, send)`, `auth.resetPassword(token, password)`. The tokens' hashes land in `tokens`, used once, with `usedAt` set afterwards; the token itself is only in the mail.
+Email verification and password reset work unchanged: `auth.sendVerificationEmail(user, send)`, `auth.verifyEmail(token)`, `auth.sendPasswordResetEmail(user, send)`, `auth.resetPassword(token, password)`. The tokens' hashes land in `tokens`; the token itself is only in the mail. Sending a new link deletes the user's earlier tokens of that type, and a token that is presented is deleted, so `tokens` holds at most one live token per user and type.
 
 ## Cloudflare Workers
 
@@ -284,7 +283,7 @@ describe('login', () => {
 
 ## Expired auth sessions
 
-`auth.createSession` deletes the user's own expired sessions before it inserts the new one ([decision 0002](https://github.com/loewen-digital/fullstack/blob/main/docs/decisions/0002-expired-sessions-on-login.md)): one query per login, scoped to that user, no scheduled job needed for active users. `validateSession` deletes an expired session it comes across. fullstack runs no global sweep, so sessions of users who never return stay in the collection, as do used and expired one-time tokens.
+`auth.createSession` deletes the user's own expired sessions before it inserts the new one ([decision 0002](https://github.com/loewen-digital/fullstack/blob/main/docs/decisions/0002-expired-sessions-on-login.md)): one query per login, scoped to that user, no scheduled job needed for active users. `validateSession` deletes an expired session it comes across. fullstack runs no global sweep, so sessions of users who never return stay in the collection, as do the expired one-time tokens of users who never click the link.
 
 If that matters, sweep them from a Worker with a Cron Trigger on the same bucket. `adapter-cloudflare` builds a fetch-only Worker, so this is a second, tiny Worker:
 

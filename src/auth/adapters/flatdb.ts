@@ -23,7 +23,7 @@ export interface FlatdbAuthCollections {
   users: FlatdbCollection
   /** Auth sessions: `userId`, `token` (the SHA-256 hash, as the auth module hands it over), `expiresAt`, `createdAt`. */
   sessions: FlatdbCollection
-  /** One-time tokens: `userId`, `token` (the hash), `type`, `expiresAt`, `usedAt`, `createdAt`. */
+  /** One-time tokens: `userId`, `token` (the hash), `type`, `expiresAt`, `createdAt`. */
   tokens: FlatdbCollection
 }
 
@@ -86,7 +86,6 @@ export function createFlatdbAuthAdapter(collections: FlatdbAuthCollections): Aut
         token: data.token,
         type: data.type,
         expiresAt: data.expiresAt.toISOString(),
-        usedAt: data.usedAt ? data.usedAt.toISOString() : null,
         createdAt: data.createdAt.toISOString(),
       })
       return toToken(doc)
@@ -97,8 +96,12 @@ export function createFlatdbAuthAdapter(collections: FlatdbAuthCollections): Aut
       return doc ? toToken(doc) : null
     },
 
-    async markTokenUsed(id) {
-      await tokens.update({ _id: id }, { usedAt: new Date().toISOString() })
+    async deleteToken(id) {
+      await tokens.delete({ _id: id })
+    },
+
+    async deleteTokens(userId, type) {
+      await tokens.delete({ userId, type })
     },
 
     async updateUserPassword(id, passwordHash) {
@@ -143,7 +146,6 @@ function toToken(doc: FlatdbDocument): AuthToken {
     token: String(doc.token),
     type: String(doc.type),
     expiresAt: toDate(doc.expiresAt, 'expiresAt'),
-    usedAt: toNullableDate(doc.usedAt, 'usedAt'),
     createdAt: toDate(doc.createdAt, 'createdAt'),
   }
 }
