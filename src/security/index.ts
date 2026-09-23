@@ -1,13 +1,22 @@
-import type { SecurityConfig, SecurityInstance, CorsConfig, RateLimitConfig } from './types.js'
+import type {
+  SecurityConfig,
+  SecurityInstance,
+  CorsConfig,
+  RateLimitBindingConfig,
+  RateLimitConfig,
+  RateLimiter,
+} from './types.js'
 import { generateCsrfToken, verifyCsrfToken } from './csrf.js'
 import { corsHeaders } from './cors.js'
 import { createRateLimiter } from './rate-limit.js'
+import { createBindingRateLimiter } from './rate-limit-binding.js'
 import { sanitize } from './sanitize.js'
 
 export type { SecurityConfig, SecurityInstance, CorsConfig, RateLimitConfig }
-export type { RateLimiter, RateLimitResult } from './types.js'
+export type { RateLimiter, RateLimitResult, RateLimitBinding, RateLimitBindingConfig } from './types.js'
 export { corsHeaders } from './cors.js'
 export { createRateLimiter } from './rate-limit.js'
+export { createBindingRateLimiter } from './rate-limit-binding.js'
 export { sanitize, escapeHtml } from './sanitize.js'
 export { generateCsrfToken, verifyCsrfToken } from './csrf.js'
 
@@ -31,7 +40,7 @@ export function createSecurity(config: SecurityConfig = {}): SecurityInstance {
   }
 
   const defaultCorsConfig: CorsConfig = config.cors ?? {}
-  const defaultRateLimitConfig: RateLimitConfig = config.rateLimit ?? {}
+  const defaultRateLimitConfig: RateLimitConfig | RateLimitBindingConfig = config.rateLimit ?? {}
 
   return {
     async generateCsrfToken(sessionId: string): Promise<string> {
@@ -46,8 +55,11 @@ export function createSecurity(config: SecurityConfig = {}): SecurityInstance {
       return corsHeaders(origin, overrideConfig ?? defaultCorsConfig)
     },
 
-    createRateLimiter(overrideConfig?: RateLimitConfig) {
-      return createRateLimiter(overrideConfig ?? defaultRateLimitConfig)
+    createRateLimiter(overrideConfig?: RateLimitConfig | RateLimitBindingConfig): RateLimiter {
+      const rateLimitConfig = overrideConfig ?? defaultRateLimitConfig
+      return rateLimitConfig.binding
+        ? createBindingRateLimiter({ binding: rateLimitConfig.binding })
+        : createRateLimiter({ windowMs: rateLimitConfig.windowMs, max: rateLimitConfig.max })
     },
 
     sanitize(input: string): string {

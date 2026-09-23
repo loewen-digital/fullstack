@@ -6,11 +6,12 @@ interface BucketEntry {
 }
 
 /**
- * Create an in-memory rate limiter using a fixed window algorithm.
+ * Create an in-memory rate limiter using a fixed window algorithm. It counts per process, on
+ * Cloudflare Workers per isolate; `createBindingRateLimiter` counts on the Rate Limiting binding.
  *
  * Usage:
  *   const limiter = createRateLimiter({ windowMs: 60_000, max: 100 })
- *   const result = limiter.check('user:123')
+ *   const result = await limiter.check('user:123')
  *   if (!result.allowed) throw new RateLimitError()
  */
 export function createRateLimiter(config: RateLimitConfig = {}): RateLimiter {
@@ -28,7 +29,7 @@ export function createRateLimiter(config: RateLimitConfig = {}): RateLimiter {
   }
 
   return {
-    check(key: string): RateLimitResult {
+    async check(key: string): Promise<RateLimitResult> {
       cleanExpired()
       const now = Date.now()
       const entry = buckets.get(key)
@@ -44,7 +45,7 @@ export function createRateLimiter(config: RateLimitConfig = {}): RateLimiter {
       return { allowed, remaining, resetAt: new Date(entry.resetAt) }
     },
 
-    reset(key: string): void {
+    async reset(key: string): Promise<void> {
       buckets.delete(key)
     },
   }

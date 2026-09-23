@@ -140,12 +140,12 @@ describe('createStack', () => {
     expect(stack.i18n.t('hello')).toBe('Hallo')
   })
 
-  it('hands the security module its own config type', () => {
+  it('hands the security module its own config type', async () => {
     const stack = createStack({
       security: { csrf: { secret: 'test-secret' }, rateLimit: { windowMs: 1000, max: 2 } },
     })
     const limiter = stack.security.createRateLimiter({ windowMs: 1000, max: 2 })
-    expect(limiter.check('k').allowed).toBe(true)
+    expect((await limiter.check('k')).allowed).toBe(true)
   })
 
   it('initializes permissions module when configured', () => {

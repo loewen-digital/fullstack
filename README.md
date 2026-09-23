@@ -63,7 +63,7 @@ All subpaths sit below `@loewen-digital/fullstack`. Each module's page lists its
 | Auth | `/auth`, `/auth/flatdb` | `createAuth(config, { db })`: password hashing, sessions, email verification, password reset, one-time tokens, OAuth; `createFlatdbAuthAdapter` for flatdb collections |
 | DB | `/db` | `createDb(config, schema)`: Drizzle on SQLite with migrations, seeds, factories and pagination, for apps on a SQL database, Node-only; needs `drizzle-orm` and `better-sqlite3`. Apps on flatdb call flatdb directly |
 | Session | `/session` | `createSession`: flash messages and old input on `memory`, `cookie` (signed, stateless) or `redis` |
-| Security | `/security` | `createSecurity`: CSRF tokens, CORS headers, a rate limiter, `sanitize` |
+| Security | `/security` | `createSecurity`: CSRF tokens, CORS headers, a rate limiter in memory or on the Cloudflare Rate Limiting binding, `sanitize` |
 | Mail | `/mail` | `createMail`: `console`, SMTP via `nodemailer`, Resend, Postmark; `{{ }}` templates |
 | Storage | `/storage` | `createStorage`: `memory`, `local`, S3, R2 (S3 API), the R2 bucket binding |
 | Cache | `/cache` | `createCache`: `memory`, Redis, Cloudflare KV; `remember(key, ttl, fn)` |

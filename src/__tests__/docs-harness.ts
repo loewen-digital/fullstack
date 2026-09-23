@@ -7,8 +7,8 @@
  * - A block whose first line is `// <path>.ts` (or `.tsx`) is written to that path. Files under
  *   `src/routes/` get a `./$types` stub next to them, `$lib/*` points at the page's `src/lib/`,
  *   `~/*` at its `app/`, and `$env/dynamic/private`, the Workers global `ScheduledEvent` and
- *   the slices of h3, Astro and Remix the adapter pages use are stubbed; the global `R2Bucket`
- *   is Cloudflare's own, from `@cloudflare/workers-types` (a devDependency only).
+ *   the slices of h3, Astro and Remix the adapter pages use are stubbed; the globals `R2Bucket`
+ *   and `RateLimit` are Cloudflare's own, from `@cloudflare/workers-types` (a devDependency only).
  * - Every other block is appended, in order, to one module per page, so a later block may use
  *   what an earlier one declared. Names an earlier block already imported are dropped from
  *   later named imports.
@@ -64,9 +64,10 @@ const ENV_STUB = `declare module '$env/dynamic/private' {
   export const env: Record<string, string | undefined>
 }
 `
-const WORKERS_STUB = `import type { R2Bucket as CloudflareR2Bucket } from '@cloudflare/workers-types'
+const WORKERS_STUB = `import type { R2Bucket as CloudflareR2Bucket, RateLimit as CloudflareRateLimit } from '@cloudflare/workers-types'
 declare global {
   type R2Bucket = CloudflareR2Bucket
+  type RateLimit = CloudflareRateLimit
   interface ScheduledEvent {
     cron: string
     scheduledTime: number

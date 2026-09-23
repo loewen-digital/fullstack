@@ -86,52 +86,71 @@ describe('CORS', () => {
 })
 
 describe('Rate limiter', () => {
-  it('allows requests within the limit', () => {
+  it('allows requests within the limit', async () => {
     const limiter = createRateLimiter({ windowMs: 60_000, max: 5 })
-    const result = limiter.check('user:1')
+    const result = await limiter.check('user:1')
     expect(result.allowed).toBe(true)
     expect(result.remaining).toBe(4)
+    expect(result.resetAt).toBeInstanceOf(Date)
   })
 
-  it('blocks requests over the limit', () => {
+  it('blocks requests over the limit', async () => {
     const limiter = createRateLimiter({ windowMs: 60_000, max: 3 })
-    limiter.check('user:2')
-    limiter.check('user:2')
-    limiter.check('user:2')
-    const result = limiter.check('user:2')
+    await limiter.check('user:2')
+    await limiter.check('user:2')
+    await limiter.check('user:2')
+    const result = await limiter.check('user:2')
     expect(result.allowed).toBe(false)
     expect(result.remaining).toBe(0)
   })
 
-  it('resets a key', () => {
+  it('resets a key', async () => {
     const limiter = createRateLimiter({ windowMs: 60_000, max: 2 })
-    limiter.check('user:3')
-    limiter.check('user:3')
-    limiter.check('user:3') // over limit
-    limiter.reset('user:3')
-    const result = limiter.check('user:3')
+    await limiter.check('user:3')
+    await limiter.check('user:3')
+    await limiter.check('user:3') // over limit
+    await limiter.reset('user:3')
+    const result = await limiter.check('user:3')
     expect(result.allowed).toBe(true)
   })
 
-  it('tracks different keys independently', () => {
+  it('tracks different keys independently', async () => {
     const limiter = createRateLimiter({ windowMs: 60_000, max: 1 })
-    limiter.check('user:a')
-    limiter.check('user:a') // blocked
-    const result = limiter.check('user:b')
+    await limiter.check('user:a')
+    await limiter.check('user:a') // blocked
+    const result = await limiter.check('user:b')
     expect(result.allowed).toBe(true)
   })
 
   it('resets after the window expires', async () => {
     vi.useFakeTimers()
-    const limiter = createRateLimiter({ windowMs: 100, max: 1 })
-    limiter.check('user:4')
-    const blocked = limiter.check('user:4')
-    expect(blocked.allowed).toBe(false)
+    try {
+      const limiter = createRateLimiter({ windowMs: 100, max: 1 })
+      await limiter.check('user:4')
+      const blocked = await limiter.check('user:4')
+      expect(blocked.allowed).toBe(false)
 
-    vi.advanceTimersByTime(200)
-    const allowed = limiter.check('user:4')
-    expect(allowed.allowed).toBe(true)
-    vi.useRealTimers()
+      vi.advanceTimersByTime(200)
+      const allowed = await limiter.check('user:4')
+      expect(allowed.allowed).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('reports the window end as resetAt', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-09-23T10:00:00Z'))
+      const limiter = createRateLimiter({ windowMs: 60_000, max: 1 })
+      const first = await limiter.check('k')
+      vi.advanceTimersByTime(10_000)
+      const second = await limiter.check('k')
+      expect(first.resetAt?.toISOString()).toBe('2026-09-23T10:01:00.000Z')
+      expect(second.resetAt?.toISOString()).toBe('2026-09-23T10:01:00.000Z')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
