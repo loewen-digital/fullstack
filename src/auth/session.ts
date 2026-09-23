@@ -1,13 +1,13 @@
-import { randomBytes } from 'node:crypto'
 import type { AuthDbAdapter, AuthSession, AuthUser } from './types.js'
-
-const SESSION_TOKEN_BYTES = 32
+import { hashToken, randomToken } from './opaque-token.js'
 
 /**
  * Create a new authenticated session for a user.
  *
  * The user's expired sessions are removed first, so the session store stays
- * bounded without a scheduled job (docs/decisions/0002).
+ * bounded without a scheduled job (docs/decisions/0002). The store receives
+ * the hash of the token; the returned session carries the raw token, the value
+ * the cookie has to hold.
  */
 export async function createAuthSession(
   db: AuthDbAdapter,
@@ -16,37 +16,41 @@ export async function createAuthSession(
 ): Promise<AuthSession> {
   await db.deleteExpiredSessions(user.id)
 
-  const token = randomBytes(SESSION_TOKEN_BYTES).toString('hex')
+  const token = randomToken()
   const now = new Date()
   const expiresAt = new Date(now.getTime() + ttlSeconds * 1000)
 
-  return db.createSession({
+  const stored = await db.createSession({
     userId: user.id,
-    token,
+    token: await hashToken(token),
     expiresAt,
     createdAt: now,
   })
+  return { ...stored, token }
 }
 
 /**
  * Validate a session token. Returns the session if valid, null if expired or not found.
+ * The returned session carries the presented token, not the stored hash, so
+ * `destroyAuthSession(db, session.token)` works on what this returns.
  */
 export async function validateAuthSession(
   db: AuthDbAdapter,
   token: string,
 ): Promise<AuthSession | null> {
-  const session = await db.findSession(token)
+  const hash = await hashToken(token)
+  const session = await db.findSession(hash)
   if (!session) return null
   if (session.expiresAt < new Date()) {
-    await db.deleteSession(token)
+    await db.deleteSession(hash)
     return null
   }
-  return session
+  return { ...session, token }
 }
 
 /**
- * Destroy a session by token.
+ * Destroy a session by its raw token.
  */
 export async function destroyAuthSession(db: AuthDbAdapter, token: string): Promise<void> {
-  await db.deleteSession(token)
+  await db.deleteSession(await hashToken(token))
 }

@@ -21,9 +21,9 @@ export interface FlatdbCollection {
 export interface FlatdbAuthCollections {
   /** The app's own users collection. Documents carry `email`, `passwordHash`, `emailVerifiedAt`. */
   users: FlatdbCollection
-  /** Auth sessions: `userId`, `token`, `expiresAt`, `createdAt`. */
+  /** Auth sessions: `userId`, `token` (the SHA-256 hash, as the auth module hands it over), `expiresAt`, `createdAt`. */
   sessions: FlatdbCollection
-  /** One-time tokens: `userId`, `token`, `type`, `expiresAt`, `usedAt`, `createdAt`. */
+  /** One-time tokens: `userId`, `token` (the hash), `type`, `expiresAt`, `usedAt`, `createdAt`. */
   tokens: FlatdbCollection
 }
 

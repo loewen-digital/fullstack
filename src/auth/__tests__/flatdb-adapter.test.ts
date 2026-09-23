@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { flatdb, collection, MemoryAdapter, type Collection } from '@loewen-digital/flatdb'
 import { z } from 'zod'
-import { createAuth } from '../index.js'
+import { createAuth, hashToken } from '../index.js'
 import { createFlatdbAuthAdapter } from '../adapters/flatdb.js'
 import type { AuthDbAdapter } from '../types.js'
 
@@ -84,21 +84,34 @@ describe('full auth flow on flatdb', () => {
 
     const token = await auth.generateToken(user!.id, 'invite')
     await auth.verifyToken(token, 'invite')
-    const rawToken = await db.tokens.findOne({ token })
+    const rawToken = await db.tokens.findOne({ token: await hashToken(token) })
     expect(rawToken?.usedAt).toMatch(ISO)
-    const found = await adapter.findToken(token, 'invite')
+    const found = await adapter.findToken(await hashToken(token), 'invite')
     expect(found?.usedAt).toBeInstanceOf(Date)
+  })
+
+  it('the collections hold the SHA-256 hash of a token, never the token', async () => {
+    const { _id } = await db.users.insert({ email: 'frank@example.com' })
+    const user = await adapter.findUserById(_id)
+
+    const session = await auth.createSession(user!)
+    expect(await db.sessions.findOne({ token: session.token })).toBeNull()
+    expect((await db.sessions.findById(session.id))?.token).toBe(await hashToken(session.token))
+
+    const token = await auth.generateToken(_id, 'invite')
+    expect(await db.tokens.findOne({ token })).toBeNull()
+    expect(await db.tokens.findOne({ token: await hashToken(token) })).not.toBeNull()
   })
 
   it('expired sessions are rejected and removed', async () => {
     const { _id } = await db.users.insert({ email: 'carol@example.com' })
     const expired = await adapter.createSession({
       userId: _id,
-      token: 'expired-token',
+      token: await hashToken('expired-token'),
       expiresAt: new Date(Date.now() - 1000),
       createdAt: new Date(Date.now() - 2000),
     })
-    expect(await auth.validateSession(expired.token)).toBeNull()
+    expect(await auth.validateSession('expired-token')).toBeNull()
     expect(await db.sessions.findById(expired.id)).toBeNull()
   })
 })

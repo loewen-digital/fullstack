@@ -29,7 +29,7 @@ const auth = createAuth({ sessionTtl: 7 * 24 * 3600 }, { db })
 
 ## Passwords and login
 
-Registration is yours: hash the password and store the user with its `passwordHash` where the adapter's `findUserByEmail` finds it again. Login verifies the hash and opens a session. The session's `token` is opaque; it goes into an `httpOnly` cookie (`setAuthCookie` in SvelteKit) and is the only thing the browser holds.
+Registration is yours: hash the password and store the user with its `passwordHash` where the adapter's `findUserByEmail` finds it again. Login verifies the hash and opens a session. The session's `token` is opaque; it goes into an `httpOnly` cookie (`setAuthCookie` in SvelteKit) and is the only thing the browser holds. The store holds only its SHA-256 hash, so a backup or a bucket listing of the sessions logs nobody in.
 
 ```ts
 async function register(email: string, password: string) {
@@ -51,7 +51,7 @@ Hashing is scrypt through `node:crypto`; the parameters travel in the hash. `cre
 
 ## The current user
 
-`validateSession(token)` returns the `AuthSession` behind a token, or `null` when the token is unknown or expired; an expired session is deleted on the way. The session carries the user id, the user record is one adapter call away.
+`validateSession(token)` returns the `AuthSession` behind a token, or `null` when the token is unknown or expired; an expired session is deleted on the way. The session carries the user id, the user record is one adapter call away. Its `token` is the one you presented, so `destroySession(session.token)` works on what `validateSession` returned.
 
 ```ts
 async function currentUser(token: string | undefined) {
@@ -70,7 +70,7 @@ async function logout(token: string) {
 
 ## Email verification and password reset
 
-Both mint a one-time token, hand it to your send function together with the address, and consume it later. A token works once and expires after `emailVerificationTtl` or `passwordResetTtl`.
+Both mint a one-time token, hand it to your send function together with the address, and consume it later. A token works once and expires after `emailVerificationTtl` or `passwordResetTtl`. Only the mail carries the token; the store holds its SHA-256 hash.
 
 ```ts
 async function sendMail(to: string, subject: string, text: string) {
@@ -160,5 +160,7 @@ async function finishGithubLogin(code: string, state: string) {
 | `createSession(data)`, `findSession(token)`, `deleteSession(token)`, `deleteExpiredSessions(userId)` | Sessions |
 | `createToken(data)`, `findToken(token, type)`, `markTokenUsed(id)` | One-time tokens |
 | `updateUserPassword(id, passwordHash)`, `markEmailVerified(id)` | Writes to the user |
+
+Session and one-time tokens reach the adapter hashed: `createSession` and `createToken` receive the SHA-256 hash of the raw token in `token`, and `findSession`, `deleteSession` and `findToken` are called with the same hash. The adapter stores and compares what it gets and never sees a raw token, so nothing that reads the store can log in or reset a password ([decision 0011](https://github.com/loewen-digital/fullstack/blob/main/docs/decisions/0011-tokens-stored-hashed.md)). `hashToken(raw)` from `@loewen-digital/fullstack/auth` computes the stored value when your own code has to find the record behind a token.
 
 `@loewen-digital/fullstack/auth/flatdb` ships `createFlatdbAuthAdapter({ users, sessions, tokens })` for flatdb collections; the [guide](/guides/auth-on-flatdb) has the schemas.

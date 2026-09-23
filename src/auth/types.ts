@@ -18,6 +18,11 @@ export interface AuthUser {
 export interface AuthSession {
   id: string
   userId: string | number
+  /**
+   * In the store: the SHA-256 hash of the raw token, as `AuthDbAdapter` receives
+   * and looks it up. On the sessions `createSession` and `validateSession`
+   * return: the raw token, the value the cookie carries.
+   */
   token: string
   expiresAt: Date
   createdAt: Date
@@ -27,6 +32,7 @@ export interface AuthSession {
 export interface AuthToken {
   id: string
   userId: string | number
+  /** The SHA-256 hash of the raw token; the raw token only travels in the mail. */
   token: string
   type: 'email_verification' | 'password_reset' | string
   expiresAt: Date
@@ -37,6 +43,11 @@ export interface AuthToken {
 /**
  * Persistence interface of the auth module. Implement it against your storage
  * (a Drizzle schema, flatdb collections via `@loewen-digital/fullstack/auth/flatdb`, ...).
+ *
+ * Session and one-time tokens arrive hashed: `createSession` and `createToken`
+ * receive `hashToken(raw)` in `token`, and `findSession`, `deleteSession` and
+ * `findToken` are called with the same hash. The adapter stores and compares
+ * what it gets and never sees a raw token.
  */
 export interface AuthDbAdapter {
   findUserByEmail(email: string): Promise<AuthUser | null>

@@ -26,7 +26,7 @@ flatdb is an optional peer dependency of fullstack; `@loewen-digital/fullstack/a
 
 ## Collections
 
-`auth` needs three auto-mode collections. `users` is your own users collection with the auth fields added; `sessions` and `tokens` belong to `auth`. Dates are stored as ISO 8601 strings (JSON has no `Date`; ISO strings sort correctly under flatdb's `$lt`) and come back as `Date` from the adapter. flatdb strips fields a zod schema does not declare, so every schema declares what the adapter writes.
+`auth` needs three auto-mode collections. `users` is your own users collection with the auth fields added; `sessions` and `tokens` belong to `auth`. Their `token` field holds the SHA-256 hash of the token the cookie or the mail carries, never the token itself, so the bucket's contents log nobody in. Dates are stored as ISO 8601 strings (JSON has no `Date`; ISO strings sort correctly under flatdb's `$lt`) and come back as `Date` from the adapter. flatdb strips fields a zod schema does not declare, so every schema declares what the adapter writes.
 
 ```ts
 // src/lib/server/db.ts
@@ -239,7 +239,7 @@ export const actions: Actions = {
 }
 ```
 
-Email verification and password reset work unchanged: `auth.sendVerificationEmail(user, send)`, `auth.verifyEmail(token)`, `auth.sendPasswordResetEmail(user, send)`, `auth.resetPassword(token, password)`. The tokens land in `tokens`, used once, with `usedAt` set afterwards.
+Email verification and password reset work unchanged: `auth.sendVerificationEmail(user, send)`, `auth.verifyEmail(token)`, `auth.sendPasswordResetEmail(user, send)`, `auth.resetPassword(token, password)`. The tokens' hashes land in `tokens`, used once, with `usedAt` set afterwards; the token itself is only in the mail.
 
 ## Cloudflare Workers
 
@@ -251,7 +251,7 @@ Email verification and password reset work unchanged: `auth.sendVerificationEmai
 }
 ```
 
-- **`nodejs_compat` is required** twice over: flatdb's entry exports `FsAdapter`, whose `node:fs` import has to resolve, and fullstack's `auth` uses `node:crypto` for scrypt and token generation.
+- **`nodejs_compat` is required** twice over: flatdb's entry exports `FsAdapter`, whose `node:fs` import has to resolve, and fullstack's `auth` uses `node:crypto` for scrypt.
 - **`R2Adapter` takes the binding from `platform.env`**, as in the hook above. `prefix` namespaces all keys, so one bucket can hold the database next to other files.
 - **One database per request.** Adapter, collections, `createFlatdbAuthAdapter`, `createAuth` and the session manager are built inside `handle`, never at module level. Concurrent writes to a collection's index are safe: flatdb writes `_index.json` with a compare-and-swap on the etag and retries. Two requests updating the same document at once end last-writer-wins.
 - `SESSION_SECRET` is a Workers secret; `$env/dynamic/private` reads it through `adapter-cloudflare`.

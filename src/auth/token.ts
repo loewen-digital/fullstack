@@ -1,11 +1,9 @@
-import { randomBytes } from 'node:crypto'
 import type { AuthDbAdapter, AuthToken } from './types.js'
-
-const TOKEN_BYTES = 32
+import { hashToken, randomToken } from './opaque-token.js'
 
 /**
- * Generate a cryptographically secure random token and persist it.
- * Returns the raw token string (not hashed).
+ * Generate a cryptographically secure random token and persist its hash.
+ * Returns the raw token string; it travels in the mail and never into the store.
  */
 export async function generateToken(
   db: AuthDbAdapter,
@@ -13,12 +11,12 @@ export async function generateToken(
   type: string,
   ttlSeconds = 3600,
 ): Promise<string> {
-  const token = randomBytes(TOKEN_BYTES).toString('hex')
+  const token = randomToken()
   const expiresAt = new Date(Date.now() + ttlSeconds * 1000)
 
   await db.createToken({
     userId,
-    token,
+    token: await hashToken(token),
     type,
     expiresAt,
     createdAt: new Date(),
@@ -36,7 +34,7 @@ export async function verifyToken(
   token: string,
   type: string,
 ): Promise<string | number | null> {
-  const record: AuthToken | null = await db.findToken(token, type)
+  const record: AuthToken | null = await db.findToken(await hashToken(token), type)
 
   if (!record) return null
   if (record.usedAt) return null

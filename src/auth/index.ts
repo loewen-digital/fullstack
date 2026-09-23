@@ -9,6 +9,7 @@ import { createOAuthProvider } from './oauth.js'
 export type { AuthInstance, AuthUser, AuthSession, AuthDbAdapter, AuthConfig }
 export type { AuthToken, OAuthProvider, OAuthProviderConfig, OAuthTokens, OAuthUserInfo } from './types.js'
 export { hashPassword, verifyPassword } from './password.js'
+export { hashToken } from './opaque-token.js'
 export { createOAuthProvider } from './oauth.js'
 
 /**

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { createAuth } from '../index.js'
+import { createAuth, hashToken } from '../index.js'
 import type { AuthDbAdapter, AuthUser, AuthSession, AuthToken } from '../types.js'
 
 // ─── In-memory DB adapter for testing ────────────────────────────────────────
@@ -139,9 +139,37 @@ describe('session management', () => {
 
     await auth.createSession(alice)
 
-    expect(await db.findSession(aliceStale.token)).toBeNull()
-    expect(await db.findSession(aliceLive.token)).not.toBeNull()
-    expect(await db.findSession(bobStale.token)).not.toBeNull()
+    expect(await db.findSession(await hashToken(aliceStale.token))).toBeNull()
+    expect(await db.findSession(await hashToken(aliceLive.token))).not.toBeNull()
+    expect(await db.findSession(await hashToken(bobStale.token))).not.toBeNull()
+  })
+
+  it('stores the session under the SHA-256 hash of the token, never the token', async () => {
+    const user = (await db.findUserByEmail('alice@example.com'))!
+    const session = await auth.createSession(user)
+    expect(session.token).toMatch(/^[0-9a-f]{64}$/)
+
+    expect(await db.findSession(session.token)).toBeNull()
+    const stored = await db.findSession(await hashToken(session.token))
+    expect(stored?.id).toBe(session.id)
+    expect(stored?.token).not.toBe(session.token)
+  })
+
+  it('the stored hash presented as a token does not validate', async () => {
+    const user = (await db.findUserByEmail('alice@example.com'))!
+    const session = await auth.createSession(user)
+    expect(await auth.validateSession(await hashToken(session.token))).toBeNull()
+  })
+
+  it('validateSession returns the presented token, so destroySession takes what it returned', async () => {
+    const user = (await db.findUserByEmail('alice@example.com'))!
+    const session = await auth.createSession(user)
+    const validated = (await auth.validateSession(session.token))!
+    expect(validated.token).toBe(session.token)
+
+    await auth.destroySession(validated.token)
+    expect(await auth.validateSession(session.token)).toBeNull()
+    expect(await db.findSession(await hashToken(session.token))).toBeNull()
   })
 })
 
@@ -169,6 +197,16 @@ describe('one-time tokens', () => {
     const token = await auth.generateToken('1', 'type_a')
     const result = await auth.verifyToken(token, 'type_b')
     expect(result).toBeNull()
+  })
+
+  it('stores the hash of the token; the hash itself does not verify', async () => {
+    const token = await auth.generateToken('1', 'invite')
+    const hash = await hashToken(token)
+
+    expect(await db.findToken(token, 'invite')).toBeNull()
+    expect((await db.findToken(hash, 'invite'))?.userId).toBe('1')
+    expect(await auth.verifyToken(hash, 'invite')).toBeNull()
+    expect(await auth.verifyToken(token, 'invite')).toBe('1')
   })
 })
 

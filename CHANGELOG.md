@@ -7,6 +7,8 @@ is the topmost released one here.
 
 ## Unreleased
 
+- **Breaking for stored data:** session tokens and one-time tokens are stored as their SHA-256 hash; the raw token only travels in the cookie or the mail. `AuthDbAdapter` receives the hash in `createSession`/`createToken` and is queried with it in `findSession`/`deleteSession`/`findToken`, so a bucket listing, a backup or a log line of the auth collections logs nobody in and resets no password; the adapter interface itself is unchanged. `createSession` and `validateSession` return the session with the raw token, so `setAuthCookie(session.token)` and `destroySession(authSession.token)` work as before. Sessions and pending verification or reset tokens written before this version stop validating: users log in again, mails from before the upgrade are requested anew. `hashToken(raw)` is exported from `@loewen-digital/fullstack/auth` for code that has to find the record behind a token. Tokens come from Web Crypto (`crypto.getRandomValues`, `crypto.subtle`), so `node:crypto` in `auth` is scrypt only. Decision: [0011](docs/decisions/0011-tokens-stored-hashed.md). (#27)
+
 ## v0.2.0 · 2026-09-14 · Adapters expose the session only, config keys all read
 
 - The docs site is the `docs/` project itself (`docs/package.json`, `docs/.vitepress/`, pages in `docs/content`) instead of `docs/vitepress` with `srcDir` pointing out of the project: `cd docs && npm ci && npm run build` now works next to the repository's own `node_modules`, where it failed on `estree-walker`, and the resolve workaround in the config is gone. The deploy workflow runs `npm ci` in `docs`. (#24)
