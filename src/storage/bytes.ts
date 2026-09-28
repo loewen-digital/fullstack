@@ -3,7 +3,9 @@
  * mutating, a `Buffer` slice of Node's pool or a `SharedArrayBuffer` view must not become what a
  * driver stores or hands out. A string is UTF-8, a stream is read to its end.
  */
-export async function toBytes(data: Uint8Array | string | ReadableStream): Promise<Uint8Array<ArrayBuffer>> {
+export async function toBytes(
+  data: Uint8Array | string | ReadableStream,
+): Promise<Uint8Array<ArrayBuffer>> {
   if (typeof data === 'string') {
     return new TextEncoder().encode(data)
   }

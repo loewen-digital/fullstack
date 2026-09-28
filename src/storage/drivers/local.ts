@@ -34,7 +34,11 @@ export function createLocalDriver(options: LocalDriverOptions): StorageDriver {
       }
     },
 
-    async put(key: string, data: Uint8Array | string | ReadableStream, _meta: FileMeta = {}): Promise<void> {
+    async put(
+      key: string,
+      data: Uint8Array | string | ReadableStream,
+      _meta: FileMeta = {},
+    ): Promise<void> {
       const path = fullPath(key)
       await fs.mkdir(dirname(path), { recursive: true })
       const bytes = await toBytes(data)
@@ -79,7 +83,7 @@ async function listRecursive(root: string, prefix: string): Promise<string[]> {
   const results: string[] = []
   const dir = prefix ? join(root, prefix) : root
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescript-eslint/no-explicit-any
   let entries: any[]
   try {
     entries = await fs.readdir(dir, { withFileTypes: true })
@@ -92,7 +96,7 @@ async function listRecursive(root: string, prefix: string): Promise<string[]> {
         results.push(rel)
       } else if (entry.isDirectory()) {
         const sub = await listRecursive(root, rel)
-        results.push(...sub.filter(f => f.startsWith(prefix)))
+        results.push(...sub.filter((f) => f.startsWith(prefix)))
       }
     }
     return results.sort()

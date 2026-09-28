@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'vite-plus/test'
 import { createMemoryDriver } from '../drivers/memory.js'
 import { devStoreClearAll, devStoreGetCacheEntries, isDevMode } from '../../dev-store/index.js'
 
@@ -14,7 +14,9 @@ describe('memory driver and the dev store', () => {
     devStoreClearAll()
     const driver = createMemoryDriver()
     await driver.set('greeting', 'hello')
-    expect(devStoreGetCacheEntries()).toEqual([{ key: 'greeting', value: 'hello', expiresAt: null }])
+    expect(devStoreGetCacheEntries()).toEqual([
+      { key: 'greeting', value: 'hello', expiresAt: null },
+    ])
     devStoreClearAll()
   })
 })

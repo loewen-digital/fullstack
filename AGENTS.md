@@ -26,8 +26,8 @@ This is `@loewen-digital/fullstack` — a single npm package providing backend p
 ## Tech Stack
 
 - **Language:** TypeScript (strict mode)
-- **Build:** Vite (library mode, ESM only — never CJS)
-- **Test:** Vitest
+- **Toolchain:** Vite+ (`vite-plus`), configured in `vite.config.ts`: `vp pack` builds the library (tsdown, ESM only — never CJS), `vp check` formats (Oxfmt), lints (Oxlint) and type-checks, `vp test` runs Vitest
+- **Test:** Vitest through `vite-plus/test` (globals are on; explicit imports come from `vite-plus/test`, not `vitest`)
 - **ORM:** Drizzle ORM
 - **Package manager:** npm (never yarn or pnpm)
 - **Node target:** Node 20+
@@ -74,12 +74,13 @@ src/
 
 ```bash
 npm install               # Install dependencies
-npm run build             # Build with Vite (library mode, ESM only)
-npm run dev               # Watch mode
-npm run test              # Run vitest
-npm run test:watch        # Run vitest in watch mode
-npm run lint              # Lint with ESLint
-npm run typecheck         # TypeScript type checking
+npm run build             # vp pack (ESM + declarations), then smoke-test every subpath under Node
+npm run dev               # vp pack in watch mode
+npm run check             # vp check: format, lint and type check in one pass
+npm run format            # vp check --fix: format and apply lint autofixes
+npm run test              # vp test run
+npm run test:watch        # vp test in watch mode
+npm run bench             # benchmarks in benchmarks/ (Vitest 5 `bench` fixture)
 ```
 
 ---
@@ -223,7 +224,7 @@ Every module from SPEC.md is implemented; open work lives in GitHub issues. When
 ## Important Notes
 
 - **No React** — ever. Not in code, not in examples, not in the dev UI.
-- **No tsup, no CJS** — build with Vite library mode, ESM only.
+- **No tsup, no CJS, no ESLint or Prettier** — `vp pack` builds, `vp check` checks, ESM only.
 - **Web Standards everywhere** — use `Request`, `Response`, `Headers`, `URL`, `FormData`, `ReadableStream`, `Uint8Array`, `crypto.subtle` instead of Node-specific APIs or custom abstractions. Avoid `Buffer` (use `Uint8Array`), avoid custom request types (use `Request`), avoid `node:http` patterns.
 - **npm only** — no yarn, no pnpm.
 - **SvelteKit is the primary adapter** — build and test with SvelteKit first, then add other adapters.
@@ -243,7 +244,7 @@ Two ways to be here; check `GITHUB_ACTIONS`.
 1. Read the issue: `gh issue view <n> --json title,body,labels,comments`. If acceptance criteria are missing: comment the concrete question, add label `needs-human`, remove `ready`, stop.
 2. Branch `claude/issue-<n>-<slug>` from the default branch. One issue, one branch, one PR.
 3. Implement following the rules above. Acceptance criteria are binding; a solution proposed in the issue is not. Build what fits this project and its conventions, even where that differs from the proposal, and explain every difference in the PR under "Deviations from the issue". If the need does not belong in this project: comment why, label `needs-human`, remove `ready`, stop. If something is missing in one of our own libraries (fullstack, flatdb, sveltekit-ai-orchestrator, element-js, element-js-ssr-renderer, element-library): open an issue there (`gh issue create --repo <owner/lib>`) that states the need and the context here, with at most a non-binding proposal; add the smallest workaround marked `// UPSTREAM: <issue-url>`, keep going. Never wait for upstream.
-4. `npm run lint && npm run typecheck && npm test && npm run build` must pass. After three failed attempts: open a draft PR, label `needs-human`, stop.
+4. `npm run check && npm test && npm run build` must pass. After three failed attempts: open a draft PR, label `needs-human`, stop.
 5. Review your own diff: security, dead code, error handling, accessibility.
 6. Open the PR (`gh pr create`) in the PR format below, with `Closes #<n>`. Do not post `@codex review`: Codex ignores comments from bots. Eddy requests the review.
 

@@ -29,7 +29,9 @@ export function externalTransport(config: ExternalTransportConfig): LogTransport
           ...config.headers,
         },
         body: JSON.stringify(entry),
-      }).catch(() => { /* swallow network errors in transport */ })
+      }).catch(() => {
+        /* swallow network errors in transport */
+      })
     },
   }
 }

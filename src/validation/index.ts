@@ -11,7 +11,15 @@ import type {
 import { parseRuleString, BUILT_IN_RULES } from './rules.js'
 import { getCustomRule } from './custom.js'
 
-export type { FieldRule, RuleObject, RulesMap, ValidationError, ValidationResult, InferValidated, CustomRule } from './types.js'
+export type {
+  FieldRule,
+  RuleObject,
+  RulesMap,
+  ValidationError,
+  ValidationResult,
+  InferValidated,
+  CustomRule,
+} from './types.js'
 export { defineRules } from './custom.js'
 
 /**
@@ -25,7 +33,7 @@ export { defineRules } from './custom.js'
  */
 export async function validate<Rules extends RulesMap>(
   data: Record<string, unknown>,
-  rules: Rules
+  rules: Rules,
 ): Promise<ValidationResult<InferValidated<Rules>>> {
   const errors: ValidationError[] = []
   const output: Record<string, unknown> = {}
@@ -65,7 +73,7 @@ async function validateField(
   field: string,
   value: unknown,
   rule: FieldRule,
-  data: Record<string, unknown>
+  data: Record<string, unknown>,
 ): Promise<ValidationError[]> {
   const errors: ValidationError[] = []
 
@@ -94,7 +102,10 @@ async function validateField(
     if (obj.required !== false) {
       const requiredFn = BUILT_IN_RULES['required']
       const err = requiredFn ? requiredFn(value, undefined, field, data) : null
-      if (err) { errors.push({ field, rule: 'required', message: err }); return errors }
+      if (err) {
+        errors.push({ field, rule: 'required', message: err })
+        return errors
+      }
     }
 
     if (obj.type) {
@@ -147,7 +158,7 @@ async function runRule(
   value: unknown,
   param: string | undefined,
   field: string,
-  data: Record<string, unknown>
+  data: Record<string, unknown>,
 ): Promise<string | null> {
   const builtin = BUILT_IN_RULES[name]
   if (builtin) return builtin(value, param, field, data)

@@ -192,7 +192,8 @@ export function writeSamples(name: string, blocks: Block[]): { dir: string; file
   for (const block of blocks) {
     if (block.file) {
       write(block.file, block.code)
-      if (block.file.startsWith('src/routes/')) write(join(dirname(block.file), '$types.d.ts'), TYPES_STUB)
+      if (block.file.startsWith('src/routes/'))
+        write(join(dirname(block.file), '$types.d.ts'), TYPES_STUB)
       continue
     }
     for (const line of block.code.split('\n')) {
@@ -206,7 +207,8 @@ export function writeSamples(name: string, blocks: Block[]): { dir: string; file
         .map((n) => n.trim())
         .filter((n) => n !== '' && !imported.has(n.replace(/^type /, '')))
       for (const n of names) imported.add(n.replace(/^type /, ''))
-      if (names.length > 0) fragments.push(`import ${named[1] ?? ''}{ ${names.join(', ')} } from ${named[3]}`)
+      if (names.length > 0)
+        fragments.push(`import ${named[1] ?? ''}{ ${names.join(', ')} } from ${named[3]}`)
     }
     fragments.push('')
   }

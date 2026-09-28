@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'vite-plus/test'
 import { createSearch, createSqliteFtsDriver } from '../index.js'
 
 describe('createSearch', () => {
@@ -25,8 +25,12 @@ describe('createSearch', () => {
   it('accepts a custom driver object', async () => {
     const indexed: unknown[] = []
     const customDriver = {
-      async index(_c: string, docs: unknown[]) { indexed.push(...docs) },
-      async search() { return { hits: [], total: 0, query: '' } },
+      async index(_c: string, docs: unknown[]) {
+        indexed.push(...docs)
+      },
+      async search() {
+        return { hits: [], total: 0, query: '' }
+      },
       async delete() {},
       async flush() {},
     }
@@ -129,7 +133,9 @@ describe('SQLite FTS driver', () => {
       { id: '1', title: 'post', status: 'published' },
       { id: '2', title: 'post', status: 'draft' },
     ])
-    const result = await search.search('posts', 'post', { filters: { status: 'published' } })
+    const result = await search.search('posts', 'post', {
+      filters: { status: 'published' },
+    })
     expect(result.hits).toHaveLength(1)
     expect(result.hits[0]!.status).toBe('published')
   })

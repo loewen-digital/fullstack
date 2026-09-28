@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vite-plus/test'
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -31,7 +31,9 @@ describe('migrateRun', () => {
     const migrationsDir = createEmptyMigrationsFolder(join(tmpDir, 'migrations'))
 
     vi.doMock('../../config/index.js', () => ({
-      loadConfig: async () => ({ db: { driver: 'sqlite', url: join(tmpDir, 'test.db') } }),
+      loadConfig: async () => ({
+        db: { driver: 'sqlite', url: join(tmpDir, 'test.db') },
+      }),
     }))
 
     const { migrateRun } = await import('../migrate.js')
@@ -43,7 +45,9 @@ describe('migrateRun', () => {
       loadConfig: async () => ({}),
     }))
 
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => { throw new Error('exit') }) as never)
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {
+      throw new Error('exit')
+    }) as never)
 
     const { migrateRun } = await import('../migrate.js')
     await expect(migrateRun()).rejects.toThrow('exit')
@@ -55,7 +59,9 @@ describe('migrateRun', () => {
 describe('migrateStatus', () => {
   it('reports no migrations when db is fresh', async () => {
     vi.doMock('../../config/index.js', () => ({
-      loadConfig: async () => ({ db: { driver: 'sqlite', url: join(tmpDir, 'status.db') } }),
+      loadConfig: async () => ({
+        db: { driver: 'sqlite', url: join(tmpDir, 'status.db') },
+      }),
     }))
 
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
@@ -71,7 +77,9 @@ describe('migrateStatus', () => {
 describe('migrateRollback', () => {
   it('runs without error on a fresh db (no migrations table yet)', async () => {
     vi.doMock('../../config/index.js', () => ({
-      loadConfig: async () => ({ db: { driver: 'sqlite', url: join(tmpDir, 'rollback.db') } }),
+      loadConfig: async () => ({
+        db: { driver: 'sqlite', url: join(tmpDir, 'rollback.db') },
+      }),
     }))
 
     const { migrateRollback } = await import('../migrate.js')

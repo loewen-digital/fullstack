@@ -22,7 +22,8 @@ export function env(key: string, fallback?: string | number | boolean): string |
 
   if (typeof fallback === 'number') {
     const n = Number(raw)
-    if (Number.isNaN(n)) throw new Error(`Environment variable ${key} must be a number, got: ${raw}`)
+    if (Number.isNaN(n))
+      throw new Error(`Environment variable ${key} must be a number, got: ${raw}`)
     return n
   }
 

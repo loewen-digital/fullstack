@@ -1,9 +1,9 @@
 /**
  * The R2 binding driver against an in-memory bucket that pages `list` two keys at a time, and
  * the binding slice it declares against Cloudflare's own `R2Bucket` (`@cloudflare/workers-types`
- * is a devDependency only): `npm run typecheck` fails when the slice drifts from the binding.
+ * is a devDependency only): `npm run check` fails when the slice drifts from the binding.
  */
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'vite-plus/test'
 import type { R2Bucket } from '@cloudflare/workers-types'
 import { createR2BindingDriver, createStorageInstance, type R2BindingBucket } from '../index.js'
 
@@ -24,18 +24,25 @@ function fakeBucket(pageSize = 2): R2BindingBucket & { store: Map<string, Stored
       return entry ? { arrayBuffer: async () => entry.bytes.slice().buffer } : null
     },
     async put(key, value, options) {
-      const bytes = typeof value === 'string' ? new TextEncoder().encode(value) : new Uint8Array(value)
+      const bytes =
+        typeof value === 'string' ? new TextEncoder().encode(value) : new Uint8Array(value)
       store.set(key, { bytes, contentType: options?.httpMetadata?.contentType })
     },
     async delete(key) {
       store.delete(key)
     },
     async list(options) {
-      const keys = [...store.keys()].filter((key) => !options?.prefix || key.startsWith(options.prefix)).sort()
+      const keys = [...store.keys()]
+        .filter((key) => !options?.prefix || key.startsWith(options.prefix))
+        .sort()
       const start = options?.cursor ? Number(options.cursor) : 0
       const page = keys.slice(start, start + pageSize)
       const truncated = start + pageSize < keys.length
-      return { objects: page.map((key) => ({ key })), truncated, cursor: truncated ? String(start + pageSize) : undefined }
+      return {
+        objects: page.map((key) => ({ key })),
+        truncated,
+        cursor: truncated ? String(start + pageSize) : undefined,
+      }
     },
   }
 }
@@ -52,7 +59,9 @@ describe('R2 binding driver', () => {
       },
     })
 
-    await storage.put('a.bin', new Uint8Array([1, 2, 3]), { contentType: 'application/octet-stream' })
+    await storage.put('a.bin', new Uint8Array([1, 2, 3]), {
+      contentType: 'application/octet-stream',
+    })
     await storage.put('b.txt', 'text')
     await storage.put('c.txt', stream)
 
@@ -78,18 +87,26 @@ describe('R2 binding driver', () => {
 
   it('list walks every page and honours the prefix', async () => {
     const storage = createStorageInstance(createR2BindingDriver({ bucket: fakeBucket(2) }))
-    for (const key of ['img/1', 'img/2', 'img/3', 'img/4', 'img/5', 'doc/1']) await storage.put(key, key)
+    for (const key of ['img/1', 'img/2', 'img/3', 'img/4', 'img/5', 'doc/1'])
+      await storage.put(key, key)
     expect(await storage.list('img/')).toEqual(['img/1', 'img/2', 'img/3', 'img/4', 'img/5'])
     expect(await storage.list()).toHaveLength(6)
     expect(await storage.list('none/')).toEqual([])
   })
 
   it('getUrl is publicUrl/key, and an error without publicUrl', async () => {
-    const withUrl = createStorageInstance(createR2BindingDriver({ bucket: fakeBucket(), publicUrl: 'https://files.example.com/' }))
+    const withUrl = createStorageInstance(
+      createR2BindingDriver({
+        bucket: fakeBucket(),
+        publicUrl: 'https://files.example.com/',
+      }),
+    )
     expect(await withUrl.getUrl('img/a b.png')).toBe('https://files.example.com/img/a%20b.png')
 
     const without = createStorageInstance(createR2BindingDriver({ bucket: fakeBucket() }))
-    await expect(without.getUrl('img/a.png')).rejects.toThrow('R2 binding has no URL for "img/a.png"')
+    await expect(without.getUrl('img/a.png')).rejects.toThrow(
+      'R2 binding has no URL for "img/a.png"',
+    )
   })
 
   it("the binding slice is satisfied by Cloudflare's R2Bucket (type-checked here)", () => {

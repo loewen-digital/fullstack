@@ -20,10 +20,16 @@ export interface SmtpDriverOptions {
 export function createSmtpDriver(options: SmtpDriverOptions): MailDriver {
   let transporter: unknown
 
-  async function getTransporter(): Promise<{ sendMail(opts: unknown): Promise<unknown> }> {
+  async function getTransporter(): Promise<{
+    sendMail(opts: unknown): Promise<unknown>
+  }> {
     if (!transporter) {
       try {
-        const nodemailer = await (import('nodemailer' as string) as Promise<{ createTransport(opts: unknown): { sendMail(opts: unknown): Promise<unknown> } }>)
+        const nodemailer = await (import('nodemailer' as string) as Promise<{
+          createTransport(opts: unknown): {
+            sendMail(opts: unknown): Promise<unknown>
+          }
+        }>)
         transporter = nodemailer.createTransport({
           host: options.host,
           port: options.port,
@@ -31,7 +37,9 @@ export function createSmtpDriver(options: SmtpDriverOptions): MailDriver {
           auth: options.auth,
         })
       } catch {
-        throw new MailError('nodemailer is required for the SMTP driver. Install it with: npm install nodemailer')
+        throw new MailError(
+          'nodemailer is required for the SMTP driver. Install it with: npm install nodemailer',
+        )
       }
     }
     return transporter as { sendMail(opts: unknown): Promise<unknown> }
@@ -50,14 +58,16 @@ export function createSmtpDriver(options: SmtpDriverOptions): MailDriver {
           subject: message.subject,
           text: message.text,
           html: message.html,
-          attachments: message.attachments?.map(a => ({
+          attachments: message.attachments?.map((a) => ({
             filename: a.filename,
             content: a.content,
             contentType: a.contentType,
           })),
         })
       } catch (err) {
-        throw new MailError(`Failed to send email via SMTP: ${err instanceof Error ? err.message : String(err)}`)
+        throw new MailError(
+          `Failed to send email via SMTP: ${err instanceof Error ? err.message : String(err)}`,
+        )
       }
     },
   }
@@ -69,7 +79,9 @@ function formatAddress(addr: string | MailAddress | undefined): string | undefin
   return addr.name ? `"${addr.name}" <${addr.email}>` : addr.email
 }
 
-function formatAddressList(addr: string | MailAddress | Array<string | MailAddress>): string | string[] {
-  if (Array.isArray(addr)) return addr.map(a => formatAddress(a)!)
+function formatAddressList(
+  addr: string | MailAddress | Array<string | MailAddress>,
+): string | string[] {
+  if (Array.isArray(addr)) return addr.map((a) => formatAddress(a)!)
   return formatAddress(addr)!
 }

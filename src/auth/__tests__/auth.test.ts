@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vite-plus/test'
 import { createAuth, hashToken } from '../index.js'
 import type { AuthDbAdapter, AuthUser, AuthSession, AuthToken } from '../types.js'
 
@@ -6,8 +6,18 @@ import type { AuthDbAdapter, AuthUser, AuthSession, AuthToken } from '../types.j
 
 function createTestDb(): AuthDbAdapter {
   const users: AuthUser[] = [
-    { id: '1', email: 'alice@example.com', passwordHash: null, emailVerifiedAt: null },
-    { id: '2', email: 'bob@example.com', passwordHash: null, emailVerifiedAt: new Date() },
+    {
+      id: '1',
+      email: 'alice@example.com',
+      passwordHash: null,
+      emailVerifiedAt: null,
+    },
+    {
+      id: '2',
+      email: 'bob@example.com',
+      passwordHash: null,
+      emailVerifiedAt: new Date(),
+    },
   ]
   const sessions: AuthSession[] = []
   const tokens: AuthToken[] = []
@@ -60,7 +70,8 @@ function createTestDb(): AuthDbAdapter {
     },
     async deleteTokens(userId, type) {
       for (let i = tokens.length - 1; i >= 0; i--) {
-        if (String(tokens[i]!.userId) === String(userId) && tokens[i]!.type === type) tokens.splice(i, 1)
+        if (String(tokens[i]!.userId) === String(userId) && tokens[i]!.type === type)
+          tokens.splice(i, 1)
       }
     },
     async updateUserPassword(id, passwordHash) {
@@ -139,7 +150,7 @@ describe('session management', () => {
     expect(result).toBeNull()
   })
 
-  it('removes the user\'s expired sessions on login, and only those', async () => {
+  it("removes the user's expired sessions on login, and only those", async () => {
     const alice = (await db.findUserByEmail('alice@example.com'))!
     const bob = (await db.findUserByEmail('bob@example.com'))!
     const expiredAuth = createAuth({ sessionTtl: -1 }, { db })
@@ -233,7 +244,7 @@ describe('one-time tokens', () => {
     expect(await auth.verifyToken(token, 'invite')).toBe('1')
   })
 
-  it('a new token replaces the user\'s earlier tokens of that type, and only those', async () => {
+  it("a new token replaces the user's earlier tokens of that type, and only those", async () => {
     const first = await auth.generateToken('1', 'invite')
     const otherType = await auth.generateToken('1', 'magic_link')
     const otherUser = await auth.generateToken('2', 'invite')

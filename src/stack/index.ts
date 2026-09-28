@@ -63,22 +63,21 @@ import { ConfigError } from '../errors/index.js'
 
 type IfPresent<T, V> = undefined extends T ? Record<never, never> : V
 
-export type StackModules<C extends FullstackConfig> =
-  IfPresent<C['db'],          { db: DbInstance }> &
-  IfPresent<C['auth'],        { auth: AuthInstance }> &
-  IfPresent<C['mail'],        { mail: MailInstance }> &
-  IfPresent<C['storage'],     { storage: StorageInstance }> &
-  IfPresent<C['cache'],       { cache: CacheInstance }> &
-  IfPresent<C['queue'],       { queue: QueueInstance }> &
-  IfPresent<C['security'],    { security: SecurityInstance }> &
-  IfPresent<C['logging'],     { logging: LoggerInstance }> &
-  IfPresent<C['session'],     { session: SessionManager }> &
-  IfPresent<C['i18n'],        { i18n: I18nInstance }> &
+export type StackModules<C extends FullstackConfig> = IfPresent<C['db'], { db: DbInstance }> &
+  IfPresent<C['auth'], { auth: AuthInstance }> &
+  IfPresent<C['mail'], { mail: MailInstance }> &
+  IfPresent<C['storage'], { storage: StorageInstance }> &
+  IfPresent<C['cache'], { cache: CacheInstance }> &
+  IfPresent<C['queue'], { queue: QueueInstance }> &
+  IfPresent<C['security'], { security: SecurityInstance }> &
+  IfPresent<C['logging'], { logging: LoggerInstance }> &
+  IfPresent<C['session'], { session: SessionManager }> &
+  IfPresent<C['i18n'], { i18n: I18nInstance }> &
   IfPresent<C['notifications'], { notifications: NotificationsInstance }> &
   IfPresent<C['permissions'], { permissions: PermissionsInstance }> &
-  IfPresent<C['search'],      { search: SearchInstance }> &
-  IfPresent<C['webhooks'],    { webhooks: WebhooksInstance }> &
-  IfPresent<C['realtime'],    { realtime: RealtimeInstance }>
+  IfPresent<C['search'], { search: SearchInstance }> &
+  IfPresent<C['webhooks'], { webhooks: WebhooksInstance }> &
+  IfPresent<C['realtime'], { realtime: RealtimeInstance }>
 
 export interface StackDeps {
   /**
@@ -164,8 +163,8 @@ export function createStack<C extends FullstackConfig>(
     if (!deps.authDb) {
       throw new ConfigError(
         'auth requires a DB adapter. ' +
-        'Pass { authDb: myAdapter } as the second argument to createStack().\n' +
-        'The AuthDbAdapter interface maps auth operations to your storage (Drizzle, flatdb, ...).',
+          'Pass { authDb: myAdapter } as the second argument to createStack().\n' +
+          'The AuthDbAdapter interface maps auth operations to your storage (Drizzle, flatdb, ...).',
       )
     }
     const authCfg = config.auth as AuthConfig

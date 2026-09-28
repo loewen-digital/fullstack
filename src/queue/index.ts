@@ -2,7 +2,14 @@ import type { QueueConfig } from '../config/types.js'
 import type { QueueDriver, QueueInstance, Job, JobDefinition, JobHandler } from './types.js'
 import { createMemoryDriver } from './drivers/memory.js'
 
-export type { QueueConfig, QueueDriver, QueueInstance, Job, JobDefinition, JobHandler } from './types.js'
+export type {
+  QueueConfig,
+  QueueDriver,
+  QueueInstance,
+  Job,
+  JobDefinition,
+  JobHandler,
+} from './types.js'
 export { createMemoryDriver } from './drivers/memory.js'
 export { createRedisDriver } from './drivers/redis.js'
 export { createCloudflareDriver } from './drivers/cloudflare.js'

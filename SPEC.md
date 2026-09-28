@@ -187,7 +187,7 @@ The core **never** imports or depends on any framework-specific code. Every modu
 │       └── dev-ui.ts
 ├── package.json
 ├── tsconfig.json
-└── vitest.config.ts
+└── vite.config.ts           → build, tests, lint, format (Vite+)
 ```
 
 -----

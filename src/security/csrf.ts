@@ -13,14 +13,20 @@ function encodeBase64Url(bytes: Uint8Array): string {
 }
 
 function decodeBase64Url(str: string): Uint8Array {
-  const padded = str.replace(/-/g, '+').replace(/_/g, '/').padEnd(str.length + ((4 - (str.length % 4)) % 4), '=')
+  const padded = str
+    .replace(/-/g, '+')
+    .replace(/_/g, '/')
+    .padEnd(str.length + ((4 - (str.length % 4)) % 4), '=')
   const binary = atob(padded)
   return new Uint8Array(binary.split('').map((c) => c.charCodeAt(0)))
 }
 
 async function importHmacKey(secret: string): Promise<CryptoKey> {
   const keyBytes = new TextEncoder().encode(secret)
-  return crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify'])
+  return crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, [
+    'sign',
+    'verify',
+  ])
 }
 
 async function computeHmac(key: CryptoKey, data: string): Promise<Uint8Array> {

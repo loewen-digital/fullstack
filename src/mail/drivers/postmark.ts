@@ -17,18 +17,26 @@ export function createPostmarkDriver(options: PostmarkDriverOptions): MailDriver
     async send(message: MailMessage): Promise<void> {
       const body: Record<string, unknown> = {
         From: formatAddress(message.from) ?? '',
-        To: toArray(message.to).map(a => formatAddress(a)).join(', '),
+        To: toArray(message.to)
+          .map((a) => formatAddress(a))
+          .join(', '),
         Subject: message.subject,
       }
 
-      if (message.cc) body.Cc = toArray(message.cc).map(a => formatAddress(a)).join(', ')
-      if (message.bcc) body.Bcc = toArray(message.bcc).map(a => formatAddress(a)).join(', ')
+      if (message.cc)
+        body.Cc = toArray(message.cc)
+          .map((a) => formatAddress(a))
+          .join(', ')
+      if (message.bcc)
+        body.Bcc = toArray(message.bcc)
+          .map((a) => formatAddress(a))
+          .join(', ')
       if (message.replyTo) body.ReplyTo = formatAddress(message.replyTo)
       if (message.text) body.TextBody = message.text
       if (message.html) body.HtmlBody = message.html
 
       if (message.attachments?.length) {
-        body.Attachments = message.attachments.map(a => ({
+        body.Attachments = message.attachments.map((a) => ({
           Name: a.filename,
           Content: typeof a.content === 'string' ? btoa(a.content) : '',
           ContentType: a.contentType ?? 'application/octet-stream',
@@ -38,7 +46,7 @@ export function createPostmarkDriver(options: PostmarkDriverOptions): MailDriver
       const response = await fetch(`${baseUrl}/email`, {
         method: 'POST',
         headers: {
-          'Accept': 'application/json',
+          Accept: 'application/json',
           'Content-Type': 'application/json',
           'X-Postmark-Server-Token': options.serverToken,
         },

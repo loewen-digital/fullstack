@@ -73,7 +73,7 @@ export function createFakeQueueDriver(): FakeQueueDriver {
     },
 
     async retry(jobId: string): Promise<void> {
-      const index = failedList.findIndex(j => j.id === jobId)
+      const index = failedList.findIndex((j) => j.id === jobId)
       if (index === -1) return
       const job = failedList.splice(index, 1)[0]!
       pending.push({ ...job, attempts: 0 } as Job)

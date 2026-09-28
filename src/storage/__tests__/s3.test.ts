@@ -3,11 +3,14 @@
  * signature the way the service does, by signing the request it received again with the same
  * key pair and time, and answers what each test tells it to.
  */
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vite-plus/test'
 import { createS3Driver, createR2Driver, createStorageInstance } from '../index.js'
 import { sha256Hex, signRequest } from '../sigv4.js'
 
-const credentials = { accessKeyId: 'AKIAIOSFODNN7EXAMPLE', secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY' }
+const credentials = {
+  accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
+  secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+}
 
 interface Received {
   method: string
@@ -18,7 +21,10 @@ interface Received {
 }
 
 /** Replace fetch; every request is recorded, signature-checked and answered by `answer`. */
-function service(region: string, answer: (request: Received) => Response = () => new Response(null, { status: 200 })) {
+function service(
+  region: string,
+  answer: (request: Received) => Response = () => new Response(null, { status: 200 }),
+) {
   const received: Received[] = []
   vi.stubGlobal(
     'fetch',
@@ -51,12 +57,20 @@ afterEach(() => {
 })
 
 const s3 = () =>
-  createStorageInstance(createS3Driver({ bucket: 'my-bucket', region: 'eu-central-1', ...credentials }))
+  createStorageInstance(
+    createS3Driver({
+      bucket: 'my-bucket',
+      region: 'eu-central-1',
+      ...credentials,
+    }),
+  )
 
 describe('S3 driver', () => {
   it('GET: a signed request on the virtual-hosted URL, the key encoded once; 404 is null', async () => {
     const received = service('eu-central-1', ({ url }) =>
-      url.endsWith('/missing.png') ? new Response('<Error/>', { status: 404 }) : new Response('hello'),
+      url.endsWith('/missing.png')
+        ? new Response('<Error/>', { status: 404 })
+        : new Response('hello'),
     )
     const storage = s3()
 
@@ -64,7 +78,9 @@ describe('S3 driver', () => {
     expect(await storage.get('missing.png')).toBeNull()
 
     expect(received[0]!.method).toBe('GET')
-    expect(received[0]!.url).toBe('https://my-bucket.s3.eu-central-1.amazonaws.com/avatars/a%20b.png')
+    expect(received[0]!.url).toBe(
+      'https://my-bucket.s3.eu-central-1.amazonaws.com/avatars/a%20b.png',
+    )
     expect(received[0]!.verified).toBe(true)
     expect(received[0]!.headers.get('authorization')).toMatch(
       /^AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE\/\d{8}\/eu-central-1\/s3\/aws4_request,SignedHeaders=host;x-amz-content-sha256;x-amz-date,Signature=[0-9a-f]{64}$/,
@@ -87,18 +103,24 @@ describe('S3 driver', () => {
       },
     })
 
-    await storage.put('a.bin', new Uint8Array([1, 2, 3]), { contentType: 'application/octet-stream' })
+    await storage.put('a.bin', new Uint8Array([1, 2, 3]), {
+      contentType: 'application/octet-stream',
+    })
     await storage.put('b.txt', 'text')
     await storage.put('c.txt', stream)
 
     for (const request of received) {
       expect(request.method).toBe('PUT')
       expect(request.verified).toBe(true)
-      expect(request.headers.get('x-amz-content-sha256')).toBe(await sha256Hex(new Uint8Array(request.body)))
+      expect(request.headers.get('x-amz-content-sha256')).toBe(
+        await sha256Hex(new Uint8Array(request.body)),
+      )
     }
     expect(Array.from(received[0]!.body)).toEqual([1, 2, 3])
     expect(received[0]!.headers.get('content-type')).toBe('application/octet-stream')
-    expect(received[0]!.headers.get('authorization')).toContain('SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date')
+    expect(received[0]!.headers.get('authorization')).toContain(
+      'SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date',
+    )
     expect(new TextDecoder().decode(received[1]!.body)).toBe('text')
     expect(new TextDecoder().decode(received[2]!.body)).toBe('stream')
   })
@@ -146,7 +168,9 @@ describe('S3 driver', () => {
     )
     const keys = await s3().list('docs/')
     expect(keys).toEqual(['docs/a.md', 'docs/b & c <d>.md'])
-    expect(received[0]!.url).toBe('https://my-bucket.s3.eu-central-1.amazonaws.com/?list-type=2&prefix=docs%2F')
+    expect(received[0]!.url).toBe(
+      'https://my-bucket.s3.eu-central-1.amazonaws.com/?list-type=2&prefix=docs%2F',
+    )
     expect(received[0]!.verified).toBe(true)
 
     await s3().list()
@@ -159,7 +183,9 @@ describe('S3 driver', () => {
   })
 
   it('getUrl is the object URL on the endpoint', async () => {
-    expect(await s3().getUrl('avatars/a b.png')).toBe('https://my-bucket.s3.eu-central-1.amazonaws.com/avatars/a%20b.png')
+    expect(await s3().getUrl('avatars/a b.png')).toBe(
+      'https://my-bucket.s3.eu-central-1.amazonaws.com/avatars/a%20b.png',
+    )
   })
 
   it('a custom endpoint with a port and path style, as MinIO wants it', async () => {
@@ -184,7 +210,14 @@ describe('S3 driver', () => {
 
 describe('R2 driver (S3 API)', () => {
   const r2 = (publicUrl?: string) =>
-    createStorageInstance(createR2Driver({ accountId: 'acc0unt', bucket: 'files', publicUrl, ...credentials }))
+    createStorageInstance(
+      createR2Driver({
+        accountId: 'acc0unt',
+        bucket: 'files',
+        publicUrl,
+        ...credentials,
+      }),
+    )
 
   it('talks to the account endpoint in path style, signed for region auto', async () => {
     const received = service('auto', () => new Response('data'))
@@ -201,7 +234,11 @@ describe('R2 driver (S3 API)', () => {
   })
 
   it('getUrl is publicUrl/key when set, the endpoint URL without', async () => {
-    expect(await r2('https://files.example.com/').getUrl('img/x y.png')).toBe('https://files.example.com/img/x%20y.png')
-    expect(await r2().getUrl('img/x y.png')).toBe('https://acc0unt.r2.cloudflarestorage.com/files/img/x%20y.png')
+    expect(await r2('https://files.example.com/').getUrl('img/x y.png')).toBe(
+      'https://files.example.com/img/x%20y.png',
+    )
+    expect(await r2().getUrl('img/x y.png')).toBe(
+      'https://acc0unt.r2.cloudflarestorage.com/files/img/x%20y.png',
+    )
   })
 })

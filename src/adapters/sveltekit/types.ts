@@ -84,7 +84,10 @@ export interface SvelteKitRequestEvent {
 
 /** The part of SvelteKit's `ResolveOptions` the adapter forwards. */
 export interface SvelteKitResolveOptions {
-  transformPageChunk?(input: { html: string; done: boolean }): string | undefined | Promise<string | undefined>
+  transformPageChunk?(input: {
+    html: string
+    done: boolean
+  }): string | undefined | Promise<string | undefined>
   filterSerializedResponseHeaders?(name: string, value: string): boolean
   preload?(input: { type: string; path: string }): boolean
 }
@@ -92,7 +95,10 @@ export interface SvelteKitResolveOptions {
 /** The argument SvelteKit passes to a `Handle`. */
 export interface SvelteKitHandleInput {
   event: SvelteKitRequestEvent
-  resolve(event: SvelteKitRequestEvent, opts?: SvelteKitResolveOptions): Response | Promise<Response>
+  resolve(
+    event: SvelteKitRequestEvent,
+    opts?: SvelteKitResolveOptions,
+  ): Response | Promise<Response>
 }
 
 export type SvelteKitResolve = SvelteKitHandleInput['resolve']

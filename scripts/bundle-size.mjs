@@ -6,7 +6,7 @@
  * Run after `npm run build`:  node scripts/bundle-size.mjs
  */
 
-import { readFileSync, statSync, readdirSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { resolve, relative } from 'node:path'
 import { gzipSync } from 'node:zlib'
 import { fileURLToPath } from 'node:url'
@@ -53,9 +53,9 @@ function measureFile(absPath) {
 console.log('\n@loewen-digital/fullstack — Bundle Size Report\n')
 console.log(
   pad('Subpath', COLS.subpath) +
-  pad('File', COLS.file) +
-  rpad('Raw', COLS.raw) +
-  rpad('Gzip', COLS.gzip)
+    pad('File', COLS.file) +
+    rpad('Raw', COLS.raw) +
+    rpad('Gzip', COLS.gzip),
 )
 console.log('─'.repeat(COLS.subpath + COLS.file + COLS.raw + COLS.gzip))
 
@@ -89,15 +89,15 @@ for (const { subpath, relPath, raw, gzip } of entries) {
   if (raw === null) {
     console.log(
       pad(subpath, COLS.subpath) +
-      pad(relPath, COLS.file) +
-      rpad('(not built)', COLS.raw + COLS.gzip)
+        pad(relPath, COLS.file) +
+        rpad('(not built)', COLS.raw + COLS.gzip),
     )
   } else {
     console.log(
       pad(subpath, COLS.subpath) +
-      pad(relPath, COLS.file) +
-      rpad(formatBytes(raw), COLS.raw) +
-      rpad(formatBytes(gzip), COLS.gzip)
+        pad(relPath, COLS.file) +
+        rpad(formatBytes(raw), COLS.raw) +
+        rpad(formatBytes(gzip), COLS.gzip),
     )
   }
 }
@@ -105,8 +105,8 @@ for (const { subpath, relPath, raw, gzip } of entries) {
 console.log('─'.repeat(COLS.subpath + COLS.file + COLS.raw + COLS.gzip))
 console.log(
   pad('TOTAL', COLS.subpath + COLS.file) +
-  rpad(formatBytes(totalRaw), COLS.raw) +
-  rpad(formatBytes(totalGzip), COLS.gzip)
+    rpad(formatBytes(totalRaw), COLS.raw) +
+    rpad(formatBytes(totalGzip), COLS.gzip),
 )
 console.log()
 
@@ -117,7 +117,9 @@ try {
   const reExportCount = (rootContent.match(/^export/gm) ?? []).length
   console.log(`Root index re-exports: ${reExportCount} named exports`)
   if (reExportCount > 50) {
-    console.warn('  ⚠  Large root index — consumers should use subpath imports for optimal tree-shaking.')
+    console.warn(
+      '  ⚠  Large root index — consumers should use subpath imports for optimal tree-shaking.',
+    )
   } else {
     console.log('  ✓  Root index size looks healthy.')
   }

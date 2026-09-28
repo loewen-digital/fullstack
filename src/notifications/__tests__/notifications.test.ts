@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi } from 'vite-plus/test'
 import { createNotifications } from '../index.js'
 import type { Notification, NotificationUser } from '../types.js'
 import type { MailMessage } from '../../mail/types.js'
@@ -8,18 +8,32 @@ import type { MailMessage } from '../../mail/types.js'
 function fakeMail() {
   const sent: MailMessage[] = []
   return {
-    async send(msg: MailMessage) { sent.push(msg) },
+    async send(msg: MailMessage) {
+      sent.push(msg)
+    },
     render: () => '',
-    get sent() { return sent },
+    get sent() {
+      return sent
+    },
   }
 }
 
-const user: NotificationUser = { id: 'u1', email: 'alice@example.com', phone: '+1555000000' }
+const user: NotificationUser = {
+  id: 'u1',
+  email: 'alice@example.com',
+  phone: '+1555000000',
+}
 
 class WelcomeNotification implements Notification {
-  channels() { return ['mail', 'in-app'] as const }
+  channels() {
+    return ['mail', 'in-app'] as const
+  }
   toMail(_user: NotificationUser): MailMessage {
-    return { to: _user.email!, subject: 'Welcome!', text: 'Welcome to the app.' }
+    return {
+      to: _user.email!,
+      subject: 'Welcome!',
+      text: 'Welcome to the app.',
+    }
   }
   toInApp(_user: NotificationUser) {
     return { type: 'welcome', title: 'Welcome!', message: 'You are in.' }
@@ -27,13 +41,21 @@ class WelcomeNotification implements Notification {
 }
 
 class SmsOnlyNotification implements Notification {
-  channels() { return ['sms'] as const }
-  toSms(_user: NotificationUser) { return 'Your code is 123456' }
+  channels() {
+    return ['sms'] as const
+  }
+  toSms(_user: NotificationUser) {
+    return 'Your code is 123456'
+  }
 }
 
 class PushOnlyNotification implements Notification {
-  channels() { return ['push'] as const }
-  toPush(_user: NotificationUser) { return { title: 'Hello', body: 'World' } }
+  channels() {
+    return ['push'] as const
+  }
+  toPush(_user: NotificationUser) {
+    return { title: 'Hello', body: 'World' }
+  }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -57,7 +79,10 @@ describe('mail channel', () => {
 
   it('throws when mail instance is missing', async () => {
     const notifs = createNotifications({})
-    const n: Notification = { channels: () => ['mail'], toMail: () => ({ to: 'x@x.com', subject: 'Hi', text: '' }) }
+    const n: Notification = {
+      channels: () => ['mail'],
+      toMail: () => ({ to: 'x@x.com', subject: 'Hi', text: '' }),
+    }
     await expect(notifs.notify(user, n)).rejects.toThrow('Mail instance required')
   })
 })
@@ -135,7 +160,9 @@ describe('SMS channel', () => {
 
   it('throws when sms driver is missing', async () => {
     const notifs = createNotifications({})
-    await expect(notifs.notify(user, new SmsOnlyNotification())).rejects.toThrow('SMS driver required')
+    await expect(notifs.notify(user, new SmsOnlyNotification())).rejects.toThrow(
+      'SMS driver required',
+    )
   })
 })
 
@@ -150,6 +177,8 @@ describe('Push channel', () => {
 
   it('throws when push driver is missing', async () => {
     const notifs = createNotifications({})
-    await expect(notifs.notify(user, new PushOnlyNotification())).rejects.toThrow('Push driver required')
+    await expect(notifs.notify(user, new PushOnlyNotification())).rejects.toThrow(
+      'Push driver required',
+    )
   })
 })

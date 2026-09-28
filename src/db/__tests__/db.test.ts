@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach } from 'vite-plus/test'
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'
 import { createDb } from '../index.js'
 import type { DbInstance } from '../types.js'
@@ -27,9 +27,9 @@ describe('createDb', () => {
   })
 
   it('throws for unsupported drivers', () => {
-    expect(() =>
-      createDb({ driver: 'postgres', url: 'postgres://localhost/test' }),
-    ).toThrow('Driver "postgres" requires additional peer dependencies')
+    expect(() => createDb({ driver: 'postgres', url: 'postgres://localhost/test' })).toThrow(
+      'Driver "postgres" requires additional peer dependencies',
+    )
   })
 })
 
@@ -99,9 +99,11 @@ describe('factory', () => {
   it('calls insert function when provided', async () => {
     db = createDb({ driver: 'sqlite', url: ':memory:' }, schema)
     // Create the table first
-    ;(db.drizzle as unknown as { $client: SqliteRawClient }).$client.prepare(
-      'CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, age INTEGER)',
-    ).run()
+    ;(db.drizzle as unknown as { $client: SqliteRawClient }).$client
+      .prepare(
+        'CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, age INTEGER)',
+      )
+      .run()
 
     const insertedIds: string[] = []
     const userFactory = db.factory<TestUser>({
@@ -128,9 +130,11 @@ describe('factory', () => {
 describe('seed', () => {
   it('runs a seed function', async () => {
     db = createDb({ driver: 'sqlite', url: ':memory:' }, schema)
-    ;(db.drizzle as unknown as { $client: SqliteRawClient }).$client.prepare(
-      'CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, age INTEGER)',
-    ).run()
+    ;(db.drizzle as unknown as { $client: SqliteRawClient }).$client
+      .prepare(
+        'CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, age INTEGER)',
+      )
+      .run()
 
     let seeded = false
     await db.seed(async () => {

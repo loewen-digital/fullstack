@@ -4,10 +4,7 @@ import type { SearchDocument, SearchDriver, SearchOptions, SearchResult } from '
  * Typesense driver.
  * Uses Typesense's REST API via fetch.
  */
-export function createTypesenseDriver(config: {
-  host: string
-  apiKey: string
-}): SearchDriver {
+export function createTypesenseDriver(config: { host: string; apiKey: string }): SearchDriver {
   const { host, apiKey } = config
 
   function headers(): HeadersInit {
@@ -98,7 +95,9 @@ export function createTypesenseDriver(config: {
     },
 
     async flush(collection: string): Promise<void> {
-      await request('DELETE', `/collections/${collection}/documents`, { filter_by: 'id:>0' })
+      await request('DELETE', `/collections/${collection}/documents`, {
+        filter_by: 'id:>0',
+      })
     },
   }
 }

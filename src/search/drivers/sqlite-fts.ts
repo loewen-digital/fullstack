@@ -11,9 +11,12 @@ function loadBetterSqlite3(): typeof BetterSqlite3Ctor {
     return load('better-sqlite3') as typeof BetterSqlite3Ctor
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'MODULE_NOT_FOUND') {
-      throw new Error('The sqlite driver needs better-sqlite3, an optional peer dependency: npm install better-sqlite3', {
-        cause: error,
-      })
+      throw new Error(
+        'The sqlite driver needs better-sqlite3, an optional peer dependency: npm install better-sqlite3',
+        {
+          cause: error,
+        },
+      )
     }
     throw error
   }
@@ -67,9 +70,7 @@ export function createSqliteFtsDriver(urlOrDb?: string): SearchDriver {
          ON CONFLICT(id) DO UPDATE SET data = excluded.data`,
       )
       const deleteFts = db.prepare(`DELETE FROM "${collection}_fts" WHERE id = ?`)
-      const insertFts = db.prepare(
-        `INSERT INTO "${collection}_fts" (id, content) VALUES (?, ?)`,
-      )
+      const insertFts = db.prepare(`INSERT INTO "${collection}_fts" (id, content) VALUES (?, ?)`)
 
       const upsertAll = db.transaction((docs: SearchDocument[]) => {
         for (const doc of docs) {
@@ -98,7 +99,10 @@ export function createSqliteFtsDriver(urlOrDb?: string): SearchDriver {
         // Empty query — return all docs
         rows = db
           .prepare(`SELECT id, data FROM "${collection}_docs" LIMIT ? OFFSET ?`)
-          .all(limit, offset) as Array<{ id: string; data: string }>
+          .all(limit, offset) as Array<{
+          id: string
+          data: string
+        }>
       } else {
         const escaped = query.replace(/"/g, '""')
         rows = db
@@ -109,7 +113,10 @@ export function createSqliteFtsDriver(urlOrDb?: string): SearchDriver {
              WHERE "${collection}_fts" MATCH ?
              LIMIT ? OFFSET ?`,
           )
-          .all(`"${escaped}"`, limit, offset) as Array<{ id: string; data: string }>
+          .all(`"${escaped}"`, limit, offset) as Array<{
+          id: string
+          data: string
+        }>
       }
 
       let hits = rows.map((r) => JSON.parse(r.data) as SearchDocument)

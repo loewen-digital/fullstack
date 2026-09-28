@@ -1,10 +1,13 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'vite-plus/test'
 import type { RateLimit } from '@cloudflare/workers-types'
 import { createBindingRateLimiter, createRateLimiter, createSecurity } from '../index.js'
 import type { RateLimitBinding } from '../index.js'
 
 /** A Rate Limiting binding in memory: `limit` hits per key, no window, records every call */
-function fakeBinding(limit: number): { binding: RateLimitBinding; calls: string[] } {
+function fakeBinding(limit: number): {
+  binding: RateLimitBinding
+  calls: string[]
+} {
   const counts = new Map<string, number>()
   const calls: string[] = []
   return {
@@ -89,8 +92,12 @@ describe('createSecurity with a rate limit binding', () => {
     const security = createSecurity({ rateLimit: { binding } })
     const limiter = security.createRateLimiter()
 
-    expect(await limiter.check('login:a@example.com')).toEqual({ allowed: true })
-    expect(await limiter.check('login:a@example.com')).toEqual({ allowed: false })
+    expect(await limiter.check('login:a@example.com')).toEqual({
+      allowed: true,
+    })
+    expect(await limiter.check('login:a@example.com')).toEqual({
+      allowed: false,
+    })
     expect(calls).toEqual(['login:a@example.com', 'login:a@example.com'])
   })
 

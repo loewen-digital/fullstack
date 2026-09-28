@@ -13,7 +13,11 @@ export function createMemoryDriver(): StorageDriver {
       return entry ? entry.data : null
     },
 
-    async put(key: string, data: Uint8Array | string | ReadableStream, meta: FileMeta = {}): Promise<void> {
+    async put(
+      key: string,
+      data: Uint8Array | string | ReadableStream,
+      meta: FileMeta = {},
+    ): Promise<void> {
       const bytes = await toBytes(data)
       store.set(key, { data: bytes, meta })
     },
@@ -41,4 +45,3 @@ export function createMemoryDriver(): StorageDriver {
     },
   }
 }
-

@@ -1,7 +1,12 @@
 import { ForbiddenError } from '../errors/http-errors.js'
 import { PolicyRegistry } from './policies.js'
 import { RoleRegistry, hasPermission } from './roles.js'
-import type { PermissionsConfig, PermissionsInstance, PolicyDefinition, RoleDefinition } from './types.js'
+import type {
+  PermissionsConfig,
+  PermissionsInstance,
+  PolicyDefinition,
+  RoleDefinition,
+} from './types.js'
 
 export type {
   PermissionsConfig,

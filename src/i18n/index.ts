@@ -9,7 +9,9 @@ export type { I18nConfig, I18nInstance } from './types.js'
 export function createI18n(config: I18nConfig = {}): I18nInstance {
   let activeLocale = config.locale ?? 'en'
   const fallback = config.fallback ?? 'en'
-  const messages: Record<string, Record<string, unknown>> = { ...config.messages }
+  const messages: Record<string, Record<string, unknown>> = {
+    ...config.messages,
+  }
 
   /** Dot-notation key lookup in a flat or nested messages object */
   function lookup(locale: string, key: string): string | undefined {
@@ -30,9 +32,7 @@ export function createI18n(config: I18nConfig = {}): I18nInstance {
   }
 
   function resolve(key: string): string {
-    return lookup(activeLocale, key)
-      ?? lookup(fallback, key)
-      ?? key
+    return lookup(activeLocale, key) ?? lookup(fallback, key) ?? key
   }
 
   function interpolate(template: string, params?: Record<string, string | number>): string {
@@ -76,7 +76,9 @@ export function createI18n(config: I18nConfig = {}): I18nInstance {
  * Each file is named after the locale (e.g. en.json, fr.json).
  * Node.js only.
  */
-export async function loadTranslations(directory: string): Promise<Record<string, Record<string, unknown>>> {
+export async function loadTranslations(
+  directory: string,
+): Promise<Record<string, Record<string, unknown>>> {
   const { readdir, readFile } = await import('node:fs/promises')
   const { join } = await import('node:path')
 

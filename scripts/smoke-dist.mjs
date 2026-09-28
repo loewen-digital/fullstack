@@ -22,7 +22,9 @@ for (const [subpath, entry] of Object.entries(pkg.exports)) {
 const { createDb } = await import(pathToFileURL(resolve(root, 'dist/db/index.js')).href)
 createDb({ driver: 'sqlite', url: ':memory:' }).close()
 
-const { createSqliteFtsDriver } = await import(pathToFileURL(resolve(root, 'dist/search/index.js')).href)
+const { createSqliteFtsDriver } = await import(
+  pathToFileURL(resolve(root, 'dist/search/index.js')).href
+)
 await createSqliteFtsDriver(':memory:').flush('smoke')
 
 console.log(`smoke: ${count} subpaths import under Node ESM, the sqlite db and search drivers load`)

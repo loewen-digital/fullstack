@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi } from 'vite-plus/test'
 import { createQueue, createQueueInstance, createMemoryDriver } from '../index.js'
 
 describe('createQueue', () => {
@@ -25,7 +25,10 @@ describe('createQueue', () => {
 describe('queue dispatch and process', () => {
   it('dispatches a job', async () => {
     const queue = createQueue({ driver: 'memory' })
-    const job = await queue.dispatch({ name: 'test-job', payload: { value: 42 } })
+    const job = await queue.dispatch({
+      name: 'test-job',
+      payload: { value: 42 },
+    })
     expect(job.id).toBeDefined()
     expect(job.name).toBe('test-job')
     expect(job.payload).toEqual({ value: 42 })
@@ -106,7 +109,9 @@ describe('job failure and retry', () => {
 
   it('retries a failed job manually', async () => {
     const queue = createQueue({ driver: 'memory' })
-    queue.handle('fail-once', () => { throw new Error('nope') })
+    queue.handle('fail-once', () => {
+      throw new Error('nope')
+    })
 
     await queue.dispatch({ name: 'fail-once', payload: null, maxAttempts: 1 })
     await queue.process()

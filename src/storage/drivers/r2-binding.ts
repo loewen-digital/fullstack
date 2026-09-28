@@ -46,9 +46,17 @@ export function createR2BindingDriver(options: R2BindingDriverOptions): StorageD
       return new Uint8Array(await object.arrayBuffer())
     },
 
-    async put(key: string, data: Uint8Array | string | ReadableStream, meta: FileMeta = {}): Promise<void> {
+    async put(
+      key: string,
+      data: Uint8Array | string | ReadableStream,
+      meta: FileMeta = {},
+    ): Promise<void> {
       const value = data instanceof ReadableStream ? await toBytes(data) : data
-      await bucket.put(key, value, meta.contentType ? { httpMetadata: { contentType: meta.contentType } } : undefined)
+      await bucket.put(
+        key,
+        value,
+        meta.contentType ? { httpMetadata: { contentType: meta.contentType } } : undefined,
+      )
     },
 
     async delete(key: string): Promise<void> {

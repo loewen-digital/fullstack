@@ -37,7 +37,9 @@ export function createLogger(config: LoggerConfig = {}): LoggerInstance {
       // Allow async transports but don't await — fire-and-forget
       const result = transport.log(entry)
       if (result instanceof Promise) {
-        result.catch(() => { /* transport errors must not crash app */ })
+        result.catch(() => {
+          /* transport errors must not crash app */
+        })
       }
     }
   }

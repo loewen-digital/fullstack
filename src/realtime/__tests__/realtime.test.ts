@@ -1,10 +1,13 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'vite-plus/test'
 import { createRealtime, createChannel, createSseConnection } from '../index.js'
 import type { ChannelSubscriber, RealtimeEvent } from '../types.js'
 
 // ── Helper ────────────────────────────────────────────────────────────────────
 
-function makeSub(id: string): { subscriber: ChannelSubscriber; received: RealtimeEvent[] } {
+function makeSub(id: string): {
+  subscriber: ChannelSubscriber
+  received: RealtimeEvent[]
+} {
   const received: RealtimeEvent[] = []
   const subscriber: ChannelSubscriber = { id, send: (e) => received.push(e) }
   return { subscriber, received }
@@ -99,7 +102,12 @@ describe('Channel', () => {
 
   it('silently removes broken subscribers', () => {
     const ch = createChannel('test')
-    const broken: ChannelSubscriber = { id: 'broken', send: () => { throw new Error('broken') } }
+    const broken: ChannelSubscriber = {
+      id: 'broken',
+      send: () => {
+        throw new Error('broken')
+      },
+    }
     ch.subscribe(broken)
     expect(ch.size).toBe(1)
     expect(() => ch.broadcast('ping', {})).not.toThrow()

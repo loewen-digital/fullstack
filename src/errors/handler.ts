@@ -33,7 +33,9 @@ function headersToRecord(headers?: HeadersInit): Record<string, string> {
   if (!headers) return {}
   if (headers instanceof Headers) {
     const out: Record<string, string> = {}
-    headers.forEach((v, k) => { out[k] = v })
+    headers.forEach((v, k) => {
+      out[k] = v
+    })
     return out
   }
   if (Array.isArray(headers)) {
@@ -49,7 +51,10 @@ export function errorToResponse(err: unknown, headers?: HeadersInit): Response {
   const serialized = serializeError(err)
   return new Response(JSON.stringify(serialized), {
     status: serialized.statusCode,
-    headers: new Headers({ 'Content-Type': 'application/json', ...headersToRecord(headers) }),
+    headers: new Headers({
+      'Content-Type': 'application/json',
+      ...headersToRecord(headers),
+    }),
   })
 }
 

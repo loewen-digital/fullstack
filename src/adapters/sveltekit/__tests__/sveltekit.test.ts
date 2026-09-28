@@ -1,5 +1,11 @@
-import { describe, it, expect, vi } from 'vitest'
-import { createHandle, getCsrfToken, setAuthCookie, clearAuthCookie, validateForm } from '../index.js'
+import { describe, it, expect, vi } from 'vite-plus/test'
+import {
+  createHandle,
+  getCsrfToken,
+  setAuthCookie,
+  clearAuthCookie,
+  validateForm,
+} from '../index.js'
 import { createSession } from '../../../session/index.js'
 import { createSecurity } from '../../../security/index.js'
 import type { AuthInstance, AuthSession } from '../../../auth/index.js'
@@ -19,8 +25,12 @@ function makeEvent(overrides: Partial<SvelteKitRequestEvent> = {}): TestEvent {
     route: { id: null },
     cookies: {
       get: (name) => cookies.get(name),
-      set: (name, value) => { cookies.set(name, value) },
-      delete: (name) => { cookies.delete(name) },
+      set: (name, value) => {
+        cookies.set(name, value)
+      },
+      delete: (name) => {
+        cookies.delete(name)
+      },
     },
     ...overrides,
   }
@@ -103,10 +113,13 @@ describe('createHandle (SvelteKit adapter)', () => {
 
       await handle({ event, resolve: makeResolve() })
 
-      expect(setCalled).toHaveBeenCalledWith('fsid', expect.objectContaining({
-        httpOnly: true,
-        sameSite: 'lax',
-      }))
+      expect(setCalled).toHaveBeenCalledWith(
+        'fsid',
+        expect.objectContaining({
+          httpOnly: true,
+          sameSite: 'lax',
+        }),
+      )
     })
   })
 
@@ -119,7 +132,10 @@ describe('createHandle (SvelteKit adapter)', () => {
       security?: ReturnType<typeof createSecurity>,
     ): Promise<void> {
       // A fresh createSession per request: another process, or another Workers isolate
-      const handle = createHandle({ session: createSession({ driver: 'cookie', secret }), security })
+      const handle = createHandle({
+        session: createSession({ driver: 'cookie', secret }),
+        security,
+      })
       await handle({
         event,
         resolve: async (e) => {
@@ -161,7 +177,10 @@ describe('createHandle (SvelteKit adapter)', () => {
       const cookie = event1.cookies.get('fsid')!
       const [payload, sig] = cookie.split('.') as [string, string]
 
-      for (const bad of [`${payload.slice(0, -1)}${payload.endsWith('A') ? 'B' : 'A'}.${sig}`, payload]) {
+      for (const bad of [
+        `${payload.slice(0, -1)}${payload.endsWith('A') ? 'B' : 'A'}.${sig}`,
+        payload,
+      ]) {
         const event2 = makeEvent()
         event2.cookies.set('fsid', bad, { path: '/' })
         let role: unknown = 'unset'
@@ -182,7 +201,10 @@ describe('createHandle (SvelteKit adapter)', () => {
       token = await getCsrfToken(event1.locals, security)
 
       const event2 = makeEvent({
-        request: new Request('http://localhost/', { method: 'POST', headers: { 'x-csrf-token': token } }),
+        request: new Request('http://localhost/', {
+          method: 'POST',
+          headers: { 'x-csrf-token': token },
+        }),
       })
       event2.cookies.set('fsid', event1.cookies.get('fsid')!, { path: '/' })
       await run(event2, () => {}, security)
@@ -359,8 +381,16 @@ describe('validateForm', () => {
 // ── auth: the validated session is exposed, no user object (#9) ───────────────
 
 describe('auth integration', () => {
-  const authSession: AuthSession = { id: 's1', userId: 'u1', token: 'good', expiresAt: new Date(Date.now() + 60_000), createdAt: new Date() }
-  const auth = { validateSession: async (token: string) => (token === 'good' ? authSession : null) } as unknown as AuthInstance
+  const authSession: AuthSession = {
+    id: 's1',
+    userId: 'u1',
+    token: 'good',
+    expiresAt: new Date(Date.now() + 60_000),
+    createdAt: new Date(),
+  }
+  const auth = {
+    validateSession: async (token: string) => (token === 'good' ? authSession : null),
+  } as unknown as AuthInstance
 
   it('puts the validated session on locals and no user object', async () => {
     const handle = createHandle({ auth })

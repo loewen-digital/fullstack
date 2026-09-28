@@ -13,7 +13,12 @@ import { createBindingRateLimiter } from './rate-limit-binding.js'
 import { sanitize } from './sanitize.js'
 
 export type { SecurityConfig, SecurityInstance, CorsConfig, RateLimitConfig }
-export type { RateLimiter, RateLimitResult, RateLimitBinding, RateLimitBindingConfig } from './types.js'
+export type {
+  RateLimiter,
+  RateLimitResult,
+  RateLimitBinding,
+  RateLimitBindingConfig,
+} from './types.js'
 export { corsHeaders } from './cors.js'
 export { createRateLimiter } from './rate-limit.js'
 export { createBindingRateLimiter } from './rate-limit-binding.js'
@@ -30,7 +35,8 @@ export { generateCsrfToken, verifyCsrfToken } from './csrf.js'
  */
 export function createSecurity(config: SecurityConfig = {}): SecurityInstance {
   // CSRF tokens are HMACs over the session id; without a secret of your own they are forgeable.
-  const csrfSecret = typeof config.csrf === 'object' && config.csrf !== null ? config.csrf.secret : undefined
+  const csrfSecret =
+    typeof config.csrf === 'object' && config.csrf !== null ? config.csrf.secret : undefined
 
   function requireCsrfSecret(): string {
     if (!csrfSecret) {
@@ -59,7 +65,10 @@ export function createSecurity(config: SecurityConfig = {}): SecurityInstance {
       const rateLimitConfig = overrideConfig ?? defaultRateLimitConfig
       return rateLimitConfig.binding
         ? createBindingRateLimiter({ binding: rateLimitConfig.binding })
-        : createRateLimiter({ windowMs: rateLimitConfig.windowMs, max: rateLimitConfig.max })
+        : createRateLimiter({
+            windowMs: rateLimitConfig.windowMs,
+            max: rateLimitConfig.max,
+          })
     },
 
     sanitize(input: string): string {

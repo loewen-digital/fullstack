@@ -51,10 +51,7 @@ export function createWebhooks(config: WebhooksConfig = {}): WebhooksInstance {
   const logs: OutgoingWebhookLog[] = []
 
   return {
-    async verify(
-      request: Request,
-      options: IncomingVerifyOptions,
-    ) {
+    async verify(request: Request, options: IncomingVerifyOptions) {
       return verifyIncomingWebhook(request, options)
     },
 

@@ -4,7 +4,7 @@
  * Run with: npm run bench
  */
 
-import { bench, describe } from 'vitest'
+import { test, describe } from 'vite-plus/test'
 import { validate } from '../src/validation/index.js'
 
 // ---------------------------------------------------------------------------
@@ -39,36 +39,46 @@ const invalidData = { name: '', email: 'not-an-email', age: -1 }
 // ---------------------------------------------------------------------------
 
 describe('validate — simple schema', () => {
-  bench('valid data', async () => {
-    await validate(simpleData, simpleRules)
+  test('valid data', async ({ bench }) => {
+    await bench('valid data', async () => {
+      await validate(simpleData, simpleRules)
+    }).run()
   })
 
-  bench('invalid data (returns errors)', async () => {
-    await validate(invalidData, simpleRules)
+  test('invalid data (returns errors)', async ({ bench }) => {
+    await bench('invalid data (returns errors)', async () => {
+      await validate(invalidData, simpleRules)
+    }).run()
   })
 })
 
 describe('validate — nested schema', () => {
-  bench('nested + wildcard array', async () => {
-    await validate(nestedData, nestedRules)
+  test('nested + wildcard array', async ({ bench }) => {
+    await bench('nested + wildcard array', async () => {
+      await validate(nestedData, nestedRules)
+    }).run()
   })
 })
 
 describe('validate — object rule format', () => {
-  bench('object rules (no string parsing)', async () => {
-    await validate(simpleData, {
-      name: { required: true, type: 'string', max: 255 },
-      email: { required: true, email: true },
-      age: { required: true, type: 'number', min: 0, max: 150 },
-    })
+  test('object rules (no string parsing)', async ({ bench }) => {
+    await bench('object rules (no string parsing)', async () => {
+      await validate(simpleData, {
+        name: { required: true, type: 'string', max: 255 },
+        email: { required: true, email: true },
+        age: { required: true, type: 'number', min: 0, max: 150 },
+      })
+    }).run()
   })
 })
 
 describe('parseRuleString — memoization', () => {
-  bench('repeated parse of same string (warm cache)', async () => {
-    // Calling validate repeatedly with the same rule strings exercises the cache
-    await validate(simpleData, simpleRules)
-    await validate(simpleData, simpleRules)
-    await validate(simpleData, simpleRules)
+  test('repeated parse of same string (warm cache)', async ({ bench }) => {
+    await bench('repeated parse of same string (warm cache)', async () => {
+      // Calling validate repeatedly with the same rule strings exercises the cache
+      await validate(simpleData, simpleRules)
+      await validate(simpleData, simpleRules)
+      await validate(simpleData, simpleRules)
+    }).run()
   })
 })

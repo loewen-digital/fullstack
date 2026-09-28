@@ -13,7 +13,11 @@ export function createMemoryDriver(): QueueDriver {
   const failedJobs: Job[] = []
 
   // devStoreId maps internal job.id → devStore entry id (same value here)
-  function trackJob(job: Job, status: 'pending' | 'processing' | 'completed' | 'failed', failedReason?: string): void {
+  function trackJob(
+    job: Job,
+    status: 'pending' | 'processing' | 'completed' | 'failed',
+    failedReason?: string,
+  ): void {
     if (!isDevMode()) return
     devStorePushJob({
       name: job.name,
@@ -55,11 +59,19 @@ export function createMemoryDriver(): QueueDriver {
         // Re-enqueue with incremented attempt count
         const retried = { ...job, attempts: job.attempts + 1 }
         pending.push(retried)
-        if (isDevMode()) devStoreUpdateJob(jobId, { status: 'pending', attempts: retried.attempts })
+        if (isDevMode())
+          devStoreUpdateJob(jobId, {
+            status: 'pending',
+            attempts: retried.attempts,
+          })
       } else {
         // Move to dead letter queue
         failedJobs.push(job)
-        if (isDevMode()) devStoreUpdateJob(jobId, { status: 'failed', failedReason: error.message })
+        if (isDevMode())
+          devStoreUpdateJob(jobId, {
+            status: 'failed',
+            failedReason: error.message,
+          })
       }
     },
 
@@ -72,12 +84,17 @@ export function createMemoryDriver(): QueueDriver {
     },
 
     async retry(jobId: string): Promise<void> {
-      const index = failedJobs.findIndex(j => j.id === jobId)
+      const index = failedJobs.findIndex((j) => j.id === jobId)
       if (index === -1) return
       const job = failedJobs.splice(index, 1)[0]!
       const retried = { ...job, attempts: 0 } as Job
       pending.push(retried)
-      if (isDevMode()) devStoreUpdateJob(jobId, { status: 'pending', attempts: 0, failedReason: undefined })
+      if (isDevMode())
+        devStoreUpdateJob(jobId, {
+          status: 'pending',
+          attempts: 0,
+          failedReason: undefined,
+        })
     },
 
     async flush(): Promise<void> {

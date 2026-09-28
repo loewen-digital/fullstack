@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi } from 'vite-plus/test'
 import { createSession, createSessionManager, createMemoryDriver } from '../index.js'
 
 describe('createSession with memory driver', () => {
@@ -157,7 +157,10 @@ describe('cookie driver', () => {
     const value = await session.commit(handle)
     const [payload, sig] = value.split('.') as [string, string]
 
-    const foreign = createSession({ driver: 'cookie', secret: 'another-secret' })
+    const foreign = createSession({
+      driver: 'cookie',
+      secret: 'another-secret',
+    })
     const foreignHandle = await foreign.open()
     foreignHandle.set('role', 'admin')
 

@@ -6,7 +6,9 @@ export interface ConsoleDriverOptions {
   silent?: boolean
 }
 
-export function createConsoleDriver(options: ConsoleDriverOptions = {}): MailDriver & { sent: MailMessage[] } {
+export function createConsoleDriver(
+  options: ConsoleDriverOptions = {},
+): MailDriver & { sent: MailMessage[] } {
   const sent: MailMessage[] = []
 
   return {
@@ -43,8 +45,13 @@ export function createConsoleDriver(options: ConsoleDriverOptions = {}): MailDri
   }
 }
 
-function formatAddresses(addr: string | { name?: string; email: string } | Array<string | { name?: string; email: string }>): string {
+function formatAddresses(
+  addr:
+    | string
+    | { name?: string; email: string }
+    | Array<string | { name?: string; email: string }>,
+): string {
   if (typeof addr === 'string') return addr
-  if (Array.isArray(addr)) return addr.map(a => formatAddresses(a)).join(', ')
+  if (Array.isArray(addr)) return addr.map((a) => formatAddresses(a)).join(', ')
   return addr.name ? `${addr.name} <${addr.email}>` : addr.email
 }

@@ -1,9 +1,9 @@
 /**
  * The adapter against SvelteKit's real types (`@sveltejs/kit` is a devDependency only).
- * `npm run typecheck` covers this file: the assignments below fail to compile when the
+ * `npm run check` covers this file: the assignments below fail to compile when the
  * adapter's structural mirror of `RequestEvent` and `Handle` drifts from SvelteKit.
  */
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'vite-plus/test'
 import type { Handle, RequestEvent } from '@sveltejs/kit'
 import { sequence } from '@sveltejs/kit/hooks'
 import { createHandle, setAuthCookie, clearAuthCookie } from '../index.js'
@@ -11,7 +11,7 @@ import { createSession } from '../../../session/index.js'
 
 // An app's App.Locals: an interface without an index signature, unrelated to FullstackLocals.
 declare global {
-  // eslint-disable-next-line @typescript-eslint/no-namespace
+  // oxlint-disable-next-line @typescript-eslint/no-namespace
   namespace App {
     interface Locals {
       requestId: string
@@ -28,8 +28,12 @@ function makeKitEvent(): RequestEvent {
     route: { id: null },
     cookies: {
       get: (name: string) => cookies.get(name),
-      set: (name: string, value: string) => { cookies.set(name, value) },
-      delete: (name: string) => { cookies.delete(name) },
+      set: (name: string, value: string) => {
+        cookies.set(name, value)
+      },
+      delete: (name: string) => {
+        cookies.delete(name)
+      },
     },
   }
   // The runtime fake carries only what the adapter reads; the type is SvelteKit's.

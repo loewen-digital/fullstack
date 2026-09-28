@@ -7,7 +7,8 @@ const args = process.argv.slice(2)
 const [command, subcommand, ...rest] = args
 
 function printHelp(): void {
-  console.log(`
+  console.log(
+    `
 Usage: fullstack <command> [options]
 
 Commands:
@@ -22,7 +23,8 @@ Commands:
   generate seed <name>       Scaffold a new seed file
 
   help                     Show this help message
-`.trim())
+`.trim(),
+  )
 }
 
 async function main(): Promise<void> {

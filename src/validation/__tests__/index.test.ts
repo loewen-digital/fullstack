@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vite-plus/test'
 import { validate, defineRules } from '../index.js'
 import { clearCustomRules } from '../custom.js'
 
@@ -94,7 +94,7 @@ describe('validate — string rules', () => {
   it('passes valid uuid', async () => {
     const result = await validate(
       { id: '550e8400-e29b-41d4-a716-446655440000' },
-      { id: 'required|uuid' }
+      { id: 'required|uuid' },
     )
     expect(result.ok).toBe(true)
   })
@@ -117,7 +117,7 @@ describe('validate — string rules', () => {
   it('validates confirmed rule', async () => {
     const result = await validate(
       { password: 'secret', password_confirmation: 'other' },
-      { password: 'required|confirmed' }
+      { password: 'required|confirmed' },
     )
     expect(result.ok).toBe(false)
   })
@@ -125,7 +125,7 @@ describe('validate — string rules', () => {
   it('passes confirmed rule', async () => {
     const result = await validate(
       { password: 'secret', password_confirmation: 'secret' },
-      { password: 'required|confirmed' }
+      { password: 'required|confirmed' },
     )
     expect(result.ok).toBe(true)
   })
@@ -148,7 +148,7 @@ describe('validate — string rules', () => {
   it('collects multiple errors', async () => {
     const result = await validate(
       { email: 'bad', name: '' },
-      { email: 'required|email', name: 'required|string' }
+      { email: 'required|email', name: 'required|string' },
     )
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.errors.length).toBeGreaterThan(1)
@@ -162,7 +162,7 @@ describe('validate — object rules', () => {
       {
         name: { required: true, type: 'string', max: 100 },
         age: { required: true, type: 'number', min: 0 },
-      }
+      },
     )
     expect(result.ok).toBe(true)
   })
@@ -185,16 +185,13 @@ describe('validate — object rules', () => {
   it('validates in with object rule', async () => {
     const result = await validate(
       { status: 'unknown' },
-      { status: { required: true, in: ['active', 'inactive'] } }
+      { status: { required: true, in: ['active', 'inactive'] } },
     )
     expect(result.ok).toBe(false)
   })
 
   it('validates regex with RegExp in object rule', async () => {
-    const result = await validate(
-      { code: 'ABC' },
-      { code: { required: true, regex: /^[0-9]+$/ } }
-    )
+    const result = await validate({ code: 'ABC' }, { code: { required: true, regex: /^[0-9]+$/ } })
     expect(result.ok).toBe(false)
   })
 })
@@ -203,16 +200,13 @@ describe('validate — nested fields', () => {
   it('validates nested dot-notation field', async () => {
     const result = await validate(
       { address: { street: '123 Main St' } },
-      { 'address.street': 'required|string' }
+      { 'address.street': 'required|string' },
     )
     expect(result.ok).toBe(true)
   })
 
   it('fails nested field when missing', async () => {
-    const result = await validate(
-      { address: {} },
-      { 'address.street': 'required|string' }
-    )
+    const result = await validate({ address: {} }, { 'address.street': 'required|string' })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.errors[0]!.field).toBe('address.street')
   })
@@ -220,18 +214,12 @@ describe('validate — nested fields', () => {
 
 describe('validate — array wildcard', () => {
   it('validates each item in array', async () => {
-    const result = await validate(
-      { tags: ['js', 'ts', 'node'] },
-      { 'tags.*': 'string|max:50' }
-    )
+    const result = await validate({ tags: ['js', 'ts', 'node'] }, { 'tags.*': 'string|max:50' })
     expect(result.ok).toBe(true)
   })
 
   it('fails when an array item fails rule', async () => {
-    const result = await validate(
-      { tags: ['js', 123] },
-      { 'tags.*': 'string' }
-    )
+    const result = await validate({ tags: ['js', 123] }, { 'tags.*': 'string' })
     expect(result.ok).toBe(false)
   })
 })

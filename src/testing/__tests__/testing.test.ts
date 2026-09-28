@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vite-plus/test'
 import { createTestStack } from '../index.js'
 import { createFakeMailDriver } from '../fake-mail.js'
 import { createFakeQueueDriver } from '../fake-queue.js'
@@ -12,7 +12,9 @@ import { createStorageInstance } from '../../storage/index.js'
 
 describe('createTestStack', () => {
   it('has a db only when a db config is given', () => {
-    const withDb = createTestStack({ db: { driver: 'sqlite', url: ':memory:' } })
+    const withDb = createTestStack({
+      db: { driver: 'sqlite', url: ':memory:' },
+    })
     expect(withDb.db.drizzle).toBeDefined()
     withDb.db.close()
 
@@ -50,7 +52,11 @@ describe('createTestStack', () => {
   it('reset() clears all fakes', async () => {
     const stack = createTestStack()
 
-    await stack.mail.send({ to: 'user@example.com', subject: 'Hello', text: '' })
+    await stack.mail.send({
+      to: 'user@example.com',
+      subject: 'Hello',
+      text: '',
+    })
     await stack.queue.dispatch({ name: 'job', payload: {} })
     await stack.storage.put('file.txt', 'data')
 
@@ -146,7 +152,10 @@ describe('FakeQueueDriver', () => {
   })
 
   it('captures dispatched jobs', async () => {
-    await queue.dispatch({ name: 'send-email', payload: { to: 'user@example.com' } })
+    await queue.dispatch({
+      name: 'send-email',
+      payload: { to: 'user@example.com' },
+    })
     expect(fake.dispatched).toHaveLength(1)
     expect(fake.dispatched[0]?.name).toBe('send-email')
   })
@@ -274,16 +283,19 @@ describe('defineFactory', () => {
   it('makeMany() returns N records', () => {
     const users = userFactory.makeMany(5)
     expect(users).toHaveLength(5)
-    users.forEach(u => expect(u.name).toBe('Alice'))
+    users.forEach((u) => expect(u.name).toBe('Alice'))
   })
 
   it('makeMany() applies overrides to all', () => {
     const admins = userFactory.makeMany(3, { role: 'admin' })
-    admins.forEach(a => expect(a.role).toBe('admin'))
+    admins.forEach((a) => expect(a.role).toBe('admin'))
   })
 
   it('state() creates a variant factory', () => {
-    const adminFactory = userFactory.state({ role: () => 'admin', name: () => 'Admin User' })
+    const adminFactory = userFactory.state({
+      role: () => 'admin',
+      name: () => 'Admin User',
+    })
     const admin = adminFactory.make()
     expect(admin.role).toBe('admin')
     expect(admin.name).toBe('Admin User')

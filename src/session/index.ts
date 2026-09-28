@@ -1,5 +1,11 @@
 import type { SessionConfig } from '../config/types.js'
-import type { SessionDriver, SessionHandle, SessionManager, SessionData, SessionPayload } from './types.js'
+import type {
+  SessionDriver,
+  SessionHandle,
+  SessionManager,
+  SessionData,
+  SessionPayload,
+} from './types.js'
 import { flash, getFlash, rotateFlash } from './flash.js'
 import { flashInput, getOldInput, rotateOldInput } from './old-input.js'
 import { createMemoryDriver } from './drivers/memory.js'
@@ -36,7 +42,9 @@ export function createSession(config: SessionConfig): SessionManager {
     driver = createMemoryDriver(ttlSeconds)
   } else if (config.driver === 'cookie') {
     if (!config.secret) {
-      throw new Error('Cookie session driver requires a `secret`: the session cookie is signed with it.')
+      throw new Error(
+        'Cookie session driver requires a `secret`: the session cookie is signed with it.',
+      )
     }
     driver = createCookieDriver(config.secret, ttlSeconds)
   } else if (config.driver === 'redis') {

@@ -9,7 +9,9 @@ interface CacheEntry {
 /**
  * In-memory cache driver with TTL support.
  */
-export function createMemoryDriver(): CacheDriver & { _store: Map<string, CacheEntry> } {
+export function createMemoryDriver(): CacheDriver & {
+  _store: Map<string, CacheEntry>
+} {
   const store = new Map<string, CacheEntry>()
 
   function isExpired(entry: CacheEntry): boolean {
@@ -58,7 +60,11 @@ export function createMemoryDriver(): CacheDriver & { _store: Map<string, CacheE
       () =>
         Array.from(store.entries())
           .filter(([, entry]) => !isExpired(entry))
-          .map(([key, entry]) => ({ key, value: entry.value, expiresAt: entry.expiresAt })),
+          .map(([key, entry]) => ({
+            key,
+            value: entry.value,
+            expiresAt: entry.expiresAt,
+          })),
       driver,
     )
   }

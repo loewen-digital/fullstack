@@ -123,9 +123,7 @@ export function createAstroMiddleware(
         ;(locals as FullstackAstroLocals).csrfVerified = true
       } else {
         const csrfToken =
-          request.headers.get('x-csrf-token') ??
-          request.headers.get('x-xsrf-token') ??
-          null
+          request.headers.get('x-csrf-token') ?? request.headers.get('x-xsrf-token') ?? null
 
         const sessionId = sessionHandle?.id ?? cookies.get(sessionCookie)?.value ?? ''
         let csrfVerified = false

@@ -36,7 +36,11 @@ export function createRateLimiter(config: RateLimitConfig = {}): RateLimiter {
 
       if (!entry || entry.resetAt <= now) {
         buckets.set(key, { count: 1, resetAt: now + windowMs })
-        return { allowed: true, remaining: max - 1, resetAt: new Date(now + windowMs) }
+        return {
+          allowed: true,
+          remaining: max - 1,
+          resetAt: new Date(now + windowMs),
+        }
       }
 
       entry.count++

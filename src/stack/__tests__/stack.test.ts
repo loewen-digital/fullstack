@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'vite-plus/test'
 import { createStack } from '../index.js'
 import { ConfigError } from '../../errors/index.js'
 import type { AuthDbAdapter, AuthUser, AuthSession, AuthToken } from '../../auth/index.js'
@@ -12,7 +12,7 @@ function createTestAuthDb(): AuthDbAdapter {
 
   return {
     async findUserByEmail(email) {
-      return [...users.values()].find(u => u.email === email) ?? null
+      return [...users.values()].find((u) => u.email === email) ?? null
     },
     async findUserById(id) {
       return users.get(id) ?? null
@@ -142,7 +142,11 @@ describe('createStack', () => {
 
   it('initializes i18n module on the locale the config names', () => {
     const stack = createStack({
-      i18n: { locale: 'de', fallback: 'en', messages: { de: { hello: 'Hallo' } } },
+      i18n: {
+        locale: 'de',
+        fallback: 'en',
+        messages: { de: { hello: 'Hallo' } },
+      },
     })
     expect(stack.i18n.getLocale()).toBe('de')
     expect(stack.i18n.t('hello')).toBe('Hallo')
@@ -150,7 +154,10 @@ describe('createStack', () => {
 
   it('hands the security module its own config type', async () => {
     const stack = createStack({
-      security: { csrf: { secret: 'test-secret' }, rateLimit: { windowMs: 1000, max: 2 } },
+      security: {
+        csrf: { secret: 'test-secret' },
+        rateLimit: { windowMs: 1000, max: 2 },
+      },
     })
     const limiter = stack.security.createRateLimiter({ windowMs: 1000, max: 2 })
     expect((await limiter.check('k')).allowed).toBe(true)
@@ -196,9 +203,7 @@ describe('createStack', () => {
   })
 
   it('throws ConfigError when auth is configured without authDb', () => {
-    expect(() =>
-      createStack({ auth: { sessionTtl: 3600 } }),
-    ).toThrow(ConfigError)
+    expect(() => createStack({ auth: { sessionTtl: 3600 } })).toThrow(ConfigError)
   })
 
   it('initializes notifications with mail dependency when both configured', () => {

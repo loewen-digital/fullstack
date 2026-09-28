@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'vite-plus/test'
 import { createMail, createMailInstance, createConsoleDriver, renderTemplate } from '../index.js'
 import type { MailDriver, MailMessage } from '../types.js'
 
@@ -22,7 +22,11 @@ describe('createMail', () => {
   })
 
   it('applies default from address', async () => {
-    const mail = createMail({ driver: 'console', from: 'noreply@example.com', silent: true })
+    const mail = createMail({
+      driver: 'console',
+      from: 'noreply@example.com',
+      silent: true,
+    })
     await mail.send({
       to: 'user@example.com',
       subject: 'Test',
@@ -32,7 +36,11 @@ describe('createMail', () => {
   })
 
   it('does not override explicit from address', async () => {
-    const mail = createMail({ driver: 'console', from: 'noreply@example.com', silent: true })
+    const mail = createMail({
+      driver: 'console',
+      from: 'noreply@example.com',
+      silent: true,
+    })
     await mail.send({
       to: 'user@example.com',
       from: 'custom@example.com',
@@ -81,7 +89,9 @@ describe('createMail', () => {
   })
 
   it('throws on postmark driver without config', () => {
-    expect(() => createMail({ driver: 'postmark' })).toThrow('Postmark mail driver requires a server token')
+    expect(() => createMail({ driver: 'postmark' })).toThrow(
+      'Postmark mail driver requires a server token',
+    )
   })
 })
 
@@ -89,7 +99,9 @@ describe('createMailInstance', () => {
   it('works with a custom driver', async () => {
     const sent: MailMessage[] = []
     const driver: MailDriver = {
-      async send(message) { sent.push(message) },
+      async send(message) {
+        sent.push(message)
+      },
     }
     const mail = createMailInstance(driver)
     await mail.send({ to: 'a@b.com', subject: 'Custom', text: 'hi' })
@@ -127,12 +139,16 @@ describe('renderTemplate', () => {
   })
 
   it('escapes HTML in double braces', () => {
-    const result = renderTemplate('{{ content }}', { content: '<script>alert("xss")</script>' })
+    const result = renderTemplate('{{ content }}', {
+      content: '<script>alert("xss")</script>',
+    })
     expect(result).toBe('&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;')
   })
 
   it('allows unescaped HTML in triple braces', () => {
-    const result = renderTemplate('{{{ content }}}', { content: '<strong>bold</strong>' })
+    const result = renderTemplate('{{{ content }}}', {
+      content: '<strong>bold</strong>',
+    })
     expect(result).toBe('<strong>bold</strong>')
   })
 

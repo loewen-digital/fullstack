@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'vite-plus/test'
 import { createI18n } from '../index.js'
 import { pluralize } from '../pluralization.js'
 import { formatNumber, formatDate } from '../formatting.js'
@@ -97,7 +97,11 @@ describe('createI18n — number() and date()', () => {
 
   it('formats a date', () => {
     const i18n = createI18n({ locale: 'en' })
-    const result = i18n.date(new Date('2024-06-15'), { year: 'numeric', month: 'long', day: 'numeric' })
+    const result = i18n.date(new Date('2024-06-15'), {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    })
     expect(result).toContain('2024')
     expect(result).toContain('June')
   })
@@ -141,7 +145,10 @@ describe('formatNumber()', () => {
 
 describe('formatDate()', () => {
   it('formats a Date object', () => {
-    const result = formatDate('en', new Date('2024-03-15'), { year: 'numeric', month: 'short' })
+    const result = formatDate('en', new Date('2024-03-15'), {
+      year: 'numeric',
+      month: 'short',
+    })
     expect(result).toContain('Mar')
     expect(result).toContain('2024')
   })

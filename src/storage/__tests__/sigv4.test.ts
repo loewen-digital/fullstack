@@ -3,17 +3,29 @@
  * Transferring Payload in a Single Chunk (AWS Signature Version 4)", Amazon S3 API Reference.
  * Same key pair, bucket and date in all of them.
  */
-import { describe, it, expect } from 'vitest'
-import { EMPTY_PAYLOAD_HASH, UNSIGNED_PAYLOAD, sha256Hex, signRequest, encodeKey, uriEncode } from '../sigv4.js'
+import { describe, it, expect } from 'vite-plus/test'
+import {
+  EMPTY_PAYLOAD_HASH,
+  UNSIGNED_PAYLOAD,
+  sha256Hex,
+  signRequest,
+  encodeKey,
+  uriEncode,
+} from '../sigv4.js'
 
-const credentials = { accessKeyId: 'AKIAIOSFODNN7EXAMPLE', secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY' }
+const credentials = {
+  accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
+  secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+}
 const region = 'us-east-1'
 const date = new Date('2013-05-24T00:00:00Z')
 const bucket = 'https://examplebucket.s3.amazonaws.com'
 
 describe('signRequest against the AWS examples', () => {
   it('GET Object with a Range header', async () => {
-    const request = new Request(`${bucket}/test.txt`, { headers: { Range: 'bytes=0-9' } })
+    const request = new Request(`${bucket}/test.txt`, {
+      headers: { Range: 'bytes=0-9' },
+    })
     const signed = await signRequest(request, credentials, { region, date })
 
     expect(signed.headers.get('x-amz-date')).toBe('20130524T000000Z')
@@ -32,12 +44,19 @@ describe('signRequest against the AWS examples', () => {
 
     const request = new Request(`${bucket}/test$file.text`, {
       method: 'PUT',
-      headers: { Date: 'Fri, 24 May 2013 00:00:00 GMT', 'x-amz-storage-class': 'REDUCED_REDUNDANCY' },
+      headers: {
+        Date: 'Fri, 24 May 2013 00:00:00 GMT',
+        'x-amz-storage-class': 'REDUCED_REDUNDANCY',
+      },
       body,
     })
     // A string body makes fetch add a content-type, which the example does not sign.
     request.headers.delete('content-type')
-    const signed = await signRequest(request, credentials, { region, date, payloadHash })
+    const signed = await signRequest(request, credentials, {
+      region,
+      date,
+      payloadHash,
+    })
 
     expect(signed.headers.get('authorization')).toBe(
       'AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request,' +
@@ -48,7 +67,10 @@ describe('signRequest against the AWS examples', () => {
   })
 
   it('GET Bucket Lifecycle: a query parameter without a value', async () => {
-    const signed = await signRequest(new Request(`${bucket}/?lifecycle`), credentials, { region, date })
+    const signed = await signRequest(new Request(`${bucket}/?lifecycle`), credentials, {
+      region,
+      date,
+    })
     expect(signed.headers.get('authorization')).toBe(
       'AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request,' +
         'SignedHeaders=host;x-amz-content-sha256;x-amz-date,' +
@@ -57,7 +79,10 @@ describe('signRequest against the AWS examples', () => {
   })
 
   it('GET Bucket (List Objects): query parameters sorted', async () => {
-    const signed = await signRequest(new Request(`${bucket}/?prefix=J&max-keys=2`), credentials, { region, date })
+    const signed = await signRequest(new Request(`${bucket}/?prefix=J&max-keys=2`), credentials, {
+      region,
+      date,
+    })
     expect(signed.headers.get('authorization')).toBe(
       'AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request,' +
         'SignedHeaders=host;x-amz-content-sha256;x-amz-date,' +
@@ -67,8 +92,15 @@ describe('signRequest against the AWS examples', () => {
 })
 
 describe('signRequest', () => {
-  async function signature(request: Request, options: Partial<Parameters<typeof signRequest>[2]> = {}): Promise<string> {
-    const signed = await signRequest(request, credentials, { region, date, ...options })
+  async function signature(
+    request: Request,
+    options: Partial<Parameters<typeof signRequest>[2]> = {},
+  ): Promise<string> {
+    const signed = await signRequest(request, credentials, {
+      region,
+      date,
+      ...options,
+    })
     return signed.headers.get('authorization')!.split('Signature=')[1]!
   }
 
@@ -89,21 +121,44 @@ describe('signRequest', () => {
   })
 
   it('a body without a hash is declared UNSIGNED-PAYLOAD, no body is the empty hash', async () => {
-    const withBody = await signRequest(new Request(`${bucket}/x`, { method: 'PUT', body: new Uint8Array([1]) }), credentials, { region, date })
+    const withBody = await signRequest(
+      new Request(`${bucket}/x`, { method: 'PUT', body: new Uint8Array([1]) }),
+      credentials,
+      { region, date },
+    )
     expect(withBody.headers.get('x-amz-content-sha256')).toBe(UNSIGNED_PAYLOAD)
-    const noBody = await signRequest(new Request(`${bucket}/x`, { method: 'DELETE' }), credentials, { region, date })
+    const noBody = await signRequest(
+      new Request(`${bucket}/x`, { method: 'DELETE' }),
+      credentials,
+      { region, date },
+    )
     expect(noBody.headers.get('x-amz-content-sha256')).toBe(EMPTY_PAYLOAD_HASH)
   })
 
   it('the host with its port, the region and the service are part of the signature', async () => {
     const local = await signature(new Request('http://localhost:9000/bucket/key'))
     expect(local).not.toBe(await signature(new Request('http://localhost:9001/bucket/key')))
-    expect(local).not.toBe(await signature(new Request('http://localhost:9000/bucket/key'), { region: 'auto' }))
-    expect(local).not.toBe(await signature(new Request('http://localhost:9000/bucket/key'), { service: 'sqs' }))
+    expect(local).not.toBe(
+      await signature(new Request('http://localhost:9000/bucket/key'), {
+        region: 'auto',
+      }),
+    )
+    expect(local).not.toBe(
+      await signature(new Request('http://localhost:9000/bucket/key'), {
+        service: 'sqs',
+      }),
+    )
   })
 
   it('drops an Authorization header the caller set, so re-signing a signed request reproduces it', async () => {
-    const first = await signRequest(new Request(`${bucket}/x`, { headers: { Authorization: 'stale' } }), credentials, { region, date })
+    const first = await signRequest(
+      new Request(`${bucket}/x`, { headers: { Authorization: 'stale' } }),
+      credentials,
+      {
+        region,
+        date,
+      },
+    )
     const again = await signRequest(first, credentials, { region, date })
     expect(again.headers.get('authorization')).toBe(first.headers.get('authorization'))
   })

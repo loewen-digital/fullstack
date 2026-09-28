@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'vite-plus/test'
 import { createPermissions } from '../index.js'
 import { ForbiddenError } from '../../errors/http-errors.js'
 
@@ -23,7 +23,10 @@ describe('createPermissions', () => {
 describe('RBAC — roles and permissions', () => {
   it('assigns and checks role', () => {
     const perms = createPermissions()
-    perms.defineRole({ name: 'editor', permissions: ['posts.create', 'posts.update'] })
+    perms.defineRole({
+      name: 'editor',
+      permissions: ['posts.create', 'posts.update'],
+    })
     perms.assignRole('u1', 'editor')
     expect(perms.hasRole('u1', 'editor')).toBe(true)
     expect(perms.hasRole('u1', 'admin')).toBe(false)
@@ -93,7 +96,11 @@ describe('RBAC — roles and permissions', () => {
   it('inherits permissions from parent roles', async () => {
     const perms = createPermissions()
     perms.defineRole({ name: 'viewer', permissions: ['posts.read'] })
-    perms.defineRole({ name: 'editor', permissions: ['posts.create'], inherits: ['viewer'] })
+    perms.defineRole({
+      name: 'editor',
+      permissions: ['posts.create'],
+      inherits: ['viewer'],
+    })
     perms.assignRole('u1', 'editor')
     const user = { id: 'u1' }
     expect(await perms.can(user, 'posts.read')).toBe(true)
@@ -113,7 +120,11 @@ describe('RBAC — roles and permissions', () => {
   it('getPermissions() returns all permissions for user', () => {
     const perms = createPermissions()
     perms.defineRole({ name: 'viewer', permissions: ['posts.read'] })
-    perms.defineRole({ name: 'editor', permissions: ['posts.create'], inherits: ['viewer'] })
+    perms.defineRole({
+      name: 'editor',
+      permissions: ['posts.create'],
+      inherits: ['viewer'],
+    })
     perms.assignRole('u1', 'editor')
     const permissions = perms.getPermissions('u1')
     expect(permissions).toContain('posts.read')

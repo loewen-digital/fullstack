@@ -139,7 +139,7 @@ export default defineConfig({ plugins: [fullstackPlugin()] })
 
 ## Contributing
 
-The rules for changes live in [AGENTS.md](AGENTS.md); every change a user would notice gets a line in [CHANGELOG.md](CHANGELOG.md). `npm run lint && npm run typecheck && npm test && npm run build` must pass.
+The rules for changes live in [AGENTS.md](AGENTS.md); every change a user would notice gets a line in [CHANGELOG.md](CHANGELOG.md). `npm run check && npm test && npm run build` must pass.
 
 ## License
 

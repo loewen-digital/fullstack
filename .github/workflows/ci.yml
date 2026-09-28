@@ -11,7 +11,7 @@ env:
 
 jobs:
   ci:
-    name: Test, Lint & Typecheck
+    name: Check, test, build
     runs-on: ubuntu-latest
 
     steps:
@@ -25,11 +25,11 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Lint
-        run: npm run lint
-
-      - name: Typecheck
-        run: npm run typecheck
+      - name: Format, lint, types
+        run: npm run check
 
       - name: Test
         run: npm run test
+
+      - name: Build and smoke-test dist
+        run: npm run build

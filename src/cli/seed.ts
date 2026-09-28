@@ -36,7 +36,10 @@ export async function seedRun(file?: string): Promise<void> {
     }
 
     console.log(`Running seed: ${resolvedPath}`)
-    const mod = await import(resolvedPath) as { default?: (db: DbInstance) => Promise<void>; seed?: (db: DbInstance) => Promise<void> }
+    const mod = (await import(resolvedPath)) as {
+      default?: (db: DbInstance) => Promise<void>
+      seed?: (db: DbInstance) => Promise<void>
+    }
     const seedFn = mod.default ?? mod.seed
 
     if (typeof seedFn !== 'function') {

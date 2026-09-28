@@ -19,7 +19,10 @@ function writeFile(filePath: string, content: string): void {
 }
 
 function timestamp(): string {
-  return new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14)
+  return new Date()
+    .toISOString()
+    .replace(/[-:T.Z]/g, '')
+    .slice(0, 14)
 }
 
 export function generateMigration(name: string): void {
@@ -28,7 +31,10 @@ export function generateMigration(name: string): void {
     process.exit(1)
   }
 
-  const slug = name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
+  const slug = name
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/[^a-z0-9_]/g, '')
   const fileName = `${timestamp()}_${slug}.ts`
   const filePath = resolve(process.cwd(), 'drizzle', 'migrations', fileName)
 

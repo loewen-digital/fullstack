@@ -39,7 +39,7 @@ export function createSearch(config: SearchConfig): SearchInstance {
   } else if (typeof config.driver === 'object') {
     driver = config.driver as SearchDriver
   } else {
-    throw new Error(`Unknown search driver: "${config.driver}"`)
+    throw new Error(`Unknown search driver: "${String(config.driver)}"`)
   }
 
   return {

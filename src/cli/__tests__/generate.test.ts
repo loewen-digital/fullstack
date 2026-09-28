@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vite-plus/test'
 import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -37,7 +37,9 @@ describe('generateMigration', () => {
 
   it('exits if name is empty', async () => {
     const { generateMigration } = await import('../generate.js')
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => { throw new Error('exit') }) as never)
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {
+      throw new Error('exit')
+    }) as never)
     expect(() => generateMigration('')).toThrow('exit')
     exitSpy.mockRestore()
   })
@@ -57,7 +59,9 @@ describe('generateFactory', () => {
 
   it('exits if name is empty', async () => {
     const { generateFactory } = await import('../generate.js')
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => { throw new Error('exit') }) as never)
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {
+      throw new Error('exit')
+    }) as never)
     expect(() => generateFactory('')).toThrow('exit')
     exitSpy.mockRestore()
   })
@@ -65,7 +69,9 @@ describe('generateFactory', () => {
   it('exits if file already exists', async () => {
     const { generateFactory } = await import('../generate.js')
     generateFactory('post')
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => { throw new Error('exit') }) as never)
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {
+      throw new Error('exit')
+    }) as never)
     expect(() => generateFactory('post')).toThrow('exit')
     exitSpy.mockRestore()
   })
@@ -85,7 +91,9 @@ describe('generateSeed', () => {
 
   it('exits if name is empty', async () => {
     const { generateSeed } = await import('../generate.js')
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => { throw new Error('exit') }) as never)
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {
+      throw new Error('exit')
+    }) as never)
     expect(() => generateSeed('')).toThrow('exit')
     exitSpy.mockRestore()
   })

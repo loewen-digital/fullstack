@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'vite-plus/test'
 import {
   FullstackError,
   NotFoundError,
@@ -35,16 +35,66 @@ describe('FullstackError', () => {
 
 describe('HTTP error classes', () => {
   const cases = [
-    { Cls: NotFoundError, code: 'NOT_FOUND', status: 404, defaultMsg: 'Not found' },
-    { Cls: UnauthorizedError, code: 'UNAUTHORIZED', status: 401, defaultMsg: 'Unauthorized' },
-    { Cls: ForbiddenError, code: 'FORBIDDEN', status: 403, defaultMsg: 'Forbidden' },
-    { Cls: ConflictError, code: 'CONFLICT', status: 409, defaultMsg: 'Conflict' },
-    { Cls: InternalError, code: 'INTERNAL_ERROR', status: 500, defaultMsg: 'Internal server error' },
-    { Cls: ConfigError, code: 'CONFIG_ERROR', status: 500, defaultMsg: 'Config failed' },
-    { Cls: DatabaseError, code: 'DATABASE_ERROR', status: 500, defaultMsg: 'DB failed' },
-    { Cls: AuthError, code: 'AUTH_ERROR', status: 401, defaultMsg: 'Auth failed' },
-    { Cls: MailError, code: 'MAIL_ERROR', status: 500, defaultMsg: 'Mail failed' },
-    { Cls: StorageError, code: 'STORAGE_ERROR', status: 500, defaultMsg: 'Storage failed' },
+    {
+      Cls: NotFoundError,
+      code: 'NOT_FOUND',
+      status: 404,
+      defaultMsg: 'Not found',
+    },
+    {
+      Cls: UnauthorizedError,
+      code: 'UNAUTHORIZED',
+      status: 401,
+      defaultMsg: 'Unauthorized',
+    },
+    {
+      Cls: ForbiddenError,
+      code: 'FORBIDDEN',
+      status: 403,
+      defaultMsg: 'Forbidden',
+    },
+    {
+      Cls: ConflictError,
+      code: 'CONFLICT',
+      status: 409,
+      defaultMsg: 'Conflict',
+    },
+    {
+      Cls: InternalError,
+      code: 'INTERNAL_ERROR',
+      status: 500,
+      defaultMsg: 'Internal server error',
+    },
+    {
+      Cls: ConfigError,
+      code: 'CONFIG_ERROR',
+      status: 500,
+      defaultMsg: 'Config failed',
+    },
+    {
+      Cls: DatabaseError,
+      code: 'DATABASE_ERROR',
+      status: 500,
+      defaultMsg: 'DB failed',
+    },
+    {
+      Cls: AuthError,
+      code: 'AUTH_ERROR',
+      status: 401,
+      defaultMsg: 'Auth failed',
+    },
+    {
+      Cls: MailError,
+      code: 'MAIL_ERROR',
+      status: 500,
+      defaultMsg: 'Mail failed',
+    },
+    {
+      Cls: StorageError,
+      code: 'STORAGE_ERROR',
+      status: 500,
+      defaultMsg: 'Storage failed',
+    },
   ] as const
 
   for (const { Cls, code, status, defaultMsg } of cases) {
@@ -110,12 +160,20 @@ describe('serializeError()', () => {
 
   it('serializes plain Error', () => {
     const result = serializeError(new Error('boom'))
-    expect(result).toEqual({ error: 'INTERNAL_ERROR', message: 'boom', statusCode: 500 })
+    expect(result).toEqual({
+      error: 'INTERNAL_ERROR',
+      message: 'boom',
+      statusCode: 500,
+    })
   })
 
   it('serializes unknown values', () => {
     const result = serializeError('string error')
-    expect(result).toEqual({ error: 'UNKNOWN_ERROR', message: 'string error', statusCode: 500 })
+    expect(result).toEqual({
+      error: 'UNKNOWN_ERROR',
+      message: 'string error',
+      statusCode: 500,
+    })
   })
 })
 
@@ -124,7 +182,7 @@ describe('errorToResponse()', () => {
     const res = errorToResponse(new NotFoundError('Not here'))
     expect(res.status).toBe(404)
     expect(res.headers.get('content-type')).toBe('application/json')
-    const body = await res.json() as { error: string; message: string }
+    const body = (await res.json()) as { error: string; message: string }
     expect(body.error).toBe('NOT_FOUND')
     expect(body.message).toBe('Not here')
   })

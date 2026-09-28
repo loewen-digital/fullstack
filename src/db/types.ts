@@ -30,7 +30,7 @@ export interface Factory<T> {
   createMany(count: number, overrides?: Partial<T>): Promise<T[]>
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// oxlint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnyDrizzleDb = BetterSQLite3Database<any>
 
 export interface DbInstance<TSchema extends Record<string, unknown> = Record<string, unknown>> {

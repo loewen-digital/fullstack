@@ -1,6 +1,6 @@
 // Events types — Task 2.3
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// oxlint-disable-next-line @typescript-eslint/no-explicit-any
 export type EventMap = Record<string, any>
 
 export type EventListener<T> = (payload: T) => void | Promise<void>

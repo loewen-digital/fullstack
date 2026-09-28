@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'vite-plus/test'
 import {
   createRemixLoader,
   createRemixAction,
@@ -15,11 +15,13 @@ import type { RemixFunctionArgs } from '../types.js'
 
 // ── Test helpers ───────────────────────────────────────────────────────────────
 
-function makeArgs(overrides: {
-  method?: string
-  url?: string
-  headers?: Record<string, string>
-} = {}): RemixFunctionArgs {
+function makeArgs(
+  overrides: {
+    method?: string
+    url?: string
+    headers?: Record<string, string>
+  } = {},
+): RemixFunctionArgs {
   const method = overrides.method ?? 'GET'
   const url = overrides.url ?? 'http://localhost/'
 
@@ -165,20 +167,19 @@ describe('createRemixAction', () => {
       return null
     })
 
-    await action(makeArgs({
-      method: 'POST',
-      headers: { cookie: `fsid=${sessionId}`, 'x-csrf-token': token },
-    }))
+    await action(
+      makeArgs({
+        method: 'POST',
+        headers: { cookie: `fsid=${sessionId}`, 'x-csrf-token': token },
+      }),
+    )
 
     expect(verified).toBe(true)
   })
 
   it('skips CSRF for exempt paths', async () => {
     const security = createSecurity({ csrf: { secret: 'test-secret' } })
-    const wrap = createRemixAction(
-      { security },
-      { csrfExemptPaths: ['/webhooks'] },
-    )
+    const wrap = createRemixAction({ security }, { csrfExemptPaths: ['/webhooks'] })
 
     let verified: boolean | undefined
     const action = wrap(async (fsArgs) => {
@@ -337,11 +338,21 @@ describe('validateBody', () => {
 // ── auth: the validated session is exposed, no user object (#9) ───────────────
 
 describe('auth integration', () => {
-  const authSession: AuthSession = { id: 's1', userId: 'u1', token: 'good', expiresAt: new Date(Date.now() + 60_000), createdAt: new Date() }
-  const auth = { validateSession: async (token: string) => (token === 'good' ? authSession : null) } as unknown as AuthInstance
+  const authSession: AuthSession = {
+    id: 's1',
+    userId: 'u1',
+    token: 'good',
+    expiresAt: new Date(Date.now() + 60_000),
+    createdAt: new Date(),
+  }
+  const auth = {
+    validateSession: async (token: string) => (token === 'good' ? authSession : null),
+  } as unknown as AuthInstance
 
   it('hands the loader the validated session and no user object', async () => {
-    const fsArgs = await withFullstack(makeArgs({ headers: { cookie: 'fs_token=good' } }), { auth })
+    const fsArgs = await withFullstack(makeArgs({ headers: { cookie: 'fs_token=good' } }), {
+      auth,
+    })
     expect(fsArgs.authSession).toEqual(authSession)
     expect('user' in fsArgs).toBe(false)
   })

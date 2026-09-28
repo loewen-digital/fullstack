@@ -151,9 +151,7 @@ async function buildFullstackArgs(
       csrfVerified = true
     } else {
       const csrfToken =
-        request.headers.get('x-csrf-token') ??
-        request.headers.get('x-xsrf-token') ??
-        null
+        request.headers.get('x-csrf-token') ?? request.headers.get('x-xsrf-token') ?? null
 
       const sessionId = sessionHandle?.id ?? getRequestCookie(request, sessionCookie) ?? ''
       csrfVerified = false

@@ -90,7 +90,9 @@ export async function signPayload(
   )
 
   const data: BufferSource =
-    typeof payload === 'string' ? new TextEncoder().encode(payload) : payload.buffer as ArrayBuffer
+    typeof payload === 'string'
+      ? new TextEncoder().encode(payload)
+      : (payload.buffer as ArrayBuffer)
 
   const signatureBuffer = await crypto.subtle.sign('HMAC', cryptoKey, data)
   return bytesToHex(new Uint8Array(signatureBuffer))

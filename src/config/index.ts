@@ -34,14 +34,11 @@ export function defineConfig(config: FullstackConfig): FullstackConfig {
  */
 export async function loadConfig(root?: string): Promise<FullstackConfig> {
   const base = root ?? (typeof process !== 'undefined' ? process.cwd() : '')
-  const paths = [
-    `${base}/fullstack.config.ts`,
-    `${base}/fullstack.config.js`,
-  ]
+  const paths = [`${base}/fullstack.config.ts`, `${base}/fullstack.config.js`]
 
   for (const path of paths) {
     try {
-      const mod = await import(path) as { default?: FullstackConfig }
+      const mod = (await import(path)) as { default?: FullstackConfig }
       if (mod.default) return mod.default
     } catch {
       // file not found — try next path

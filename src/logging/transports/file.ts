@@ -39,10 +39,22 @@ export function fileTransport(config: FileTransportConfig): LogTransport {
     for (let i = maxFiles - 1; i >= 1; i--) {
       const from = `${config.path}.${i}`
       const to = `${config.path}.${i + 1}`
-      try { await rename(from, to) } catch { /* doesn't exist */ }
+      try {
+        await rename(from, to)
+      } catch {
+        /* doesn't exist */
+      }
     }
-    try { await unlink(`${config.path}.${maxFiles + 1}`) } catch { /* ignore */ }
-    try { await rename(config.path, `${config.path}.1`) } catch { /* ignore */ }
+    try {
+      await unlink(`${config.path}.${maxFiles + 1}`)
+    } catch {
+      /* ignore */
+    }
+    try {
+      await rename(config.path, `${config.path}.1`)
+    } catch {
+      /* ignore */
+    }
     currentSize = 0
     rotating = false
   }

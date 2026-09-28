@@ -38,7 +38,10 @@ export async function sha256Hex(data: Uint8Array<ArrayBuffer> | string): Promise
  * upper-case hex, space as `%20`, `/` as `%2F`. `encodeURIComponent` leaves `!'()*` alone.
  */
 export function uriEncode(value: string): string {
-  return encodeURIComponent(value).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)
+  return encodeURIComponent(value).replace(
+    /[!'()*]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+  )
 }
 
 /** An object key as the path of its URL: every segment encoded once, `/` kept */
@@ -62,7 +65,8 @@ export async function signRequest(
   const amzDate = date.toISOString().replace(/[-:]|\.\d{3}/g, '')
   const dateStamp = amzDate.slice(0, 8)
   const scope = `${dateStamp}/${options.region}/${service}/aws4_request`
-  const payloadHash = options.payloadHash ?? (request.body === null ? EMPTY_PAYLOAD_HASH : UNSIGNED_PAYLOAD)
+  const payloadHash =
+    options.payloadHash ?? (request.body === null ? EMPTY_PAYLOAD_HASH : UNSIGNED_PAYLOAD)
 
   const url = new URL(request.url)
   const headers = new Headers(request.headers)
@@ -85,9 +89,13 @@ export async function signRequest(
     payloadHash,
   ].join('\n')
 
-  const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, await sha256Hex(canonicalRequest)].join('\n')
+  const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, await sha256Hex(canonicalRequest)].join(
+    '\n',
+  )
 
-  let key: Uint8Array<ArrayBuffer> | ArrayBuffer = encoder.encode(`AWS4${credentials.secretAccessKey}`)
+  let key: Uint8Array<ArrayBuffer> | ArrayBuffer = encoder.encode(
+    `AWS4${credentials.secretAccessKey}`,
+  )
   for (const part of [dateStamp, options.region, service, 'aws4_request']) {
     key = await hmac(key, part)
   }
@@ -101,7 +109,10 @@ export async function signRequest(
 }
 
 function canonicalPath(pathname: string): string {
-  return pathname.split('/').map((segment) => uriEncode(decodeSegment(segment))).join('/')
+  return pathname
+    .split('/')
+    .map((segment) => uriEncode(decodeSegment(segment)))
+    .join('/')
 }
 
 function decodeSegment(segment: string): string {
@@ -125,8 +136,17 @@ function compare(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0
 }
 
-async function hmac(key: Uint8Array<ArrayBuffer> | ArrayBuffer, data: string): Promise<ArrayBuffer> {
-  const cryptoKey = await crypto.subtle.importKey('raw', key, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+async function hmac(
+  key: Uint8Array<ArrayBuffer> | ArrayBuffer,
+  data: string,
+): Promise<ArrayBuffer> {
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    key,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  )
   return crypto.subtle.sign('HMAC', cryptoKey, encoder.encode(data))
 }
 

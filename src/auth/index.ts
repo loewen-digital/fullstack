@@ -1,13 +1,32 @@
-import type { AuthConfig, AuthDbAdapter, AuthInstance, AuthUser, AuthSession, OAuthProviderConfig, OAuthProvider } from './types.js'
+import type {
+  AuthConfig,
+  AuthDbAdapter,
+  AuthInstance,
+  AuthUser,
+  AuthSession,
+  OAuthProviderConfig,
+  OAuthProvider,
+} from './types.js'
 import { hashPassword, verifyPassword } from './password.js'
-import { createAuthSession, validateAuthSession, destroyAuthSession, destroyUserSessions } from './session.js'
+import {
+  createAuthSession,
+  validateAuthSession,
+  destroyAuthSession,
+  destroyUserSessions,
+} from './session.js'
 import { generateToken, verifyToken } from './token.js'
 import { sendVerificationEmail, verifyEmail } from './email-verification.js'
 import { sendPasswordResetEmail, resetPassword } from './password-reset.js'
 import { createOAuthProvider } from './oauth.js'
 
 export type { AuthInstance, AuthUser, AuthSession, AuthDbAdapter, AuthConfig }
-export type { AuthToken, OAuthProvider, OAuthProviderConfig, OAuthTokens, OAuthUserInfo } from './types.js'
+export type {
+  AuthToken,
+  OAuthProvider,
+  OAuthProviderConfig,
+  OAuthTokens,
+  OAuthUserInfo,
+} from './types.js'
 export { hashPassword, verifyPassword } from './password.js'
 export { hashToken } from './opaque-token.js'
 export { createOAuthProvider } from './oauth.js'
@@ -23,10 +42,7 @@ export { createOAuthProvider } from './oauth.js'
  *   const session = await auth.createSession(user)
  *   const valid = await auth.validateSession(session.token)
  */
-export function createAuth(
-  config: AuthConfig,
-  deps: { db: AuthDbAdapter },
-): AuthInstance {
+export function createAuth(config: AuthConfig, deps: { db: AuthDbAdapter }): AuthInstance {
   const { db } = deps
   const sessionTtl = config.sessionTtl ?? 7 * 24 * 3600
   const emailVerificationTtl = config.emailVerificationTtl ?? 24 * 3600

@@ -19,10 +19,7 @@ import type { Factory, FactoryDefinition, DbInstance } from './types.js'
  *
  *   const user = await userFactory.create({ name: 'Bob' })
  */
-export function createFactory<T>(
-  definition: FactoryDefinition<T>,
-  db: DbInstance,
-): Factory<T> {
+export function createFactory<T>(definition: FactoryDefinition<T>, db: DbInstance): Factory<T> {
   return {
     make(overrides?: Partial<T>): T {
       return definition.build(overrides)

@@ -32,7 +32,7 @@ export function createFakeMailDriver(): FakeMailDriver {
   function normalizeAddresses(addr: MailMessage['to']): string[] {
     if (!addr) return []
     const list = Array.isArray(addr) ? addr : [addr]
-    return list.map(a => (typeof a === 'string' ? a : a.email))
+    return list.map((a) => (typeof a === 'string' ? a : a.email))
   }
 
   return {
@@ -47,18 +47,18 @@ export function createFakeMailDriver(): FakeMailDriver {
     },
 
     sentTo(address: string): MailMessage[] {
-      return sent.filter(m => {
+      return sent.filter((m) => {
         const recipients = [
           ...normalizeAddresses(m.to),
           ...(m.cc ? normalizeAddresses(m.cc) : []),
           ...(m.bcc ? normalizeAddresses(m.bcc) : []),
         ]
-        return recipients.some(r => r === address)
+        return recipients.some((r) => r === address)
       })
     },
 
     sentWithSubject(subject: string): MailMessage[] {
-      return sent.filter(m => m.subject === subject)
+      return sent.filter((m) => m.subject === subject)
     },
 
     clear(): void {

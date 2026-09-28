@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vite-plus/test'
 import { createWebhooks, signPayload, verifyIncomingWebhook } from '../index.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -34,7 +34,10 @@ describe('signPayload / verifyIncomingWebhook', () => {
   it('signs and verifies a payload', async () => {
     const sig = await signPayload(body, secret)
     const req = makeRequest(body, { 'x-signature': sig })
-    const result = await verifyIncomingWebhook(req, { secret, header: 'x-signature' })
+    const result = await verifyIncomingWebhook(req, {
+      secret,
+      header: 'x-signature',
+    })
     expect(result.valid).toBe(true)
   })
 
@@ -50,14 +53,20 @@ describe('signPayload / verifyIncomingWebhook', () => {
 
   it('returns invalid for wrong signature', async () => {
     const req = makeRequest(body, { 'x-signature': 'deadbeef' })
-    const result = await verifyIncomingWebhook(req, { secret, header: 'x-signature' })
+    const result = await verifyIncomingWebhook(req, {
+      secret,
+      header: 'x-signature',
+    })
     expect(result.valid).toBe(false)
     expect(result.reason).toMatch(/mismatch/i)
   })
 
   it('returns invalid for missing header', async () => {
     const req = makeRequest(body)
-    const result = await verifyIncomingWebhook(req, { secret, header: 'x-signature' })
+    const result = await verifyIncomingWebhook(req, {
+      secret,
+      header: 'x-signature',
+    })
     expect(result.valid).toBe(false)
     expect(result.reason).toMatch(/missing/i)
   })
@@ -138,7 +147,11 @@ describe('send() outgoing webhooks', () => {
     mockFetch.mockResolvedValueOnce(new Response('ok', { status: 200 }))
 
     const wh = createWebhooks({ secret: 'my-secret' })
-    await wh.send({ url: 'https://x.com/hook', event: 'ping', payload: { x: 1 } })
+    await wh.send({
+      url: 'https://x.com/hook',
+      event: 'ping',
+      payload: { x: 1 },
+    })
 
     const [, init] = mockFetch.mock.calls[0]!
     const headers = init?.headers as Record<string, string>
@@ -150,7 +163,11 @@ describe('send() outgoing webhooks', () => {
     mockFetch.mockRejectedValue(new Error('network error'))
 
     const wh = createWebhooks({ maxRetries: 2, retryDelay: 0 })
-    const result = await wh.send({ url: 'https://x.com/hook', event: 'ping', payload: {} })
+    const result = await wh.send({
+      url: 'https://x.com/hook',
+      event: 'ping',
+      payload: {},
+    })
 
     expect(result.ok).toBe(false)
     expect(result.attempts).toBe(3) // 1 initial + 2 retries
@@ -164,7 +181,11 @@ describe('send() outgoing webhooks', () => {
       .mockResolvedValueOnce(new Response('ok', { status: 200 }))
 
     const wh = createWebhooks({ maxRetries: 3, retryDelay: 0 })
-    const result = await wh.send({ url: 'https://x.com/hook', event: 'ping', payload: {} })
+    const result = await wh.send({
+      url: 'https://x.com/hook',
+      event: 'ping',
+      payload: {},
+    })
 
     expect(result.ok).toBe(true)
     expect(result.attempts).toBe(2)

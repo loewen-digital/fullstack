@@ -1,10 +1,14 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'vite-plus/test'
 import { createLogger } from '../index.js'
 import type { LogEntry, LogTransport } from '../types.js'
 
 function captureTransport(): { transport: LogTransport; entries: LogEntry[] } {
   const entries: LogEntry[] = []
-  const transport: LogTransport = { log: (e) => { entries.push(e) } }
+  const transport: LogTransport = {
+    log: (e) => {
+      entries.push(e)
+    },
+  }
   return { transport, entries }
 }
 
@@ -71,7 +75,11 @@ describe('createLogger', () => {
     const child = logger.child({ module: 'auth' })
     child.info('login', { userId: 99 })
 
-    expect(entries[0]!.context).toEqual({ env: 'test', module: 'auth', userId: 99 })
+    expect(entries[0]!.context).toEqual({
+      env: 'test',
+      module: 'auth',
+      userId: 99,
+    })
   })
 
   it('supports all log levels', () => {
@@ -99,7 +107,9 @@ describe('createLogger', () => {
 
   it('does not crash when an async transport rejects', async () => {
     const badTransport: LogTransport = {
-      log: async () => { throw new Error('transport error') },
+      log: async () => {
+        throw new Error('transport error')
+      },
     }
     const logger = createLogger({ transports: [badTransport] })
     // Should not throw synchronously

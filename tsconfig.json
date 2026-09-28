@@ -4,7 +4,7 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "lib": ["ES2022", "DOM"],
-    "types": ["node", "vitest/globals"],
+    "types": ["node", "vite-plus/test/globals"],
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "isolatedModules": true,

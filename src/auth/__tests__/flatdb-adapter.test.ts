@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vite-plus/test'
 import { readFileSync } from 'node:fs'
 import { flatdb, collection, MemoryAdapter, type Collection } from '@loewen-digital/flatdb'
 import { z } from 'zod'
@@ -35,9 +35,18 @@ beforeEach(() => {
 
 describe('full auth flow on flatdb', () => {
   it('runs sessions, one-time tokens, email verification and password reset through createAuth', async () => {
-    const inserted = await db.users.insert({ email: 'alice@example.com', passwordHash: null, emailVerifiedAt: null })
+    const inserted = await db.users.insert({
+      email: 'alice@example.com',
+      passwordHash: null,
+      emailVerifiedAt: null,
+    })
     const user = await adapter.findUserByEmail('alice@example.com')
-    expect(user).toEqual({ id: inserted._id, email: 'alice@example.com', passwordHash: null, emailVerifiedAt: null })
+    expect(user).toEqual({
+      id: inserted._id,
+      email: 'alice@example.com',
+      passwordHash: null,
+      emailVerifiedAt: null,
+    })
 
     // session: create, validate, destroy
     const session = await auth.createSession(user!)
@@ -57,14 +66,18 @@ describe('full auth flow on flatdb', () => {
 
     // email verification
     let sent = ''
-    await auth.sendVerificationEmail(user!, async (_email, t) => { sent = t })
+    await auth.sendVerificationEmail(user!, async (_email, t) => {
+      sent = t
+    })
     const verified = await auth.verifyEmail(sent)
     expect(verified?.id).toBe(user!.id)
     expect(verified?.emailVerifiedAt).toBeInstanceOf(Date)
 
     // password reset: returns the user, revokes the sessions
     const live = await auth.createSession(user!)
-    await auth.sendPasswordResetEmail(user!, async (_email, t) => { sent = t })
+    await auth.sendPasswordResetEmail(user!, async (_email, t) => {
+      sent = t
+    })
     const reset = await auth.resetPassword(sent, 'new-secret')
     expect(reset?.id).toBe(user!.id)
     expect(await auth.verifyPassword('new-secret', reset!.passwordHash!)).toBe(true)
@@ -158,13 +171,28 @@ describe('deleteUserSessions', () => {
 })
 
 describe('deleteExpiredSessions', () => {
-  it('removes only the given user\'s expired sessions', async () => {
+  it("removes only the given user's expired sessions", async () => {
     const past = new Date(Date.now() - 60_000)
     const future = new Date(Date.now() + 60_000)
     const base = { createdAt: past }
-    await adapter.createSession({ ...base, userId: 'u1', token: 'u1-expired', expiresAt: past })
-    await adapter.createSession({ ...base, userId: 'u1', token: 'u1-live', expiresAt: future })
-    await adapter.createSession({ ...base, userId: 'u2', token: 'u2-expired', expiresAt: past })
+    await adapter.createSession({
+      ...base,
+      userId: 'u1',
+      token: 'u1-expired',
+      expiresAt: past,
+    })
+    await adapter.createSession({
+      ...base,
+      userId: 'u1',
+      token: 'u1-live',
+      expiresAt: future,
+    })
+    await adapter.createSession({
+      ...base,
+      userId: 'u2',
+      token: 'u2-expired',
+      expiresAt: past,
+    })
 
     await adapter.deleteExpiredSessions('u1')
 
@@ -200,9 +228,17 @@ describe('users collection with a zod schema', () => {
     adapter = createFlatdbAuthAdapter(db)
     auth = createAuth({}, { db: adapter })
 
-    const { _id } = await db.users.insert({ email: 'erin@example.com', name: 'Erin' })
+    const { _id } = await db.users.insert({
+      email: 'erin@example.com',
+      name: 'Erin',
+    })
     const user = await adapter.findUserById(_id)
-    expect(user).toEqual({ id: _id, email: 'erin@example.com', passwordHash: null, emailVerifiedAt: null })
+    expect(user).toEqual({
+      id: _id,
+      email: 'erin@example.com',
+      passwordHash: null,
+      emailVerifiedAt: null,
+    })
 
     await adapter.markEmailVerified(_id)
     await adapter.updateUserPassword(_id, 'scrypt:hash')
@@ -216,7 +252,10 @@ describe('users collection with a zod schema', () => {
     db = openDb(z.object({ name: z.string() }))
     adapter = createFlatdbAuthAdapter(db)
 
-    const { _id } = await db.users.insert({ name: 'No Email', email: 'stripped@example.com' })
+    const { _id } = await db.users.insert({
+      name: 'No Email',
+      email: 'stripped@example.com',
+    })
     await expect(adapter.findUserById(_id)).rejects.toThrow(/must declare email/)
     expect(await adapter.findUserByEmail('stripped@example.com')).toBeNull()
   })

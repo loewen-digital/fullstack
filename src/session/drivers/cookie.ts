@@ -14,7 +14,8 @@ import type { SessionDriver, SessionData, SessionPayload } from '../types.js'
  * `SessionManager.open(cookie)` and `commit(handle)`, as the framework adapters do.
  */
 
-export type CookieSessionDriver = SessionDriver & Required<Pick<SessionDriver, 'serialize' | 'parse'>>
+export type CookieSessionDriver = SessionDriver &
+  Required<Pick<SessionDriver, 'serialize' | 'parse'>>
 
 interface Envelope extends SessionPayload {
   /** Expiry as unix seconds */
@@ -29,14 +30,23 @@ function encodeBase64Url(bytes: Uint8Array): string {
 }
 
 function decodeBase64Url(str: string): string {
-  const padded = str.replace(/-/g, '+').replace(/_/g, '/').padEnd(str.length + ((4 - (str.length % 4)) % 4), '=')
+  const padded = str
+    .replace(/-/g, '+')
+    .replace(/_/g, '/')
+    .padEnd(str.length + ((4 - (str.length % 4)) % 4), '=')
   const bytes = Uint8Array.from(atob(padded), (c) => c.charCodeAt(0))
   return new TextDecoder().decode(bytes)
 }
 
 async function sign(payload: string, secret: string): Promise<string> {
   const keyBytes = new TextEncoder().encode(secret)
-  const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+  const key = await crypto.subtle.importKey(
+    'raw',
+    keyBytes,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  )
   const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payload))
   return encodeBase64Url(new Uint8Array(sig))
 }
@@ -86,7 +96,11 @@ export function createCookieDriver(secret: string, ttlSeconds = 7200): CookieSes
     async destroy(): Promise<void> {},
 
     async serialize(sessionId: string, data: SessionData): Promise<string> {
-      const envelope: Envelope = { id: sessionId, data, exp: nowSeconds() + ttlSeconds }
+      const envelope: Envelope = {
+        id: sessionId,
+        data,
+        exp: nowSeconds() + ttlSeconds,
+      }
       const payload = encodeBase64Url(new TextEncoder().encode(JSON.stringify(envelope)))
       const sig = await sign(payload, secret)
       return `${payload}.${sig}`

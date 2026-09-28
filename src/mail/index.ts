@@ -4,7 +4,14 @@ import { MailError } from '../errors/http-errors.js'
 import { createConsoleDriver } from './drivers/console.js'
 import { renderTemplate } from './template.js'
 
-export type { MailConfig, MailDriver, MailInstance, MailMessage, MailAddress, MailAttachment } from './types.js'
+export type {
+  MailConfig,
+  MailDriver,
+  MailInstance,
+  MailMessage,
+  MailAddress,
+  MailAttachment,
+} from './types.js'
 export { createConsoleDriver } from './drivers/console.js'
 export { createSmtpDriver } from './drivers/smtp.js'
 export { createResendDriver } from './drivers/resend.js'
@@ -22,7 +29,9 @@ export function createMail(config: MailConfig): MailInstance {
   let driver: MailDriver & { sent?: MailMessage[] }
 
   if (config.driver === 'console') {
-    driver = createConsoleDriver({ silent: config.silent as boolean | undefined })
+    driver = createConsoleDriver({
+      silent: config.silent as boolean | undefined,
+    })
   } else if (config.driver === 'smtp') {
     throw new MailError(
       'SMTP mail driver requires configuration. ' +
@@ -51,13 +60,14 @@ export function createMail(config: MailConfig): MailInstance {
  * Low-level factory: create a mail instance from any MailDriver.
  * Use this when you need to supply a pre-configured driver.
  */
-export function createMailInstance(driver: MailDriver & { sent?: MailMessage[] }, config: MailConfig = { driver: 'console' }): MailInstance {
+export function createMailInstance(
+  driver: MailDriver & { sent?: MailMessage[] },
+  config: MailConfig = { driver: 'console' },
+): MailInstance {
   return {
     async send(message: MailMessage): Promise<void> {
       // Apply default `from` if not set on the message
-      const msg = config.from && !message.from
-        ? { ...message, from: config.from }
-        : message
+      const msg = config.from && !message.from ? { ...message, from: config.from } : message
 
       await driver.send(msg)
     },

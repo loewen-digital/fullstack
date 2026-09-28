@@ -5,10 +5,7 @@ import type { SearchDocument, SearchDriver, SearchOptions, SearchResult } from '
  * Requires Meilisearch to be running and accessible at `host`.
  * Uses the fetch-based REST API so no extra npm package is required.
  */
-export function createMeilisearchDriver(config: {
-  host: string
-  apiKey?: string
-}): SearchDriver {
+export function createMeilisearchDriver(config: { host: string; apiKey?: string }): SearchDriver {
   const { host, apiKey } = config
 
   function headers(): HeadersInit {
@@ -17,11 +14,7 @@ export function createMeilisearchDriver(config: {
     return h
   }
 
-  async function request<T>(
-    method: string,
-    path: string,
-    body?: unknown,
-  ): Promise<T> {
+  async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
     const res = await fetch(`${host}${path}`, {
       method,
       headers: headers(),
@@ -55,11 +48,10 @@ export function createMeilisearchDriver(config: {
           .join(' AND ')
       }
 
-      const result = await request<{ hits: SearchDocument[]; estimatedTotalHits: number }>(
-        'POST',
-        `/indexes/${collection}/search`,
-        body,
-      )
+      const result = await request<{
+        hits: SearchDocument[]
+        estimatedTotalHits: number
+      }>('POST', `/indexes/${collection}/search`, body)
       return { hits: result.hits, total: result.estimatedTotalHits, query }
     },
 

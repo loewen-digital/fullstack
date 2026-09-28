@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi } from 'vite-plus/test'
 import {
   createAstroMiddleware,
   getCsrfToken,
@@ -36,12 +36,17 @@ function makeCookies(initial: Record<string, string> = {}) {
   }
 }
 
-function makeContext(overrides: {
-  method?: string
-  url?: string
-  headers?: Record<string, string>
-  cookies?: Record<string, string>
-} = {}): AstroAPIContext & { locals: AstroLocals; cookies: ReturnType<typeof makeCookies> } {
+function makeContext(
+  overrides: {
+    method?: string
+    url?: string
+    headers?: Record<string, string>
+    cookies?: Record<string, string>
+  } = {},
+): AstroAPIContext & {
+  locals: AstroLocals
+  cookies: ReturnType<typeof makeCookies>
+} {
   const url = new URL(overrides.url ?? 'http://localhost/')
   const cookies = makeCookies(overrides.cookies ?? {})
 
@@ -197,10 +202,7 @@ describe('createAstroMiddleware', () => {
 
     it('skips CSRF for exempt paths', async () => {
       const security = createSecurity({ csrf: { secret: 'test-secret' } })
-      const middleware = createAstroMiddleware(
-        { security },
-        { csrfExemptPaths: ['/api/webhooks'] },
-      )
+      const middleware = createAstroMiddleware({ security }, { csrfExemptPaths: ['/api/webhooks'] })
       const context = makeContext({
         method: 'POST',
         url: 'http://localhost/api/webhooks/stripe',
@@ -306,9 +308,13 @@ describe('setAuthCookie / clearAuthCookie', () => {
 
     setAuthCookie(context, 'tok', { maxAge: 3600 })
 
-    expect(setCalled).toHaveBeenCalledWith('fs_token', 'tok', expect.objectContaining({
-      maxAge: 3600,
-    }))
+    expect(setCalled).toHaveBeenCalledWith(
+      'fs_token',
+      'tok',
+      expect.objectContaining({
+        maxAge: 3600,
+      }),
+    )
   })
 })
 
@@ -366,8 +372,16 @@ describe('validateBody', () => {
 // ── auth: the validated session is exposed, no user object (#9) ───────────────
 
 describe('auth integration', () => {
-  const authSession: AuthSession = { id: 's1', userId: 'u1', token: 'good', expiresAt: new Date(Date.now() + 60_000), createdAt: new Date() }
-  const auth = { validateSession: async (token: string) => (token === 'good' ? authSession : null) } as unknown as AuthInstance
+  const authSession: AuthSession = {
+    id: 's1',
+    userId: 'u1',
+    token: 'good',
+    expiresAt: new Date(Date.now() + 60_000),
+    createdAt: new Date(),
+  }
+  const auth = {
+    validateSession: async (token: string) => (token === 'good' ? authSession : null),
+  } as unknown as AuthInstance
 
   it('puts the validated session on locals and no user object', async () => {
     const middleware = createAstroMiddleware({ auth })

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'vite-plus/test'
 import { createStorage, createStorageInstance, createMemoryDriver } from '../index.js'
 
 describe('createStorage', () => {
@@ -22,7 +22,9 @@ describe('createStorage', () => {
   })
 
   it('throws on r2 driver without config', () => {
-    expect(() => createStorage({ driver: 'r2' })).toThrow('R2 storage driver requires credentials or the bucket binding')
+    expect(() => createStorage({ driver: 'r2' })).toThrow(
+      'R2 storage driver requires credentials or the bucket binding',
+    )
   })
 })
 

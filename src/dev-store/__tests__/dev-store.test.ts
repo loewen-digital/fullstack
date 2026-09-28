@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vite-plus/test'
 import {
   devStorePushMail,
   devStoreGetMail,
@@ -23,7 +23,12 @@ beforeEach(() => {
 
 describe('mail store', () => {
   it('stores and retrieves mail entries', () => {
-    devStorePushMail({ timestamp: '2024-01-01T00:00:00Z', to: 'a@b.com', subject: 'Hello', from: 'x@y.com' })
+    devStorePushMail({
+      timestamp: '2024-01-01T00:00:00Z',
+      to: 'a@b.com',
+      subject: 'Hello',
+      from: 'x@y.com',
+    })
     const entries = devStoreGetMail()
     expect(entries).toHaveLength(1)
     expect(entries[0]!.subject).toBe('Hello')
@@ -31,27 +36,57 @@ describe('mail store', () => {
   })
 
   it('stores most-recent first (unshift)', () => {
-    devStorePushMail({ timestamp: '2024-01-01T00:00:00Z', to: 'a@b.com', subject: 'First', from: '' })
-    devStorePushMail({ timestamp: '2024-01-01T00:00:01Z', to: 'a@b.com', subject: 'Second', from: '' })
+    devStorePushMail({
+      timestamp: '2024-01-01T00:00:00Z',
+      to: 'a@b.com',
+      subject: 'First',
+      from: '',
+    })
+    devStorePushMail({
+      timestamp: '2024-01-01T00:00:01Z',
+      to: 'a@b.com',
+      subject: 'Second',
+      from: '',
+    })
     expect(devStoreGetMail()[0]!.subject).toBe('Second')
   })
 
   it('returns a copy (mutations do not affect store)', () => {
-    devStorePushMail({ timestamp: '2024-01-01T00:00:00Z', to: 'a@b.com', subject: 'Test', from: '' })
+    devStorePushMail({
+      timestamp: '2024-01-01T00:00:00Z',
+      to: 'a@b.com',
+      subject: 'Test',
+      from: '',
+    })
     const entries = devStoreGetMail()
     entries.pop()
     expect(devStoreGetMail()).toHaveLength(1)
   })
 
   it('assigns a unique id to each entry', () => {
-    devStorePushMail({ timestamp: '2024-01-01T00:00:00Z', to: 'a@b.com', subject: 'A', from: '' })
-    devStorePushMail({ timestamp: '2024-01-01T00:00:01Z', to: 'a@b.com', subject: 'B', from: '' })
+    devStorePushMail({
+      timestamp: '2024-01-01T00:00:00Z',
+      to: 'a@b.com',
+      subject: 'A',
+      from: '',
+    })
+    devStorePushMail({
+      timestamp: '2024-01-01T00:00:01Z',
+      to: 'a@b.com',
+      subject: 'B',
+      from: '',
+    })
     const [b, a] = devStoreGetMail()
     expect(b!.id).not.toBe(a!.id)
   })
 
   it('clears all mail entries', () => {
-    devStorePushMail({ timestamp: '2024-01-01T00:00:00Z', to: 'a@b.com', subject: 'Test', from: '' })
+    devStorePushMail({
+      timestamp: '2024-01-01T00:00:00Z',
+      to: 'a@b.com',
+      subject: 'Test',
+      from: '',
+    })
     devStoreClearMail()
     expect(devStoreGetMail()).toHaveLength(0)
   })
@@ -76,7 +111,14 @@ describe('queue store', () => {
   })
 
   it('clears all jobs', () => {
-    devStorePushJob({ name: 'X', payload: {}, status: 'pending', attempts: 0, maxAttempts: 1, enqueuedAt: '' })
+    devStorePushJob({
+      name: 'X',
+      payload: {},
+      status: 'pending',
+      attempts: 0,
+      maxAttempts: 1,
+      enqueuedAt: '',
+    })
     devStoreClearJobs()
     expect(devStoreGetJobs()).toHaveLength(0)
   })
@@ -86,8 +128,17 @@ describe('queue store', () => {
 
 describe('log store', () => {
   it('stores and retrieves log entries', () => {
-    devStorePushLog({ level: 'info', message: 'App started', timestamp: new Date().toISOString() })
-    devStorePushLog({ level: 'error', message: 'Something broke', timestamp: new Date().toISOString(), context: { code: 500 } })
+    devStorePushLog({
+      level: 'info',
+      message: 'App started',
+      timestamp: new Date().toISOString(),
+    })
+    devStorePushLog({
+      level: 'error',
+      message: 'Something broke',
+      timestamp: new Date().toISOString(),
+      context: { code: 500 },
+    })
     const logs = devStoreGetLogs()
     expect(logs).toHaveLength(2)
     expect(logs[0]!.level).toBe('error') // most recent first
@@ -139,7 +190,14 @@ describe('cache store', () => {
 describe('devStoreClearAll', () => {
   it('clears mail, jobs, and logs', () => {
     devStorePushMail({ timestamp: '', to: '', subject: '', from: '' })
-    devStorePushJob({ name: 'X', payload: {}, status: 'pending', attempts: 0, maxAttempts: 1, enqueuedAt: '' })
+    devStorePushJob({
+      name: 'X',
+      payload: {},
+      status: 'pending',
+      attempts: 0,
+      maxAttempts: 1,
+      enqueuedAt: '',
+    })
     devStorePushLog({ level: 'info', message: 'hi', timestamp: '' })
     devStoreClearAll()
     expect(devStoreGetMail()).toHaveLength(0)

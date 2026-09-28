@@ -17,7 +17,15 @@ import { runSeed } from './seeds.js'
 import { createFactory } from './factories.js'
 
 export type { DbConfig }
-export type { DbInstance, PaginationResult, PaginationOptions, MigrationStatus, FactoryDefinition, Factory, AnyDrizzleDb }
+export type {
+  DbInstance,
+  PaginationResult,
+  PaginationOptions,
+  MigrationStatus,
+  FactoryDefinition,
+  Factory,
+  AnyDrizzleDb,
+}
 export { paginate as paginateHelper } from './pagination.js'
 
 // better-sqlite3 is a native binding and an optional peer dependency: it is loaded when the
@@ -29,9 +37,12 @@ function loadBetterSqlite3(): typeof BetterSqlite3Ctor {
     return load('better-sqlite3') as typeof BetterSqlite3Ctor
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'MODULE_NOT_FOUND') {
-      throw new Error('The sqlite driver needs better-sqlite3, an optional peer dependency: npm install better-sqlite3', {
-        cause: error,
-      })
+      throw new Error(
+        'The sqlite driver needs better-sqlite3, an optional peer dependency: npm install better-sqlite3',
+        {
+          cause: error,
+        },
+      )
     }
     throw error
   }
@@ -69,7 +80,10 @@ export function createDb<TSchema extends Record<string, unknown> = Record<string
     sqlite.pragma('journal_mode = WAL')
   }
 
-  const drizzleDb = drizzle(sqlite, schema ? { schema } : {}) as DrizzleBetterSqlite3.BetterSQLite3Database<TSchema>
+  const drizzleDb = drizzle(
+    sqlite,
+    schema ? { schema } : {},
+  ) as DrizzleBetterSqlite3.BetterSQLite3Database<TSchema>
 
   const migrationsFolder = config.migrations ?? './drizzle'
 

@@ -1,10 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import {
-  createNuxtMiddleware,
-  getCsrfToken,
-  setAuthCookie,
-  clearAuthCookie,
-} from '../index.js'
+import { describe, it, expect } from 'vite-plus/test'
+import { createNuxtMiddleware, getCsrfToken, setAuthCookie, clearAuthCookie } from '../index.js'
 import { createSession } from '../../../session/index.js'
 import { createSecurity } from '../../../security/index.js'
 import type { AuthInstance, AuthSession } from '../../../auth/index.js'
@@ -13,11 +8,13 @@ import type { H3Event } from '../types.js'
 
 // ── Test helpers ───────────────────────────────────────────────────────────────
 
-function makeEvent(overrides: Partial<{
-  method: string
-  path: string
-  headers: Record<string, string>
-}> = {}): H3Event & { _responseCookies: string[] } {
+function makeEvent(
+  overrides: Partial<{
+    method: string
+    path: string
+    headers: Record<string, string>
+  }> = {},
+): H3Event & { _responseCookies: string[] } {
   const responseCookies: string[] = []
   const headers = overrides.headers ?? {}
 
@@ -35,7 +32,11 @@ function makeEvent(overrides: Partial<{
         statusCode: 200,
         setHeader(name: string, value: string | string[]) {
           if (name.toLowerCase() === 'set-cookie') {
-            responseCookies.splice(0, responseCookies.length, ...(Array.isArray(value) ? value : [value]))
+            responseCookies.splice(
+              0,
+              responseCookies.length,
+              ...(Array.isArray(value) ? value : [value]),
+            )
           }
         },
         getHeader(name: string) {
@@ -159,10 +160,7 @@ describe('createNuxtMiddleware', () => {
 
     it('skips CSRF for exempt paths', async () => {
       const security = createSecurity({ csrf: { secret: 'test-secret' } })
-      const middleware = createNuxtMiddleware(
-        { security },
-        { csrfExemptPaths: ['/api/webhooks'] },
-      )
+      const middleware = createNuxtMiddleware({ security }, { csrfExemptPaths: ['/api/webhooks'] })
       const event = makeEvent({ method: 'POST', path: '/api/webhooks/stripe' })
 
       await middleware(event)
@@ -291,8 +289,16 @@ describe('HEAD and OPTIONS bypass CSRF', () => {
 // ── auth: the validated session is exposed, no user object (#9) ───────────────
 
 describe('auth integration', () => {
-  const authSession: AuthSession = { id: 's1', userId: 'u1', token: 'good', expiresAt: new Date(Date.now() + 60_000), createdAt: new Date() }
-  const auth = { validateSession: async (token: string) => (token === 'good' ? authSession : null) } as unknown as AuthInstance
+  const authSession: AuthSession = {
+    id: 's1',
+    userId: 'u1',
+    token: 'good',
+    expiresAt: new Date(Date.now() + 60_000),
+    createdAt: new Date(),
+  }
+  const auth = {
+    validateSession: async (token: string) => (token === 'good' ? authSession : null),
+  } as unknown as AuthInstance
 
   it('puts the validated session on event.context and no user object', async () => {
     const middleware = createNuxtMiddleware({ auth })

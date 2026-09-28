@@ -58,6 +58,9 @@ export async function destroyAuthSession(db: AuthDbAdapter, token: string): Prom
 /**
  * Destroy every session of a user: logout on every device, the caller's included.
  */
-export async function destroyUserSessions(db: AuthDbAdapter, userId: string | number): Promise<void> {
+export async function destroyUserSessions(
+  db: AuthDbAdapter,
+  userId: string | number,
+): Promise<void> {
   await db.deleteUserSessions(userId)
 }

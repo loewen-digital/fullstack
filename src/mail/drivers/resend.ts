@@ -17,9 +17,9 @@ export function createResendDriver(options: ResendDriverOptions): MailDriver {
     async send(message: MailMessage): Promise<void> {
       const body = {
         from: formatAddress(message.from),
-        to: toArray(message.to).map(a => formatAddress(a)),
-        cc: message.cc ? toArray(message.cc).map(a => formatAddress(a)) : undefined,
-        bcc: message.bcc ? toArray(message.bcc).map(a => formatAddress(a)) : undefined,
+        to: toArray(message.to).map((a) => formatAddress(a)),
+        cc: message.cc ? toArray(message.cc).map((a) => formatAddress(a)) : undefined,
+        bcc: message.bcc ? toArray(message.bcc).map((a) => formatAddress(a)) : undefined,
         reply_to: message.replyTo ? formatAddress(message.replyTo) : undefined,
         subject: message.subject,
         text: message.text,
@@ -29,7 +29,7 @@ export function createResendDriver(options: ResendDriverOptions): MailDriver {
       const response = await fetch(`${baseUrl}/emails`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${options.apiKey}`,
+          Authorization: `Bearer ${options.apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(body),

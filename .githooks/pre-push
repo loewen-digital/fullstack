@@ -1,5 +1,5 @@
 #!/bin/sh
-# Pre-push hook: runs lint, typecheck, and tests before every push.
+# Pre-push hook: runs check (format, lint, types) and tests before every push.
 # Installed automatically via the "prepare" npm script.
 # To skip in an emergency: git push --no-verify
 
@@ -7,11 +7,8 @@ set -e
 
 echo "⏳ Running pre-push checks..."
 
-echo "\n▶ lint"
-npm run lint
-
-echo "\n▶ typecheck"
-npm run typecheck
+echo "\n▶ check"
+npm run check
 
 echo "\n▶ test"
 npm run test

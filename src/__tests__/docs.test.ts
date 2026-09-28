@@ -2,7 +2,7 @@
  * Every ```ts block on the pages in PAGES compiles against the package source; see docs-harness.ts
  * for the rules. A new page joins by adding its path to PAGES.
  */
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'vite-plus/test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ROOT, PAGES, extractBlocks, writeSamples, compile } from './docs-harness.js'
@@ -22,8 +22,14 @@ describe('docs samples compile', () => {
 
   it('reports a sample that does not compile (harness self-check)', () => {
     const { dir, files } = writeSamples('self-check', [
-      { file: null, code: "import { createAuth } from '@loewen-digital/fullstack/auth'\ncreateAuth({}, { db: 42 })" },
-      { file: 'src/routes/x/+page.server.ts', code: "import type { PageServerLoad } from './$types'\nexport const load: PageServerLoad = () => 42" },
+      {
+        file: null,
+        code: "import { createAuth } from '@loewen-digital/fullstack/auth'\ncreateAuth({}, { db: 42 })",
+      },
+      {
+        file: 'src/routes/x/+page.server.ts',
+        code: "import type { PageServerLoad } from './$types'\nexport const load: PageServerLoad = () => 42",
+      },
     ])
     const diagnostics = compile(dir, files)
     expect(diagnostics.some((d) => d.includes('samples.ts'))).toBe(true)

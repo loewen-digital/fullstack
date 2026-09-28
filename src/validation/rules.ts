@@ -26,7 +26,10 @@ export function parseRuleString(rule: string): ParsedRule[] {
   const parsed = rule.split('|').map((segment) => {
     const colonIdx = segment.indexOf(':')
     if (colonIdx === -1) return { name: segment.trim() }
-    return { name: segment.slice(0, colonIdx).trim(), param: segment.slice(colonIdx + 1).trim() }
+    return {
+      name: segment.slice(0, colonIdx).trim(),
+      param: segment.slice(colonIdx + 1).trim(),
+    }
   })
   ruleStringCache.set(rule, parsed)
   return parsed
@@ -39,7 +42,7 @@ export type RuleValidator = (
   value: unknown,
   param: string | undefined,
   field: string,
-  data: Record<string, unknown>
+  data: Record<string, unknown>,
 ) => string | null
 
 /** Returns an error message string on failure, null on success */
@@ -88,7 +91,11 @@ export const BUILT_IN_RULES: Record<string, RuleValidator> = {
   },
 
   object(value, _, field) {
-    if (value !== null && value !== undefined && (typeof value !== 'object' || Array.isArray(value))) {
+    if (
+      value !== null &&
+      value !== undefined &&
+      (typeof value !== 'object' || Array.isArray(value))
+    ) {
       return `The ${field} field must be an object.`
     }
     return null

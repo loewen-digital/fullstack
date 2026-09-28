@@ -34,7 +34,8 @@ export function createEventBus<Events extends EventMap = EventMap>(): EventBusIn
       if (!set) return
 
       const errors: unknown[] = []
-      for (const listener of [...set]) {
+      // A snapshot: listeners added or removed by a listener take effect on the next emit.
+      for (const listener of Array.from(set)) {
         try {
           await listener(payload)
         } catch (err) {
@@ -50,7 +51,9 @@ export function createEventBus<Events extends EventMap = EventMap>(): EventBusIn
 
     on<K extends keyof Events>(event: K, listener: EventListener<Events[K]>): () => void {
       getSet(event).add(listener as EventListener<unknown>)
-      return () => { getSet(event).delete(listener as EventListener<unknown>) }
+      return () => {
+        getSet(event).delete(listener as EventListener<unknown>)
+      }
     },
 
     off<K extends keyof Events>(event: K, listener: EventListener<Events[K]>): void {
@@ -63,7 +66,9 @@ export function createEventBus<Events extends EventMap = EventMap>(): EventBusIn
         await listener(payload)
       }
       getSet(event).add(wrapper as EventListener<unknown>)
-      return () => { getSet(event).delete(wrapper as EventListener<unknown>) }
+      return () => {
+        getSet(event).delete(wrapper as EventListener<unknown>)
+      }
     },
   }
 }

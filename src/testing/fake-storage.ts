@@ -29,7 +29,9 @@ export function createFakeStorageDriver(baseUrl = 'http://localhost/storage'): F
   const store = new Map<string, Uint8Array<ArrayBuffer>>()
 
   // Always a copy on a plain ArrayBuffer, like the memory driver: get() never hands out the caller's view.
-  function toUint8Array(data: Uint8Array | string | ReadableStream): Promise<Uint8Array<ArrayBuffer>> {
+  function toUint8Array(
+    data: Uint8Array | string | ReadableStream,
+  ): Promise<Uint8Array<ArrayBuffer>> {
     if (typeof data === 'string') {
       return Promise.resolve(new TextEncoder().encode(data))
     }
@@ -37,7 +39,7 @@ export function createFakeStorageDriver(baseUrl = 'http://localhost/storage'): F
       return Promise.resolve(new Uint8Array(data))
     }
     // ReadableStream
-    return new Response(data).arrayBuffer().then(buf => new Uint8Array(buf))
+    return new Response(data).arrayBuffer().then((buf) => new Uint8Array(buf))
   }
 
   return {
@@ -45,7 +47,11 @@ export function createFakeStorageDriver(baseUrl = 'http://localhost/storage'): F
       return store.get(key) ?? null
     },
 
-    async put(key: string, data: Uint8Array | string | ReadableStream, _meta?: FileMeta): Promise<void> {
+    async put(
+      key: string,
+      data: Uint8Array | string | ReadableStream,
+      _meta?: FileMeta,
+    ): Promise<void> {
       store.set(key, await toUint8Array(data))
     },
 
@@ -59,7 +65,7 @@ export function createFakeStorageDriver(baseUrl = 'http://localhost/storage'): F
 
     async list(prefix?: string): Promise<string[]> {
       const allKeys = [...store.keys()]
-      return prefix ? allKeys.filter(k => k.startsWith(prefix)) : allKeys
+      return prefix ? allKeys.filter((k) => k.startsWith(prefix)) : allKeys
     },
 
     async getUrl(key: string): Promise<string> {

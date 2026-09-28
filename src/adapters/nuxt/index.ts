@@ -18,7 +18,13 @@ import type { AuthInstance, AuthSession } from '../../auth/index.js'
 import type { SecurityInstance } from '../../security/index.js'
 import type { H3Event, H3EventHandler, FullstackNuxtContext } from './types.js'
 
-export type { FullstackNuxtContext, H3Event, H3EventHandler, H3CookieOptions, NitroMiddleware } from './types.js'
+export type {
+  FullstackNuxtContext,
+  H3Event,
+  H3EventHandler,
+  H3CookieOptions,
+  NitroMiddleware,
+} from './types.js'
 
 // ── Stack shape ────────────────────────────────────────────────────────────────
 
@@ -102,13 +108,23 @@ function setResponseCookie(
   event: H3Event,
   name: string,
   value: string,
-  options: { httpOnly?: boolean; secure?: boolean; sameSite?: string; path?: string; maxAge?: number } = {},
+  options: {
+    httpOnly?: boolean
+    secure?: boolean
+    sameSite?: string
+    path?: string
+    maxAge?: number
+  } = {},
 ): void {
   const serialized = serializeCookie(name, value, options)
   const existing = event.node?.res.getHeader('Set-Cookie')
   // One Set-Cookie header per cookie: a comma-joined value is one malformed cookie to a browser.
   const cookies =
-    existing === undefined ? [serialized] : Array.isArray(existing) ? [...existing, serialized] : [String(existing), serialized]
+    existing === undefined
+      ? [serialized]
+      : Array.isArray(existing)
+        ? [...existing, serialized]
+        : [String(existing), serialized]
   event.node?.res.setHeader('Set-Cookie', cookies)
 }
 
@@ -149,7 +165,10 @@ export function isSecureRequest(event: H3Event): boolean {
  *  2. Validates auth token from cookie → event.context.authSession
  *  3. Enforces CSRF for non-GET mutations (if security module configured)
  */
-export function createNuxtMiddleware(stack: AdapterStack, options: NuxtMiddlewareOptions = {}): H3EventHandler<void> {
+export function createNuxtMiddleware(
+  stack: AdapterStack,
+  options: NuxtMiddlewareOptions = {},
+): H3EventHandler<void> {
   const sessionCookie = options.sessionCookie ?? 'fsid'
   const authCookie = options.authCookie ?? 'fs_token'
   const csrfExemptPaths = options.csrfExemptPaths ?? []
@@ -182,9 +201,7 @@ export function createNuxtMiddleware(stack: AdapterStack, options: NuxtMiddlewar
 
       if (!isExempt) {
         const csrfToken =
-          getRequestHeader(event, 'x-csrf-token') ??
-          getRequestHeader(event, 'x-xsrf-token') ??
-          null
+          getRequestHeader(event, 'x-csrf-token') ?? getRequestHeader(event, 'x-xsrf-token') ?? null
 
         const sessionId = sessionHandle?.id ?? getRequestCookie(event, sessionCookie) ?? ''
         let csrfVerified = false
@@ -290,7 +307,7 @@ async function readBody(event: H3Event): Promise<Record<string, unknown>> {
     }
 
     let data = ''
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // oxlint-disable-next-line @typescript-eslint/no-explicit-any
     const nodeReq = req as any
     nodeReq.on?.('data', (chunk: Buffer | string) => {
       data += chunk.toString()

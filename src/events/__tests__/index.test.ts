@@ -1,10 +1,10 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi } from 'vite-plus/test'
 import { createEventBus, defineEvents } from '../index.js'
 
 interface TestEvents {
   'user.created': { id: number; name: string }
   'post.published': { slug: string }
-  'ping': undefined
+  ping: undefined
 }
 
 describe('createEventBus', () => {
@@ -85,9 +85,13 @@ describe('createEventBus', () => {
   it('re-throws listener errors after all listeners run', async () => {
     const bus = createEventBus<TestEvents>()
     const spy = vi.fn()
-    bus.on('user.created', () => { throw new Error('listener error') })
+    bus.on('user.created', () => {
+      throw new Error('listener error')
+    })
     bus.on('user.created', spy)
-    await expect(bus.emit('user.created', { id: 1, name: 'Ivan' })).rejects.toThrow('listener error')
+    await expect(bus.emit('user.created', { id: 1, name: 'Ivan' })).rejects.toThrow(
+      'listener error',
+    )
     expect(spy).toHaveBeenCalled() // second listener still ran
   })
 

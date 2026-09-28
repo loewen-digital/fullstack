@@ -77,7 +77,10 @@ export function createFlatdbAuthAdapter(collections: FlatdbAuthCollections): Aut
     },
 
     async deleteExpiredSessions(userId) {
-      await sessions.delete({ userId, expiresAt: { $lt: new Date().toISOString() } })
+      await sessions.delete({
+        userId,
+        expiresAt: { $lt: new Date().toISOString() },
+      })
     },
 
     async deleteUserSessions(userId) {
@@ -163,7 +166,9 @@ function toDate(value: unknown, field: string): Date {
     const date = new Date(value)
     if (!Number.isNaN(date.getTime())) return date
   }
-  throw new TypeError(`flatdb auth adapter: "${field}" is not an ISO date string: ${JSON.stringify(value)}`)
+  throw new TypeError(
+    `flatdb auth adapter: "${field}" is not an ISO date string: ${JSON.stringify(value)}`,
+  )
 }
 
 function toNullableDate(value: unknown, field: string): Date | null {

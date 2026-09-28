@@ -21,10 +21,7 @@ export async function sendVerificationEmail(
  * Verify an email verification token and mark the user's email as verified.
  * Returns the user on success, null on failure.
  */
-export async function verifyEmail(
-  db: AuthDbAdapter,
-  token: string,
-): Promise<AuthUser | null> {
+export async function verifyEmail(db: AuthDbAdapter, token: string): Promise<AuthUser | null> {
   const userId = await verifyToken(db, token, EMAIL_VERIFICATION_TYPE)
   if (userId === null) return null
 

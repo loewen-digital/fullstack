@@ -28,7 +28,10 @@ export function createS3Driver(options: S3DriverOptions): StorageDriver {
 /** @internal The S3 driver under the service's name in its errors; the R2 driver builds on it. */
 export function createS3CompatibleDriver(options: S3DriverOptions, service: string): StorageDriver {
   const { bucket, region } = options
-  const credentials = { accessKeyId: options.accessKeyId, secretAccessKey: options.secretAccessKey }
+  const credentials = {
+    accessKeyId: options.accessKeyId,
+    secretAccessKey: options.secretAccessKey,
+  }
   const endpoint = new URL(options.endpoint ?? `https://s3.${region}.amazonaws.com`)
 
   function bucketUrl(): URL {
@@ -71,7 +74,11 @@ export function createS3CompatibleDriver(options: S3DriverOptions, service: stri
       return new Uint8Array(await response.arrayBuffer())
     },
 
-    async put(key: string, data: Uint8Array | string | ReadableStream, meta: FileMeta = {}): Promise<void> {
+    async put(
+      key: string,
+      data: Uint8Array | string | ReadableStream,
+      meta: FileMeta = {},
+    ): Promise<void> {
       const headers: Record<string, string> = {}
       if (meta.contentType) headers['content-type'] = meta.contentType
       const response = await send('PUT', objectUrl(key), await toBytes(data), headers)
@@ -112,12 +119,21 @@ function parseKeys(xml: string): string[] {
   return keys
 }
 
-const XML_ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }
+const XML_ENTITIES: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+}
 
 function unescapeXml(text: string): string {
-  return text.replace(/&(amp|lt|gt|quot|apos|#(\d+)|#x([0-9a-fA-F]+));/g, (entity, name: string, dec?: string, hex?: string) => {
-    if (dec !== undefined) return String.fromCodePoint(Number(dec))
-    if (hex !== undefined) return String.fromCodePoint(Number.parseInt(hex, 16))
-    return XML_ENTITIES[name] ?? entity
-  })
+  return text.replace(
+    /&(amp|lt|gt|quot|apos|#(\d+)|#x([0-9a-fA-F]+));/g,
+    (entity, name: string, dec?: string, hex?: string) => {
+      if (dec !== undefined) return String.fromCodePoint(Number(dec))
+      if (hex !== undefined) return String.fromCodePoint(Number.parseInt(hex, 16))
+      return XML_ENTITIES[name] ?? entity
+    },
+  )
 }

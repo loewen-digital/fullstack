@@ -8,7 +8,11 @@ export { createMemoryDriver } from './drivers/memory.js'
 export { createLocalDriver } from './drivers/local.js'
 export { createS3Driver, type S3DriverOptions } from './drivers/s3.js'
 export { createR2Driver, type R2DriverOptions } from './drivers/r2.js'
-export { createR2BindingDriver, type R2BindingBucket, type R2BindingDriverOptions } from './drivers/r2-binding.js'
+export {
+  createR2BindingDriver,
+  type R2BindingBucket,
+  type R2BindingDriverOptions,
+} from './drivers/r2-binding.js'
 
 /**
  * Create a storage instance.

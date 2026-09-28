@@ -34,7 +34,10 @@ export function createMemoryDriver(defaultTtl = 7200): SessionDriver {
 
     async write(sessionId: string, data: SessionData, ttl?: number): Promise<void> {
       const seconds = ttl ?? defaultTtl
-      store.set(sessionId, { data: { ...data }, expiresAt: Date.now() + seconds * 1000 })
+      store.set(sessionId, {
+        data: { ...data },
+        expiresAt: Date.now() + seconds * 1000,
+      })
     },
 
     async destroy(sessionId: string): Promise<void> {
@@ -42,4 +45,3 @@ export function createMemoryDriver(defaultTtl = 7200): SessionDriver {
     },
   }
 }
-
