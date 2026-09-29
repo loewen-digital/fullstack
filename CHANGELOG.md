@@ -7,6 +7,7 @@ is the topmost released one here.
 
 ## Unreleased
 
+- For contributors: files are formatted on save when Claude Code or Codex edits them (`vp fmt` through the hooks in `.claude/settings.json` and `.codex/hooks.json`); `npm run format` stays for everything else.
 - Built with Vite+ 1.0 (`vite-plus`) instead of Vite library mode plus `tsc` for the declarations ([decision 0016](docs/decisions/0016-vite-plus.md)). For consumers: the same 27 subpaths with the same runtime and type exports (compared name by name against 0.3.0); each subpath now ships one bundled `.d.ts` instead of one per source file, and the JavaScript is no longer minified. `fullstack` keeps its shebang and execute bit.
 - For contributors: `npm run check` replaces `npm run lint` and `npm run typecheck` (Oxfmt, Oxlint with type-aware rules, type check in one pass) and runs in CI and in the pre-push hook; CI now also builds and smoke-tests `dist`. Code is formatted for the first time (single quotes, no semicolons, width 100; Markdown, `docs/` and `examples/` untouched). Tests import from `vite-plus/test`. The benchmarks use Vitest 5's `bench` fixture; the auth benchmark's in-memory adapter had fallen behind `AuthDbAdapter` and did not run, it does again.
 
