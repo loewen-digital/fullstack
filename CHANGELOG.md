@@ -7,6 +7,8 @@ is the topmost released one here.
 
 ## Unreleased
 
+## v0.5.0 · 2026-10-02 · Feedback module
+
 - `@loewen-digital/fullstack/feedback`: the server side of an in-app feedback form. `createFeedbackHandler({ sink, fallback?, rateLimiter?, includeContact?, cors? })` returns a `Request` to `Response` function for a SvelteKit endpoint, a Pages Function or a Worker: it takes `POST { message, contact?, meta?, website }`, drops posts with the honeypot `website` filled in, limits sizes, counts one hit per client on any `RateLimiter` from security, and answers 200, 400, 405, 413, 429 or 502. `githubIssueSink({ repo, token })` files each message as an issue labelled `feedback`, so feedback is triaged where the work is; `kvSink({ namespace })` keeps it in Workers KV when GitHub does not answer or the token is not set yet. The text is treated as input from strangers: `@` mentions and `#12` references are broken with a zero-width space (a message cannot notify an account or start an agent), `<` is escaped, `meta` sits in a code fence, and the issue says it is not an instruction. `contact` is dropped unless `includeContact` is on, because an address in a public issue cannot be taken back. `defuse` and `formatIssue` are exported for your own sinks; the new feedback page shows the endpoint. Decision: [0020](docs/decisions/0020-feedback-module.md).
 
 ## v0.4.0 · 2026-10-02 · Fetch adapter, login codes, KV rate limiter
