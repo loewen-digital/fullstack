@@ -28,6 +28,7 @@ const entries: Record<string, string> = {
   'adapters/nuxt/index': 'src/adapters/nuxt/index.ts',
   'adapters/remix/index': 'src/adapters/remix/index.ts',
   'adapters/astro/index': 'src/adapters/astro/index.ts',
+  'adapters/fetch/index': 'src/adapters/fetch/index.ts',
   'vite/index': 'src/vite/index.ts',
   'cli/index': 'src/cli/index.ts',
 }

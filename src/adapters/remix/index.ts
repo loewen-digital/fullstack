@@ -27,6 +27,7 @@ import type { SessionHandle } from '../../session/index.js'
 import type { SessionManager } from '../../session/index.js'
 import type { AuthInstance, AuthSession } from '../../auth/index.js'
 import type { SecurityInstance } from '../../security/index.js'
+import { parseCookies, serializeCookie } from '../cookies.js'
 import type {
   RemixFunctionArgs,
   FullstackRemixArgs,
@@ -75,40 +76,6 @@ export interface RemixAdapterOptions {
 }
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
-
-// ── Cookie helpers (Web Standards — no Node dep) ───────────────────────────────
-
-function parseCookies(header: string): Record<string, string> {
-  const cookies: Record<string, string> = {}
-  for (const part of header.split(';')) {
-    const eqIdx = part.indexOf('=')
-    if (eqIdx === -1) continue
-    const name = part.slice(0, eqIdx).trim()
-    const value = part.slice(eqIdx + 1).trim()
-    if (name) cookies[name] = decodeURIComponent(value)
-  }
-  return cookies
-}
-
-function serializeCookie(
-  name: string,
-  value: string,
-  options: {
-    httpOnly?: boolean
-    secure?: boolean
-    sameSite?: string
-    path?: string
-    maxAge?: number
-  } = {},
-): string {
-  let cookie = `${name}=${encodeURIComponent(value)}`
-  if (options.path) cookie += `; Path=${options.path}`
-  if (options.maxAge !== undefined) cookie += `; Max-Age=${options.maxAge}`
-  if (options.httpOnly) cookie += '; HttpOnly'
-  if (options.secure) cookie += '; Secure'
-  if (options.sameSite) cookie += `; SameSite=${options.sameSite}`
-  return cookie
-}
 
 function getRequestCookie(request: Request, name: string): string | undefined {
   const header = request.headers.get('cookie')

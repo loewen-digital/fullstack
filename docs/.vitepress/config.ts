@@ -73,6 +73,7 @@ export default defineConfig({
             { text: 'Nuxt', link: '/adapters/nuxt' },
             { text: 'Remix', link: '/adapters/remix' },
             { text: 'Astro', link: '/adapters/astro' },
+            { text: 'Fetch handlers', link: '/adapters/fetch' },
           ],
         },
         {

@@ -127,6 +127,10 @@
       "import": "./dist/adapters/astro/index.js",
       "types": "./dist/adapters/astro/index.d.ts"
     },
+    "./adapters/fetch": {
+      "import": "./dist/adapters/fetch/index.js",
+      "types": "./dist/adapters/fetch/index.d.ts"
+    },
     "./vite": {
       "import": "./dist/vite/index.js",
       "types": "./dist/vite/index.d.ts"

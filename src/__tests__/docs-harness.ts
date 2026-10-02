@@ -7,8 +7,9 @@
  * - A block whose first line is `// <path>.ts` (or `.tsx`) is written to that path. Files under
  *   `src/routes/` get a `./$types` stub next to them, `$lib/*` points at the page's `src/lib/`,
  *   `~/*` at its `app/`, and `$env/dynamic/private`, the Workers global `ScheduledEvent` and
- *   the slices of h3, Astro and Remix the adapter pages use are stubbed; the globals `R2Bucket`
- *   and `RateLimit` are Cloudflare's own, from `@cloudflare/workers-types` (a devDependency only).
+ *   the slices of h3, Astro and Remix the adapter pages use and `PagesFunction` are stubbed; the
+ *   globals `R2Bucket` and `RateLimit` are Cloudflare's own, from `@cloudflare/workers-types`
+ *   (a devDependency only).
  * - Every other block is appended, in order, to one module per page, so a later block may use
  *   what an earlier one declared. Names an earlier block already imported are dropped from
  *   later named imports.
@@ -50,6 +51,7 @@ export const PAGES = [
   'adapters/nuxt',
   'adapters/remix',
   'adapters/astro',
+  'adapters/fetch',
   'testing/overview',
   'testing/fakes',
   'testing/factories',
@@ -72,6 +74,21 @@ declare global {
     cron: string
     scheduledTime: number
   }
+  // Pages Functions on the Request and Response the samples compile with (lib.dom): Cloudflare's
+  // own PagesFunction carries its own Request type, which is not lib.dom's.
+  interface PagesEventContext<Env, Data> {
+    request: Request
+    env: Env
+    params: Record<string, string | string[]>
+    data: Data
+    next(input?: Request | string, init?: RequestInit): Promise<Response>
+    waitUntil(promise: Promise<unknown>): void
+  }
+  type PagesFunction<
+    Env = unknown,
+    Params extends string = string,
+    Data extends Record<string, unknown> = Record<string, unknown>,
+  > = (context: PagesEventContext<Env, Data>) => Response | Promise<Response>
 }
 export {}
 `

@@ -16,6 +16,7 @@ import type { SessionHandle } from '../../session/index.js'
 import type { SessionManager } from '../../session/index.js'
 import type { AuthInstance, AuthSession } from '../../auth/index.js'
 import type { SecurityInstance } from '../../security/index.js'
+import { parseCookies, serializeCookie, type CookieAttributes } from '../cookies.js'
 import type { H3Event, H3EventHandler, FullstackNuxtContext } from './types.js'
 
 export type {
@@ -66,37 +67,6 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 
 // ── Cookie helpers (work without importing h3) ─────────────────────────────────
 
-function parseCookies(cookieHeader: string): Record<string, string> {
-  const cookies: Record<string, string> = {}
-  for (const part of cookieHeader.split(';')) {
-    const [rawName, ...rest] = part.split('=')
-    const name = rawName?.trim()
-    if (!name) continue
-    cookies[name] = decodeURIComponent(rest.join('=').trim())
-  }
-  return cookies
-}
-
-function serializeCookie(
-  name: string,
-  value: string,
-  options: {
-    httpOnly?: boolean
-    secure?: boolean
-    sameSite?: string
-    path?: string
-    maxAge?: number
-  } = {},
-): string {
-  let cookie = `${name}=${encodeURIComponent(value)}`
-  if (options.path) cookie += `; Path=${options.path}`
-  if (options.maxAge !== undefined) cookie += `; Max-Age=${options.maxAge}`
-  if (options.httpOnly) cookie += '; HttpOnly'
-  if (options.secure) cookie += '; Secure'
-  if (options.sameSite) cookie += `; SameSite=${options.sameSite}`
-  return cookie
-}
-
 function getRequestCookie(event: H3Event, name: string): string | undefined {
   const header = event.node?.req.headers['cookie']
   if (!header) return undefined
@@ -108,13 +78,7 @@ function setResponseCookie(
   event: H3Event,
   name: string,
   value: string,
-  options: {
-    httpOnly?: boolean
-    secure?: boolean
-    sameSite?: string
-    path?: string
-    maxAge?: number
-  } = {},
+  options: CookieAttributes = {},
 ): void {
   const serialized = serializeCookie(name, value, options)
   const existing = event.node?.res.getHeader('Set-Cookie')

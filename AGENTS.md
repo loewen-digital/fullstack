@@ -63,7 +63,8 @@ src/
 │   ├── sveltekit/        → createHandle(), type augmentation
 │   ├── nuxt/
 │   ├── remix/
-│   └── astro/
+│   ├── astro/
+│   └── fetch/            → createFetchAdapter(): Pages Functions, Workers, Hono
 ├── vite/                 → Vite plugin, dev UI
 └── cli/                  → CLI commands (migrate, seed, generate)
 ```

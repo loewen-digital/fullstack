@@ -174,8 +174,11 @@ The core **never** imports or depends on any framework-specific code. Every modu
 │   │   │   └── index.ts
 │   │   ├── remix/
 │   │   │   └── index.ts
-│   │   └── astro/
-│   │       └── index.ts
+│   │   ├── astro/
+│   │   │   └── index.ts
+│   │   ├── fetch/
+│   │   │   └── index.ts         → createFetchAdapter, isSameOrigin (Pages Functions, Workers, Hono)
+│   │   └── cookies.ts           → Cookie header parsing and serializing shared by fetch, remix, nuxt
 │   ├── vite/
 │   │   ├── index.ts             → Vite plugin
 │   │   └── dev-ui/              → Dev dashboard (DB browser, mail preview, etc.)
@@ -223,6 +226,7 @@ The core **never** imports or depends on any framework-specific code. Every modu
     "./adapters/nuxt": "./dist/adapters/nuxt/index.js",
     "./adapters/remix": "./dist/adapters/remix/index.js",
     "./adapters/astro": "./dist/adapters/astro/index.js",
+    "./adapters/fetch": "./dist/adapters/fetch/index.js",
     "./vite": "./dist/vite/index.js",
     "./cli": "./dist/cli/index.js"
   }

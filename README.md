@@ -1,6 +1,6 @@
 # @loewen-digital/fullstack
 
-Backend primitives for JavaScript meta-frameworks: auth, sessions, validation, mail, storage, cache, queue, events, logging, errors, permissions, notifications, i18n, search, webhooks, realtime, and a Drizzle `db` module for apps on a SQL database. One package with one subpath per module, factory functions instead of a container, swappable drivers, Web Standard `Request` and `Response` everywhere, a framework-agnostic core and adapters for SvelteKit, Nuxt, Remix and Astro.
+Backend primitives for JavaScript meta-frameworks: auth, sessions, validation, mail, storage, cache, queue, events, logging, errors, permissions, notifications, i18n, search, webhooks, realtime, and a Drizzle `db` module for apps on a SQL database. One package with one subpath per module, factory functions instead of a container, swappable drivers, Web Standard `Request` and `Response` everywhere, a framework-agnostic core and adapters for SvelteKit, Nuxt, Remix, Astro and plain fetch handlers (Pages Functions, Workers, Hono).
 
 Documentation: [fullstack-docs-vitepress.pages.dev](https://fullstack-docs-vitepress.pages.dev)
 
@@ -83,7 +83,7 @@ A driver named in the config (`memory`, `console`, `cookie`, `sqlite`) needs not
 
 ## Adapters
 
-The core imports nothing from a framework; the adapters do the wiring. Each opens the session cookie, validates the auth cookie, checks the CSRF header on mutating requests and offers helpers for login, logout and form validation.
+The core imports nothing from a framework; the adapters do the wiring. The framework adapters each open the session cookie, validate the auth cookie, check the CSRF header on mutating requests and offer helpers for login, logout and form validation; the fetch adapter is the auth part of that for handlers without a framework.
 
 | Framework | Subpath | Entry point |
 |---|---|---|
@@ -91,6 +91,7 @@ The core imports nothing from a framework; the adapters do the wiring. Each open
 | Nuxt | `/adapters/nuxt` | `createNuxtMiddleware(stack)` fills `event.context` |
 | Remix | `/adapters/remix` | `createRemixLoader(stack)` and `createRemixAction(stack)` wrap loaders and actions |
 | Astro | `/adapters/astro` | `createAstroMiddleware(stack)` fills `Astro.locals` |
+| Fetch handlers | `/adapters/fetch` | `createFetchAdapter({ auth })` for Pages Functions, Workers and Hono: `sessionOf(request)`, `setAuthCookie(headers, token)`, `clearAuthCookie(headers)`; `isSameOrigin(request)` as the CSRF guard of a JSON API. Auth only, no session module |
 
 ## Testing
 

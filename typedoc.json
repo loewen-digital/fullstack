@@ -26,6 +26,7 @@
     "src/adapters/nuxt/index.ts",
     "src/adapters/remix/index.ts",
     "src/adapters/astro/index.ts",
+    "src/adapters/fetch/index.ts",
     "src/vite/index.ts",
     "src/cli/index.ts"
   ],
