@@ -3,29 +3,17 @@
 // Every key here is read by the module's factory; where a module exports its own config type,
 // it is re-exported instead of copied, so the two cannot drift apart.
 
+import type { AuthConfig } from '../auth/types.js'
 import type { SecurityConfig } from '../security/types.js'
 import type { I18nConfig } from '../i18n/types.js'
 
-export type { SecurityConfig, I18nConfig }
+export type { AuthConfig, SecurityConfig, I18nConfig }
 
 export interface DbConfig {
   driver: 'sqlite' | 'postgres' | 'mysql' | 'd1'
   url: string
   /** Folder `migrate()` reads (default `./drizzle`) */
   migrations?: string
-}
-
-/**
- * Auth module config.
- * All TTL values are in seconds.
- */
-export interface AuthConfig {
-  /** Session TTL in seconds (default: 7 days = 604800) */
-  sessionTtl?: number
-  /** Token TTL in seconds for email verification (default: 24 hours = 86400) */
-  emailVerificationTtl?: number
-  /** Token TTL in seconds for password reset (default: 1 hour = 3600) */
-  passwordResetTtl?: number
 }
 
 export interface MailConfig {

@@ -96,7 +96,7 @@ export const onRequestGet: PagesFunction<Env, string, Data> = async ({ data }) =
 
 ## Login and logout
 
-`setAuthCookie(headers, token)` appends the `Set-Cookie` header for the auth cookie: `HttpOnly`, `Path=/`, `SameSite=Lax`, `Max-Age` of 7 days, `Secure` unless the options say otherwise. `clearAuthCookie(headers)` appends the header that deletes it. Both append, so other cookies on the same headers stay.
+The example logs in with a password; with [a code by mail](/modules/auth#login-by-e-mail-code) only the check before `createSession` differs. `setAuthCookie(headers, token)` appends the `Set-Cookie` header for the auth cookie: `HttpOnly`, `Path=/`, `SameSite=Lax`, `Max-Age` of 7 days, `Secure` unless the options say otherwise. `clearAuthCookie(headers)` appends the header that deletes it. Both append, so other cookies on the same headers stay.
 
 ```ts
 // functions/api/login.ts

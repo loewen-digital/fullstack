@@ -2,19 +2,17 @@
 
 ## Context
 
-#32 asks for an adapter for handlers that get a `Request` and return a `Response` (Pages Functions, Workers,
-Hono): `sessionOf(request)` answering the session "or null plus the Set-Cookie header that clears it",
-`setAuthCookie(headers, token)` with "Secure on HTTPS", and proposes to extract the cookie code of the four
-adapters into it and let the SvelteKit adapter call it.
+#32 asks for an adapter for plain fetch handlers: `sessionOf(request)` answering the session "or null plus
+the Set-Cookie header that clears it", `setAuthCookie(headers, token)` with "Secure on HTTPS", and proposes
+to extract the four adapters' cookie code into it and let the SvelteKit adapter call it.
 
 ## Decision
 
-`sessionOf` returns `{ session, clearCookie }`: a middleware has no response headers yet when it asks, so the
-deleting cookie travels as a value. `setAuthCookie` and `clearAuthCookie` see headers, not the request, and
-cannot detect HTTPS: the cookie is `Secure` unless `secure` (options or per call) says otherwise, and
-`isSecureRequest(request)` supplies the value for local HTTP. `isSameOrigin` and `isSecureRequest` are plain
-exports, they need no auth. SvelteKit and Astro use their framework's cookie API and share nothing; the copies
-were in Remix and Nuxt, which now import `src/adapters/cookies.ts` together with the fetch adapter.
+`sessionOf` returns `{ session, clearCookie }`: a middleware has no response headers yet when it asks. The
+cookie writers see headers, not the request, and cannot detect HTTPS: the cookie is `Secure` unless `secure`
+says otherwise, and `isSecureRequest(request)` supplies the value for local HTTP. `isSameOrigin` is a plain
+export, it needs no auth. SvelteKit and Astro use their framework's cookie API; the copies were in Remix and
+Nuxt, which now share `src/adapters/cookies.ts` with the fetch adapter.
 
 ## Consequences
 

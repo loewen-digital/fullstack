@@ -146,6 +146,128 @@ describe('full auth flow on flatdb', () => {
   })
 })
 
+describe('login codes on flatdb', () => {
+  const tokenSchema = z.object({
+    userId: z.string(),
+    token: z.string(),
+    type: z.string(),
+    expiresAt: z.string(),
+    createdAt: z.string(),
+  })
+
+  /** The collections with a zod schema on `tokens`. */
+  function openWithTokenSchema(schema: z.ZodType) {
+    const store = flatdb(new MemoryAdapter(), {
+      users: collection(),
+      sessions: collection(),
+      tokens: collection(schema),
+    })
+    return {
+      users: store.users as Collection,
+      sessions: store.sessions as Collection,
+      tokens: store.tokens as Collection,
+    }
+  }
+
+  async function send(instance: ReturnType<typeof createAuth>, userId: string): Promise<string> {
+    const user = (await adapter.findUserById(userId))!
+    let sent = ''
+    await instance.sendLoginCode(user, async (_email, code) => {
+      sent = code
+    })
+    return sent
+  }
+
+  beforeEach(() => {
+    auth = createAuth({ loginCodeSecret: 'login-code-secret' }, { db: adapter })
+  })
+
+  it('sends, counts wrong attempts in the document and verifies once', async () => {
+    const { _id } = await db.users.insert({ email: 'heidi@example.com' })
+    const user = (await adapter.findUserById(_id))!
+    const code = await send(auth, _id)
+    const wrong = code === '000000' ? '000001' : '000000'
+
+    const stored = await db.tokens.findOne({ userId: _id, type: 'login_code' })
+    expect(stored?.attempts).toBe(0)
+    expect(stored?.token).not.toBe(code)
+
+    expect(await auth.verifyLoginCode(user, wrong)).toBeNull()
+    expect((await db.tokens.findOne({ userId: _id, type: 'login_code' }))?.attempts).toBe(1)
+    expect((await adapter.findUserToken(_id, 'login_code'))?.attempts).toBe(1)
+
+    expect(await auth.verifyLoginCode(user, code)).toBe(_id)
+    expect(await db.tokens.findOne({ userId: _id, type: 'login_code' })).toBeNull()
+    expect(await auth.verifyLoginCode(user, code)).toBeNull()
+  })
+
+  it('deletes the code with the fifth wrong attempt', async () => {
+    const { _id } = await db.users.insert({ email: 'ivan@example.com' })
+    const user = (await adapter.findUserById(_id))!
+    const code = await send(auth, _id)
+    const wrong = code === '000000' ? '000001' : '000000'
+
+    for (let i = 0; i < 5; i++) expect(await auth.verifyLoginCode(user, wrong)).toBeNull()
+    expect(await db.tokens.findOne({ userId: _id, type: 'login_code' })).toBeNull()
+    expect(await auth.verifyLoginCode(user, code)).toBeNull()
+  })
+
+  it('finds the code of the user, not the one of another user', async () => {
+    const a = await db.users.insert({ email: 'judy@example.com' })
+    const b = await db.users.insert({ email: 'karl@example.com' })
+    const code = await send(auth, a._id)
+
+    expect(await adapter.findUserToken(b._id, 'login_code')).toBeNull()
+    expect(await auth.verifyLoginCode((await adapter.findUserById(b._id))!, code)).toBeNull()
+    expect(await auth.verifyLoginCode((await adapter.findUserById(a._id))!, code)).toBe(a._id)
+  })
+
+  it('countTokenAttempt answers null for a token that is gone', async () => {
+    expect(await adapter.countTokenAttempt('missing')).toBeNull()
+  })
+
+  it('other tokens carry no attempts', async () => {
+    const { _id } = await db.users.insert({ email: 'liam@example.com' })
+    const token = await auth.generateToken(_id, 'invite')
+    const found = await adapter.findToken(await hashToken(token), 'invite')
+    expect(found).not.toBeNull()
+    expect('attempts' in found!).toBe(false)
+  })
+
+  it('works through a tokens schema that declares attempts', async () => {
+    db = openWithTokenSchema(tokenSchema.extend({ attempts: z.number().optional() }))
+    adapter = createFlatdbAuthAdapter(db)
+    auth = createAuth({ loginCodeSecret: 'login-code-secret' }, { db: adapter })
+
+    const { _id } = await db.users.insert({ email: 'mia@example.com' })
+    const code = await send(auth, _id)
+    expect(await auth.verifyLoginCode((await adapter.findUserById(_id))!, code)).toBe(_id)
+
+    const invite = await auth.generateToken(_id, 'invite')
+    expect(await auth.verifyToken(invite, 'invite')).toBe(_id)
+  })
+
+  it('refuses a tokens schema that strips attempts, before a mail goes out', async () => {
+    db = openWithTokenSchema(tokenSchema)
+    adapter = createFlatdbAuthAdapter(db)
+    auth = createAuth({ loginCodeSecret: 'login-code-secret' }, { db: adapter })
+
+    const { _id } = await db.users.insert({ email: 'nina@example.com' })
+    let mailed = false
+    await expect(
+      auth.sendLoginCode((await adapter.findUserById(_id))!, async () => {
+        mailed = true
+      }),
+    ).rejects.toThrow(/must declare "attempts"/)
+    expect(mailed).toBe(false)
+    expect(await db.tokens.findOne({ userId: _id })).toBeNull()
+
+    // Tokens without attempts are untouched by the check.
+    const invite = await auth.generateToken(_id, 'invite')
+    expect(await auth.verifyToken(invite, 'invite')).toBe(_id)
+  })
+})
+
 describe('deleteUserSessions', () => {
   it('removes every session of the user and none of another', async () => {
     const future = new Date(Date.now() + 60_000)

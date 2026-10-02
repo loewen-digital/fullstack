@@ -53,6 +53,7 @@ const tokenSchema = z.object({
   type: z.string(),
   expiresAt: z.string().datetime(),
   createdAt: z.string().datetime(),
+  attempts: z.number().optional(), // login codes count their verifications here
 })
 
 export type UserDoc = z.infer<typeof userSchema>
@@ -239,6 +240,8 @@ export const actions: Actions = {
 ```
 
 Email verification and password reset work unchanged: `auth.sendVerificationEmail(user, send)`, `auth.verifyEmail(token)`, `auth.sendPasswordResetEmail(user, send)`, `auth.resetPassword(token, password)`. The tokens' hashes land in `tokens`; the token itself is only in the mail. A reset returns the user and deletes every document of theirs in `sessions`, so a reset after a takeover logs the attacker out; give the browser that reset the password a fresh session with `auth.createSession(user)` and `setAuthCookie`, or send it to `/login`. `auth.destroyUserSessions(userId)` does the same deletion on its own, for a "log out everywhere" button. Sending a new link deletes the user's earlier tokens of that type, and a token that is presented is deleted, so `tokens` holds at most one live token per user and type.
+
+[Login by e-mail code](/modules/auth#login-by-e-mail-code) runs on the same collection: `auth.sendLoginCode(user, send)` and `auth.verifyLoginCode(user, code)` with `loginCodeSecret` in the auth config. The code's document carries `attempts`, which is why the token schema declares it; the adapter refuses to store a login code through a schema that strips the field.
 
 ## Cloudflare Workers
 

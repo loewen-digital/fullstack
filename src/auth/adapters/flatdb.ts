@@ -23,7 +23,10 @@ export interface FlatdbAuthCollections {
   users: FlatdbCollection
   /** Auth sessions: `userId`, `token` (the SHA-256 hash, as the auth module hands it over), `expiresAt`, `createdAt`. */
   sessions: FlatdbCollection
-  /** One-time tokens: `userId`, `token` (the hash), `type`, `expiresAt`, `createdAt`. */
+  /**
+   * One-time tokens: `userId`, `token` (the hash), `type`, `expiresAt`, `createdAt`, and
+   * `attempts` (a number) on login codes.
+   */
   tokens: FlatdbCollection
 }
 
@@ -94,13 +97,37 @@ export function createFlatdbAuthAdapter(collections: FlatdbAuthCollections): Aut
         type: data.type,
         expiresAt: data.expiresAt.toISOString(),
         createdAt: data.createdAt.toISOString(),
+        ...(data.attempts === undefined ? {} : { attempts: data.attempts }),
       })
+      // A schema that strips `attempts` would leave a login code without its attempt limit.
+      if (data.attempts !== undefined && doc.attempts !== data.attempts) {
+        await tokens.delete({ _id: doc._id })
+        throw new TypeError(
+          'flatdb auth adapter: the tokens schema must declare "attempts" (a number, optional); ' +
+            'flatdb strips undeclared fields, and a login code without it could be guessed without limit.',
+        )
+      }
       return toToken(doc)
     },
 
     async findToken(token, type) {
       const doc = await tokens.findOne({ token, type })
       return doc ? toToken(doc) : null
+    },
+
+    async findUserToken(userId, type) {
+      const doc = await tokens.findOne({ userId, type })
+      return doc ? toToken(doc) : null
+    },
+
+    // Read, add one, write: flatdb has no atomic increment, so guesses that arrive in the same
+    // instant can share a count. The limit is soft under concurrency; rate limit the endpoint.
+    async countTokenAttempt(id) {
+      const doc = await tokens.findById(id)
+      if (!doc) return null
+      const attempts = (typeof doc.attempts === 'number' ? doc.attempts : 0) + 1
+      await tokens.update({ _id: id }, { attempts })
+      return attempts
     },
 
     async deleteToken(id) {
@@ -154,6 +181,7 @@ function toToken(doc: FlatdbDocument): AuthToken {
     type: String(doc.type),
     expiresAt: toDate(doc.expiresAt, 'expiresAt'),
     createdAt: toDate(doc.createdAt, 'createdAt'),
+    ...(typeof doc.attempts === 'number' ? { attempts: doc.attempts } : {}),
   }
 }
 

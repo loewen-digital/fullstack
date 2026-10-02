@@ -29,18 +29,23 @@ export interface AuthSession {
 }
 
 /**
- * A one-time token (email verification, password reset). It exists while it is
- * valid: issuing a new token of the same type for the user deletes the earlier
- * ones, and presenting it, consumed or expired, deletes it.
+ * A one-time token (email verification, password reset, login code). It exists
+ * while it is valid: issuing a new token of the same type for the user deletes
+ * the earlier ones, and presenting it, consumed or expired, deletes it.
  */
 export interface AuthToken {
   id: string
   userId: string | number
-  /** The SHA-256 hash of the raw token; the raw token only travels in the mail. */
+  /**
+   * The SHA-256 hash of the raw token; the raw token only travels in the mail.
+   * For a login code: its HMAC under `loginCodeSecret`.
+   */
   token: string
-  type: 'email_verification' | 'password_reset' | string
+  type: 'email_verification' | 'password_reset' | 'login_code' | string
   expiresAt: Date
   createdAt: Date
+  /** Verification attempts so far. Login codes carry it, starting at 0; other tokens do not. */
+  attempts?: number
 }
 
 /**
@@ -50,7 +55,8 @@ export interface AuthToken {
  * Session and one-time tokens arrive hashed: `createSession` and `createToken`
  * receive `hashToken(raw)` in `token`, and `findSession`, `deleteSession` and
  * `findToken` are called with the same hash. The adapter stores and compares
- * what it gets and never sees a raw token.
+ * what it gets and never sees a raw token. A login code arrives as its HMAC
+ * and is looked up by user through `findUserToken`.
  */
 export interface AuthDbAdapter {
   findUserByEmail(email: string): Promise<AuthUser | null>
@@ -63,6 +69,16 @@ export interface AuthDbAdapter {
   deleteUserSessions(userId: string | number): Promise<void>
   createToken(data: Omit<AuthToken, 'id'>): Promise<AuthToken>
   findToken(token: string, type: string): Promise<AuthToken | null>
+  /**
+   * The user's token of that type; there is at most one, a new one replaces the earlier.
+   * A login code is found this way, never by its hash, so a guess reaches only the user's own code.
+   */
+  findUserToken(userId: string | number, type: string): Promise<AuthToken | null>
+  /**
+   * Count one verification attempt on a token (`attempts + 1`) and return the new count; `null`
+   * when the token is gone. Atomic where the store can, so guesses that arrive together all count.
+   */
+  countTokenAttempt(id: string): Promise<number | null>
   /** Remove one token, consumed or found expired */
   deleteToken(id: string): Promise<void>
   /** Remove every token of the user with that type; called before a new one is issued */
@@ -107,6 +123,18 @@ export interface AuthConfig {
   emailVerificationTtl?: number
   /** Token TTL in seconds for password reset (default: 1 hour) */
   passwordResetTtl?: number
+  /**
+   * Secret the login codes are stored under (HMAC-SHA-256); `sendLoginCode` and `verifyLoginCode`
+   * throw without it. A code has few digits: its plain hash would give it away to anyone who reads
+   * the store. Changing the secret invalidates the codes that are out.
+   */
+  loginCodeSecret?: string
+  /** Login code TTL in seconds (default: 10 minutes) */
+  loginCodeTtl?: number
+  /** Digits of a login code, 6 to 12 (default: 6) */
+  loginCodeLength?: number
+  /** Verifications a login code allows before it is deleted, the right one included (default: 5) */
+  loginCodeAttempts?: number
 }
 
 export interface AuthInstance {
@@ -143,6 +171,19 @@ export interface AuthInstance {
    * Returns the user, or null when the token is unknown, used or expired.
    */
   resetPassword(token: string, newPassword: string): Promise<AuthUser | null>
+  /**
+   * Passwordless login: mint a numeric code, replace the user's earlier one and hand the code to
+   * `sendFn`. Needs `loginCodeSecret`.
+   */
+  sendLoginCode(
+    user: AuthUser,
+    sendFn: (email: string, code: string) => Promise<void>,
+  ): Promise<void>
+  /**
+   * Verify and consume the user's login code. Returns the user id once for the right code within
+   * its TTL, null otherwise; after `loginCodeAttempts` verifications the code is gone.
+   */
+  verifyLoginCode(user: AuthUser, code: string): Promise<string | number | null>
   /** Create an OAuth provider instance */
   oauthProvider(name: string, config: OAuthProviderConfig): OAuthProvider
 }

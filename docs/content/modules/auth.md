@@ -1,11 +1,11 @@
 ---
 title: Auth
-description: Passwords, server-side sessions, one-time tokens and OAuth on any storage
+description: Passwords, login codes by mail, server-side sessions, one-time tokens and OAuth on any storage
 ---
 
 # Auth
 
-The `auth` module covers the authentication lifecycle: password hashing and verification, server-side sessions with opaque tokens, one-time tokens for email verification and password reset, and OAuth providers. It holds no state and knows no framework: storage is an `AuthDbAdapter`, and the cookie that carries a session token belongs to the framework adapter or to your code.
+The `auth` module covers the authentication lifecycle: password hashing and verification, passwordless login by a code in the mail, server-side sessions with opaque tokens, one-time tokens for email verification and password reset, and OAuth providers. It holds no state and knows no framework: storage is an `AuthDbAdapter`, and the cookie that carries a session token belongs to the framework adapter or to your code.
 
 Storage is an `AuthDbAdapter`: implement it against your schema, or run on `@loewen-digital/flatdb` with `createFlatdbAuthAdapter` from `@loewen-digital/fullstack/auth/flatdb`. The [Auth on flatdb](/guides/auth-on-flatdb) guide covers that setup locally and on Cloudflare Workers, with the `session` module on the cookie driver and the [SvelteKit adapter](/adapters/sveltekit).
 
@@ -108,6 +108,36 @@ async function finishReset(token: string, newPassword: string) {
 }
 ```
 
+## Login by e-mail code
+
+Passwordless login without a link: the user asks for a code, gets six digits by mail and types them into the browser that asked. A link would open in the mail app's browser, and the session cookie would land there. `sendLoginCode` and `verifyLoginCode` need `loginCodeSecret` in the config and throw without it.
+
+```ts
+const codes = createAuth({ loginCodeSecret: process.env.LOGIN_CODE_SECRET! }, { db })
+
+async function requestCode(email: string) {
+  const user = await db.findUserByEmail(email)
+  // Answer the same either way, so the response does not tell which addresses have an account.
+  if (!user) return
+  await codes.sendLoginCode(user, (to, code) => sendMail(to, 'Your login code', `${code} is your code. It works for 10 minutes.`))
+}
+
+async function loginWithCode(email: string, code: string) {
+  const user = await db.findUserByEmail(email)
+  if (!user || (await codes.verifyLoginCode(user, code)) === null) return null
+  return codes.createSession(user) // session.token goes into the auth cookie
+}
+```
+
+What keeps six digits safe:
+
+- **Per user.** The code is looked up by user, never by its value, so two users holding the same digits cannot log in as each other.
+- **One at a time, once.** Sending a new code replaces the user's earlier one. A code that verifies is deleted; so is one found expired, after `loginCodeTtl` (10 minutes).
+- **Five attempts.** Every `verifyLoginCode` counts against `loginCodeAttempts`, the right code included, and the count is taken before the code is compared. With the fifth the code is deleted: after five wrong codes the right one fails too, until a new code is sent.
+- **Not in the store.** A random token's SHA-256 is safe to store; a six-digit code's is not, since a million values are tried in an instant. The store holds the code's HMAC under `loginCodeSecret`, so reading the store does not give the code away. Keep the secret where the store is not: an environment secret, not a document. Changing it invalidates the codes that are out.
+
+What stays yours: rate limit the endpoint that sends codes, per address and per client ([security](/modules/security)), or anyone can fill a mailbox; and limit the endpoint that verifies them, because the attempt count is exact only where the adapter counts atomically. The flatdb adapter reads, adds one and writes, so guesses that arrive in the same instant can share a count.
+
 ## Other one-time tokens
 
 The same mechanism is open for your own flows (invitations, magic links). `verifyToken` returns the user id and consumes the token.
@@ -147,13 +177,17 @@ async function finishGithubLogin(code: string, state: string) {
 
 ## Config options
 
-`createAuth(config, deps)` reads these; all lifetimes are seconds.
+`createAuth(config, deps)` reads these; all lifetimes are seconds. It throws on a `loginCodeLength` outside 6 to 12 and a `loginCodeAttempts` below 1.
 
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `sessionTtl` | `number` | `604800` | Lifetime of a session (7 days) |
 | `emailVerificationTtl` | `number` | `86400` | Lifetime of an email verification token (24 hours) |
 | `passwordResetTtl` | `number` | `3600` | Lifetime of a password reset token (1 hour) |
+| `loginCodeSecret` | `string` | none | Secret the login codes are stored under; required for `sendLoginCode` and `verifyLoginCode` |
+| `loginCodeTtl` | `number` | `600` | Lifetime of a login code (10 minutes) |
+| `loginCodeLength` | `number` | `6` | Digits of a login code, 6 to 12 |
+| `loginCodeAttempts` | `number` | `5` | Verifications a login code allows before it is deleted, the right one included |
 
 | Dependency | Type | Description |
 |---|---|---|
@@ -168,8 +202,9 @@ async function finishGithubLogin(code: string, state: string) {
 | `findUserByEmail(email)`, `findUserById(id)` | Users, `null` when absent |
 | `createSession(data)`, `findSession(token)`, `deleteSession(token)`, `deleteExpiredSessions(userId)`, `deleteUserSessions(userId)` | Sessions: `deleteUserSessions` runs on a password reset and from `destroyUserSessions` |
 | `createToken(data)`, `findToken(token, type)`, `deleteToken(id)`, `deleteTokens(userId, type)` | One-time tokens: `deleteTokens` runs before a new one is issued, `deleteToken` when one is presented |
+| `findUserToken(userId, type)`, `countTokenAttempt(id)` | Login codes: the user's one token of a type, and `attempts + 1` on it, returning the new count or `null` when the token is gone. Increment atomically where the store can |
 | `updateUserPassword(id, passwordHash)`, `markEmailVerified(id)` | Writes to the user |
 
-Session and one-time tokens reach the adapter hashed: `createSession` and `createToken` receive the SHA-256 hash of the raw token in `token`, and `findSession`, `deleteSession` and `findToken` are called with the same hash. The adapter stores and compares what it gets and never sees a raw token, so nothing that reads the store can log in or reset a password ([decision 0011](https://github.com/loewen-digital/fullstack/blob/main/docs/decisions/0011-tokens-stored-hashed.md)). `hashToken(raw)` from `@loewen-digital/fullstack/auth` computes the stored value when your own code has to find the record behind a token.
+Session and one-time tokens reach the adapter hashed: `createSession` and `createToken` receive the SHA-256 hash of the raw token in `token`, and `findSession`, `deleteSession` and `findToken` are called with the same hash. The adapter stores and compares what it gets and never sees a raw token, so nothing that reads the store can log in or reset a password ([decision 0011](https://github.com/loewen-digital/fullstack/blob/main/docs/decisions/0011-tokens-stored-hashed.md)). `hashToken(raw)` from `@loewen-digital/fullstack/auth` computes the stored value when your own code has to find the record behind a token. A login code reaches `createToken` as its HMAC, with `attempts: 0` for the adapter to store ([decision 0018](https://github.com/loewen-digital/fullstack/blob/main/docs/decisions/0018-login-codes.md)).
 
 `@loewen-digital/fullstack/auth/flatdb` ships `createFlatdbAuthAdapter({ users, sessions, tokens })` for flatdb collections; the [guide](/guides/auth-on-flatdb) has the schemas.

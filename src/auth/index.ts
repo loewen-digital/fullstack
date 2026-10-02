@@ -17,6 +17,7 @@ import {
 import { generateToken, verifyToken } from './token.js'
 import { sendVerificationEmail, verifyEmail } from './email-verification.js'
 import { sendPasswordResetEmail, resetPassword } from './password-reset.js'
+import { sendLoginCode, verifyLoginCode, type LoginCodeOptions } from './login-code.js'
 import { createOAuthProvider } from './oauth.js'
 
 export type { AuthInstance, AuthUser, AuthSession, AuthDbAdapter, AuthConfig }
@@ -47,6 +48,18 @@ export function createAuth(config: AuthConfig, deps: { db: AuthDbAdapter }): Aut
   const sessionTtl = config.sessionTtl ?? 7 * 24 * 3600
   const emailVerificationTtl = config.emailVerificationTtl ?? 24 * 3600
   const passwordResetTtl = config.passwordResetTtl ?? 3600
+  const loginCode: LoginCodeOptions = {
+    secret: config.loginCodeSecret,
+    ttlSeconds: config.loginCodeTtl ?? 600,
+    length: config.loginCodeLength ?? 6,
+    maxAttempts: config.loginCodeAttempts ?? 5,
+  }
+  if (!Number.isInteger(loginCode.length) || loginCode.length < 6 || loginCode.length > 12) {
+    throw new Error('loginCodeLength must be an integer from 6 to 12.')
+  }
+  if (!Number.isInteger(loginCode.maxAttempts) || loginCode.maxAttempts < 1) {
+    throw new Error('loginCodeAttempts must be an integer of at least 1.')
+  }
 
   return {
     hashPassword(password: string): Promise<string> {
@@ -101,6 +114,17 @@ export function createAuth(config: AuthConfig, deps: { db: AuthDbAdapter }): Aut
 
     resetPassword(token: string, newPassword: string): Promise<AuthUser | null> {
       return resetPassword(db, token, newPassword)
+    },
+
+    sendLoginCode(
+      user: AuthUser,
+      sendFn: (email: string, code: string) => Promise<void>,
+    ): Promise<void> {
+      return sendLoginCode(db, user, sendFn, loginCode)
+    },
+
+    verifyLoginCode(user: AuthUser, code: string): Promise<string | number | null> {
+      return verifyLoginCode(db, user, code, loginCode)
     },
 
     oauthProvider(name: string, providerConfig: OAuthProviderConfig): OAuthProvider {

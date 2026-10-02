@@ -58,6 +58,15 @@ function makeAdapter(): AuthDbAdapter {
     async findToken(token, type) {
       return [...tokens.values()].find((t) => t.token === token && t.type === type) ?? null
     },
+    async findUserToken(userId, type) {
+      return [...tokens.values()].find((t) => t.userId === userId && t.type === type) ?? null
+    },
+    async countTokenAttempt(id) {
+      const token = tokens.get(id)
+      if (!token) return null
+      token.attempts = (token.attempts ?? 0) + 1
+      return token.attempts
+    },
     async deleteToken(id) {
       tokens.delete(id)
     },

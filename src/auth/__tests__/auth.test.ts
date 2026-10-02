@@ -64,6 +64,15 @@ function createTestDb(): AuthDbAdapter {
     async findToken(token, type) {
       return tokens.find((t) => t.token === token && t.type === type) ?? null
     },
+    async findUserToken(userId, type) {
+      return tokens.find((t) => String(t.userId) === String(userId) && t.type === type) ?? null
+    },
+    async countTokenAttempt(id) {
+      const token = tokens.find((t) => t.id === id)
+      if (!token) return null
+      token.attempts = (token.attempts ?? 0) + 1
+      return token.attempts
+    },
     async deleteToken(id) {
       const idx = tokens.findIndex((t) => t.id === id)
       if (idx !== -1) tokens.splice(idx, 1)
@@ -401,5 +410,204 @@ describe('OAuth scaffold', () => {
         redirectUri: '',
       }),
     ).toThrow('Unknown OAuth provider')
+  })
+})
+
+describe('login codes', () => {
+  const SECRET = 'login-code-secret'
+  let codes: ReturnType<typeof createAuth>
+  let alice: AuthUser
+  let bob: AuthUser
+
+  /** Send a code and return what the mail would carry. */
+  async function send(user: AuthUser, instance = codes): Promise<string> {
+    let sent = ''
+    await instance.sendLoginCode(user, async (_email, code) => {
+      sent = code
+    })
+    return sent
+  }
+
+  /** A code of the same length that is not `code`. */
+  function wrong(code: string): string {
+    return code === '000000' ? '000001' : '000000'
+  }
+
+  beforeEach(async () => {
+    codes = createAuth({ loginCodeSecret: SECRET }, { db })
+    alice = (await db.findUserByEmail('alice@example.com'))!
+    bob = (await db.findUserByEmail('bob@example.com'))!
+  })
+
+  it('mails six digits and verifies them once', async () => {
+    let mailedTo = ''
+    let code = ''
+    await codes.sendLoginCode(alice, async (email, c) => {
+      mailedTo = email
+      code = c
+    })
+    expect(mailedTo).toBe('alice@example.com')
+    expect(code).toMatch(/^\d{6}$/)
+
+    expect(await codes.verifyLoginCode(alice, code)).toBe('1')
+    expect(await codes.verifyLoginCode(alice, code)).toBeNull()
+    expect(await db.findUserToken('1', 'login_code')).toBeNull()
+  })
+
+  it('takes the length from loginCodeLength', async () => {
+    const long = createAuth({ loginCodeSecret: SECRET, loginCodeLength: 8 }, { db })
+    const code = await send(alice, long)
+    expect(code).toMatch(/^\d{8}$/)
+    expect(await long.verifyLoginCode(alice, code)).toBe('1')
+  })
+
+  it('refuses a length outside 6 to 12 and an attempt limit below 1', () => {
+    expect(() => createAuth({ loginCodeLength: 4 }, { db })).toThrow(/loginCodeLength/)
+    expect(() => createAuth({ loginCodeLength: 13 }, { db })).toThrow(/loginCodeLength/)
+    expect(() => createAuth({ loginCodeLength: 6.5 }, { db })).toThrow(/loginCodeLength/)
+    expect(() => createAuth({ loginCodeAttempts: 0 }, { db })).toThrow(/loginCodeAttempts/)
+  })
+
+  it('needs loginCodeSecret, to send and to verify', async () => {
+    await expect(auth.sendLoginCode(alice, async () => {})).rejects.toThrow(/loginCodeSecret/)
+    await expect(auth.verifyLoginCode(alice, '123456')).rejects.toThrow(/loginCodeSecret/)
+    expect(await db.findUserToken('1', 'login_code')).toBeNull()
+  })
+
+  it('stores the HMAC of the code, not the code and not its plain hash', async () => {
+    const code = await send(alice)
+    const record = (await db.findUserToken('1', 'login_code'))!
+
+    expect(record.token).toMatch(/^[0-9a-f]{64}$/)
+    expect(record.token).not.toBe(code)
+    expect(record.token).not.toBe(await hashToken(code))
+    expect(record.token).not.toBe(await hashToken(`1:${code}`))
+    expect(record.attempts).toBe(0)
+  })
+
+  it('a code under another secret does not verify', async () => {
+    const code = await send(alice)
+    const other = createAuth({ loginCodeSecret: 'another-secret' }, { db })
+    expect(await other.verifyLoginCode(alice, code)).toBeNull()
+  })
+
+  it("is looked up per user: another user's code does not log in", async () => {
+    const alices = await send(alice)
+    await send(bob)
+
+    // Force the collision the lookup has to survive: both users hold the same digits.
+    const { hashLoginCode } = await import('../login-code.js')
+    const bobsRecord = (await db.findUserToken('2', 'login_code'))!
+    bobsRecord.token = await hashLoginCode(SECRET, '2', alices)
+
+    expect(await codes.verifyLoginCode(bob, alices)).toBe('2')
+    expect(await codes.verifyLoginCode(alice, alices)).toBe('1')
+  })
+
+  it("a user without a code does not verify with someone else's", async () => {
+    const code = await send(alice)
+    expect(await codes.verifyLoginCode(bob, code)).toBeNull()
+    expect(await codes.verifyLoginCode(alice, code)).toBe('1')
+  })
+
+  it("a new code replaces the user's earlier one, and only theirs", async () => {
+    const first = await send(alice)
+    const bobs = await send(bob)
+    const second = await send(alice)
+
+    if (first !== second) expect(await codes.verifyLoginCode(alice, first)).toBeNull()
+    expect(await codes.verifyLoginCode(bob, bobs)).toBe('2')
+  })
+
+  it('the latest code works after a resend', async () => {
+    await send(alice)
+    const second = await send(alice)
+    expect(await codes.verifyLoginCode(alice, second)).toBe('1')
+  })
+
+  it('counts wrong codes and deletes the code with the fifth', async () => {
+    const code = await send(alice)
+
+    for (let i = 1; i <= 4; i++) {
+      expect(await codes.verifyLoginCode(alice, wrong(code))).toBeNull()
+      expect((await db.findUserToken('1', 'login_code'))?.attempts).toBe(i)
+    }
+    expect(await codes.verifyLoginCode(alice, wrong(code))).toBeNull()
+    expect(await db.findUserToken('1', 'login_code')).toBeNull()
+
+    // The right code comes too late; a new one works.
+    expect(await codes.verifyLoginCode(alice, code)).toBeNull()
+    const fresh = await send(alice)
+    expect(await codes.verifyLoginCode(alice, fresh)).toBe('1')
+  })
+
+  it('the right code on the last allowed attempt still logs in', async () => {
+    const code = await send(alice)
+    for (let i = 0; i < 4; i++) await codes.verifyLoginCode(alice, wrong(code))
+    expect(await codes.verifyLoginCode(alice, code)).toBe('1')
+  })
+
+  it('takes the limit from loginCodeAttempts', async () => {
+    const strict = createAuth({ loginCodeSecret: SECRET, loginCodeAttempts: 1 }, { db })
+    const code = await send(alice, strict)
+    expect(await strict.verifyLoginCode(alice, wrong(code))).toBeNull()
+    expect(await strict.verifyLoginCode(alice, code)).toBeNull()
+  })
+
+  it('a count the store already holds beyond the limit refuses the right code', async () => {
+    const code = await send(alice)
+    const record = (await db.findUserToken('1', 'login_code'))!
+    record.attempts = 5
+
+    expect(await codes.verifyLoginCode(alice, code)).toBeNull()
+    expect(await db.findUserToken('1', 'login_code')).toBeNull()
+  })
+
+  it('input that is not a code of the right length counts as a wrong attempt', async () => {
+    const code = await send(alice)
+    for (const input of ['', 'abcdef', `${code}0`, code.slice(1), `${code.slice(0, 5)}x`]) {
+      expect(await codes.verifyLoginCode(alice, input)).toBeNull()
+    }
+    expect(await db.findUserToken('1', 'login_code')).toBeNull()
+  })
+
+  it('surrounding whitespace is not part of the code', async () => {
+    const code = await send(alice)
+    expect(await codes.verifyLoginCode(alice, ` ${code}\n`)).toBe('1')
+  })
+
+  it('an expired code is refused and deleted', async () => {
+    const brief = createAuth({ loginCodeSecret: SECRET, loginCodeTtl: -10 }, { db })
+    const code = await send(alice, brief)
+    expect(await brief.verifyLoginCode(alice, code)).toBeNull()
+    expect(await db.findUserToken('1', 'login_code')).toBeNull()
+  })
+
+  it('expires after ten minutes by default', async () => {
+    const before = Date.now()
+    await send(alice)
+    const record = (await db.findUserToken('1', 'login_code'))!
+    const ttl = record.expiresAt.getTime() - before
+    expect(ttl).toBeGreaterThanOrEqual(600_000)
+    expect(ttl).toBeLessThan(605_000)
+  })
+
+  it('leaves the tokens of other types alone', async () => {
+    const invite = await auth.generateToken('1', 'invite')
+    const code = await send(alice)
+    expect(await codes.verifyLoginCode(alice, code)).toBe('1')
+    expect(await auth.verifyToken(invite, 'invite')).toBe('1')
+  })
+
+  it('draws every digit, leading zeros included', async () => {
+    const seen = new Set<string>()
+    let leadingZero = false
+    for (let i = 0; i < 200; i++) {
+      const code = await send(alice)
+      for (const digit of code) seen.add(digit)
+      if (code.startsWith('0')) leadingZero = true
+    }
+    expect(seen.size).toBe(10)
+    expect(leadingZero).toBe(true)
   })
 })

@@ -45,6 +45,18 @@ function createTestAuthDb(): AuthDbAdapter {
       const t = tokens.get(token)
       return t && t.type === type ? t : null
     },
+    async findUserToken(userId, type) {
+      for (const t of tokens.values()) {
+        if (t.userId === userId && t.type === type) return t
+      }
+      return null
+    },
+    async countTokenAttempt(id) {
+      for (const t of tokens.values()) {
+        if (t.id === id) return (t.attempts = (t.attempts ?? 0) + 1)
+      }
+      return null
+    },
     async deleteToken(id) {
       for (const [key, t] of tokens) {
         if (t.id === id) tokens.delete(key)

@@ -109,7 +109,7 @@ A `fullstack.config.ts` with `export default defineConfig({ ... })` is what the 
 | Key | Module | Read by |
 |---|---|---|
 | `db` | [db](/modules/db) | `createDb`: `driver`, `url`, `migrations` |
-| `auth` | [auth](/modules/auth) | `createAuth`: the three TTLs |
+| `auth` | [auth](/modules/auth) | `createAuth`: the TTLs and the login code options |
 | `session` | [session](/modules/session) | `createSession`: `driver`, `secret`, `maxAge` |
 | `mail` | [mail](/modules/mail) | `createMail`: `driver`, `from`, `silent` |
 | `storage` | [storage](/modules/storage) | `createStorage`: `driver` |
