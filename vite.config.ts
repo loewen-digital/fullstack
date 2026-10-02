@@ -23,6 +23,7 @@ const entries: Record<string, string> = {
   'permissions/index': 'src/permissions/index.ts',
   'webhooks/index': 'src/webhooks/index.ts',
   'realtime/index': 'src/realtime/index.ts',
+  'feedback/index': 'src/feedback/index.ts',
   'testing/index': 'src/testing/index.ts',
   'adapters/sveltekit/index': 'src/adapters/sveltekit/index.ts',
   'adapters/nuxt/index': 'src/adapters/nuxt/index.ts',

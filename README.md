@@ -77,6 +77,7 @@ All subpaths sit below `@loewen-digital/fullstack`. Each module's page lists its
 | Search | `/search` | `createSearch`: SQLite FTS5 via `better-sqlite3`, Meilisearch, Typesense |
 | Webhooks | `/webhooks` | `createWebhooks`: verify signed incoming webhooks, send outgoing ones with retries and a delivery log |
 | Realtime | `/realtime` | `createRealtime`: channels with `broadcast`, `sse()` as a streaming `Response` |
+| Feedback | `/feedback` | `createFeedbackHandler`: the endpoint of an in-app feedback form, files each message as a GitHub issue |
 | Testing | `/testing` | `createTestStack`, fake mail, queue and storage drivers, `defineFactory`, `withSavepoint` |
 
 A driver named in the config (`memory`, `console`, `cookie`, `sqlite`) needs nothing else. A driver that needs credentials or a client is built with its own factory and handed to the module's `createXInstance`, for example `createMailInstance(createResendDriver({ apiKey }), { driver: 'resend', from })`. The [driver pattern](https://fullstack-docs-vitepress.pages.dev/core-concepts/driver-pattern) page lists every driver and which kind it is.

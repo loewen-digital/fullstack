@@ -64,6 +64,7 @@ export default defineConfig({
             { text: 'Search', link: '/modules/search' },
             { text: 'Webhooks', link: '/modules/webhooks' },
             { text: 'Realtime', link: '/modules/realtime' },
+            { text: 'Feedback', link: '/modules/feedback' },
           ],
         },
         {

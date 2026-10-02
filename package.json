@@ -107,6 +107,10 @@
       "import": "./dist/realtime/index.js",
       "types": "./dist/realtime/index.d.ts"
     },
+    "./feedback": {
+      "import": "./dist/feedback/index.js",
+      "types": "./dist/feedback/index.d.ts"
+    },
     "./testing": {
       "import": "./dist/testing/index.js",
       "types": "./dist/testing/index.d.ts"

@@ -58,6 +58,7 @@ src/
 ├── permissions/          → createPermissions(), roles, policies
 ├── webhooks/             → createWebhooks(), incoming/outgoing
 ├── realtime/             → createRealtime(), websocket, SSE
+├── feedback/             → createFeedbackHandler(), sinks (GitHub issue, KV)
 ├── testing/              → createTestStack(), fakes, factories, DB helpers
 ├── adapters/
 │   ├── sveltekit/        → createHandle(), type augmentation

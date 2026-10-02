@@ -156,6 +156,11 @@ The core **never** imports or depends on any framework-specific code. Every modu
 │   │   ├── incoming.ts          → signature verification
 │   │   ├── outgoing.ts          → sending + retry
 │   │   └── types.ts
+│   ├── feedback/
+│   │   ├── index.ts             → createFeedbackHandler()
+│   │   ├── github.ts            → githubIssueSink(), defusing of mentions
+│   │   ├── kv.ts                → kvSink()
+│   │   └── types.ts
 │   ├── realtime/
 │   │   ├── index.ts             → createRealtime()
 │   │   ├── websocket.ts
@@ -223,6 +228,7 @@ The core **never** imports or depends on any framework-specific code. Every modu
     "./permissions": "./dist/permissions/index.js",
     "./webhooks": "./dist/webhooks/index.js",
     "./realtime": "./dist/realtime/index.js",
+    "./feedback": "./dist/feedback/index.js",
     "./testing": "./dist/testing/index.js",
     "./adapters/sveltekit": "./dist/adapters/sveltekit/index.js",
     "./adapters/nuxt": "./dist/adapters/nuxt/index.js",
@@ -374,6 +380,7 @@ config (standalone)
 ├── storage (depends on: config)
 ├── webhooks (depends on: config)
 ├── realtime (depends on: config)
+├── feedback (depends on: security, for CORS headers and the RateLimiter type)
 │
 └── testing (can mock any of the above)
 ```
