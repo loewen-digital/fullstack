@@ -5,7 +5,7 @@ description: CSRF tokens, CORS headers, rate limiting and HTML sanitizing on Web
 
 # Security
 
-The `security` module bundles four HTTP security primitives: CSRF tokens bound to a session id, CORS response headers, a rate limiter in memory or on Cloudflare's Rate Limiting binding, and HTML sanitizing. Everything works on `Request`, `Response` and `Headers`; nothing reads cookies or bodies for you, the framework adapter or your handler does that.
+The `security` module bundles four HTTP security primitives: CSRF tokens bound to a session id, CORS response headers, a rate limiter in memory, on Cloudflare's Rate Limiting binding or on a KV namespace, and HTML sanitizing. Everything works on `Request`, `Response` and `Headers`; nothing reads cookies or bodies for you, the framework adapter or your handler does that.
 
 In SvelteKit, `createHandle` from the [adapter](/adapters/sveltekit) checks the CSRF header on every mutating request and puts the result on `locals.csrfVerified`; the [Auth on flatdb](/guides/auth-on-flatdb) guide shows the surrounding setup.
 
@@ -107,6 +107,38 @@ async function loginAllowed(binding: RateLimit, email: string): Promise<boolean>
 }
 ```
 
+### On Cloudflare Pages Functions
+
+Pages Functions cannot bind the Rate Limiting binding. `createKvRateLimiter({ namespace, windowMs, max, prefix? })` counts in a KV namespace instead, so a limit holds across isolates there too. It answers the same `RateLimiter`, with `remaining` and `resetAt`; `reset(key)` deletes the key. `createSecurity({ rateLimit: { kv: namespace, windowMs, max } })` and `security.createRateLimiter()` build the same limiter. `windowMs` and `max` have no default here, and a window under 60 seconds throws: KV keeps no key for less.
+
+```ts
+import { createKvRateLimiter } from '@loewen-digital/fullstack/security'
+
+export function loginCodeLimits(kv: KVNamespace) {
+  return {
+    perAddress: createKvRateLimiter({ namespace: kv, windowMs: 15 * 60_000, max: 3, prefix: 'code:address' }),
+    perClient: createKvRateLimiter({ namespace: kv, windowMs: 60 * 60_000, max: 10, prefix: 'code:client' }),
+  }
+}
+
+async function mayMailCode(kv: KVNamespace, request: Request, email: string): Promise<boolean> {
+  const { perAddress, perClient } = loginCodeLimits(kv)
+  const client = request.headers.get('cf-connecting-ip') ?? 'unknown'
+  const address = await perAddress.check(email.toLowerCase())
+  return address.allowed && (await perClient.check(client)).allowed
+}
+```
+
+A key is stored as `prefix:key` (prefix `ratelimit` by default) with the count and the end of its window. That end decides, not the key's KV expiry: later hits do not push the window out, and a hit over the limit writes nothing, so a blocked client costs reads only.
+
+The limit is soft, and the page should not pretend otherwise:
+
+- **Eventually consistent.** A write shows at once where it was made and can take up to 60 seconds to reach other Cloudflare locations. Hits from two places inside that time each see the old count.
+- **Read, add one, write.** KV has no increment. Hits that arrive together can read the same count and write the same next one.
+- **One write per second per key.** KV refuses a faster second write to the same key; `check` then rejects with KV's error instead of letting the hit through uncounted. Catch it where a retry or a 429 is the better answer.
+
+That fits low limits over minutes: login attempts, mails per address. It is not a per-request throttle, and where a limit has to be exact it needs a store that counts atomically.
+
 ## Sanitizing
 
 `sanitize(input)` removes `<script>` blocks, `on*` handlers and `javascript:`, `data:` and `vbscript:` URLs, then strips every remaining tag: plain text comes out. `escapeHtml(input)` turns `& < > " '` into entities for text nodes and attributes. Rich user HTML with an allowed tag list is not this module's job; use DOMPurify or sanitize-html there.
@@ -120,7 +152,7 @@ const safe = escapeHtml('<a href="x">') // '&lt;a href=&quot;x&quot;&gt;'
 
 ## Standalone functions
 
-Every primitive is also a plain export, for one-off use without an instance: `generateCsrfToken(sessionId, secret)`, `verifyCsrfToken(sessionId, token, secret)`, `corsHeaders(origin, config)`, `createRateLimiter(config)`, `createBindingRateLimiter({ binding })`, `sanitize(input)` and `escapeHtml(input)`.
+Every primitive is also a plain export, for one-off use without an instance: `generateCsrfToken(sessionId, secret)`, `verifyCsrfToken(sessionId, token, secret)`, `corsHeaders(origin, config)`, `createRateLimiter(config)`, `createBindingRateLimiter({ binding })`, `createKvRateLimiter({ namespace, windowMs, max })`, `sanitize(input)` and `escapeHtml(input)`.
 
 ## Config options
 
@@ -135,8 +167,10 @@ Every primitive is also a plain export, for one-off use without an instance: `ge
 | `cors.exposedHeaders` | `string[]` | `[]` | `Access-Control-Expose-Headers` |
 | `cors.credentials` | `boolean` | `false` | `Access-Control-Allow-Credentials` |
 | `cors.maxAge` | `number` | `86400` | `Access-Control-Max-Age` in seconds |
-| `rateLimit.windowMs` | `number` | `60000` | Window length in milliseconds, memory counter only |
-| `rateLimit.max` | `number` | `60` | Hits per key and window, memory counter only |
+| `rateLimit.windowMs` | `number` | `60000` | Window length in milliseconds, memory and KV. Required next to `kv`, and at least `60000` there |
+| `rateLimit.max` | `number` | `60` | Hits per key and window, memory and KV. Required next to `kv` |
+| `rateLimit.kv` | `RateLimitKvNamespace` | — | A Cloudflare KV namespace to count in; not accepted next to `binding` |
+| `rateLimit.prefix` | `string` | `'ratelimit'` | Prefix of the keys in the KV namespace |
 | `rateLimit.binding` | `RateLimitBinding` | — | Cloudflare's Rate Limiting binding; its limit and period come from the wrangler config, `windowMs` and `max` are not accepted next to it |
 
 `corsHeaders` and `createRateLimiter` on the instance take the same options as a per-call override.

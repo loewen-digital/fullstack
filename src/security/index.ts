@@ -2,14 +2,15 @@ import type {
   SecurityConfig,
   SecurityInstance,
   CorsConfig,
-  RateLimitBindingConfig,
   RateLimitConfig,
   RateLimiter,
+  SecurityRateLimitConfig,
 } from './types.js'
 import { generateCsrfToken, verifyCsrfToken } from './csrf.js'
 import { corsHeaders } from './cors.js'
 import { createRateLimiter } from './rate-limit.js'
 import { createBindingRateLimiter } from './rate-limit-binding.js'
+import { createKvRateLimiter } from './rate-limit-kv.js'
 import { sanitize } from './sanitize.js'
 
 export type { SecurityConfig, SecurityInstance, CorsConfig, RateLimitConfig }
@@ -18,10 +19,15 @@ export type {
   RateLimitResult,
   RateLimitBinding,
   RateLimitBindingConfig,
+  RateLimitKvConfig,
+  RateLimitKvNamespace,
+  RateLimitKvSecurityConfig,
+  SecurityRateLimitConfig,
 } from './types.js'
 export { corsHeaders } from './cors.js'
 export { createRateLimiter } from './rate-limit.js'
 export { createBindingRateLimiter } from './rate-limit-binding.js'
+export { createKvRateLimiter } from './rate-limit-kv.js'
 export { sanitize, escapeHtml } from './sanitize.js'
 export { generateCsrfToken, verifyCsrfToken } from './csrf.js'
 
@@ -46,7 +52,7 @@ export function createSecurity(config: SecurityConfig = {}): SecurityInstance {
   }
 
   const defaultCorsConfig: CorsConfig = config.cors ?? {}
-  const defaultRateLimitConfig: RateLimitConfig | RateLimitBindingConfig = config.rateLimit ?? {}
+  const defaultRateLimitConfig: SecurityRateLimitConfig = config.rateLimit ?? {}
 
   return {
     async generateCsrfToken(sessionId: string): Promise<string> {
@@ -61,14 +67,16 @@ export function createSecurity(config: SecurityConfig = {}): SecurityInstance {
       return corsHeaders(origin, overrideConfig ?? defaultCorsConfig)
     },
 
-    createRateLimiter(overrideConfig?: RateLimitConfig | RateLimitBindingConfig): RateLimiter {
+    createRateLimiter(overrideConfig?: SecurityRateLimitConfig): RateLimiter {
       const rateLimitConfig = overrideConfig ?? defaultRateLimitConfig
-      return rateLimitConfig.binding
-        ? createBindingRateLimiter({ binding: rateLimitConfig.binding })
-        : createRateLimiter({
-            windowMs: rateLimitConfig.windowMs,
-            max: rateLimitConfig.max,
-          })
+      if (rateLimitConfig.binding) {
+        return createBindingRateLimiter({ binding: rateLimitConfig.binding })
+      }
+      if (rateLimitConfig.kv) {
+        const { kv, windowMs, max, prefix } = rateLimitConfig
+        return createKvRateLimiter({ namespace: kv, windowMs, max, prefix })
+      }
+      return createRateLimiter({ windowMs: rateLimitConfig.windowMs, max: rateLimitConfig.max })
     },
 
     sanitize(input: string): string {

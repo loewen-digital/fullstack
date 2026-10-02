@@ -136,7 +136,7 @@ What keeps six digits safe:
 - **Five attempts.** Every `verifyLoginCode` counts against `loginCodeAttempts`, the right code included, and the count is taken before the code is compared. With the fifth the code is deleted: after five wrong codes the right one fails too, until a new code is sent.
 - **Not in the store.** A random token's SHA-256 is safe to store; a six-digit code's is not, since a million values are tried in an instant. The store holds the code's HMAC under `loginCodeSecret`, so reading the store does not give the code away. Keep the secret where the store is not: an environment secret, not a document. Changing it invalidates the codes that are out.
 
-What stays yours: rate limit the endpoint that sends codes, per address and per client ([security](/modules/security)), or anyone can fill a mailbox; and limit the endpoint that verifies them, because the attempt count is exact only where the adapter counts atomically. The flatdb adapter reads, adds one and writes, so guesses that arrive in the same instant can share a count.
+What stays yours: rate limit the endpoint that sends codes, per address and per client ([security](/modules/security#rate-limiting)), or anyone can fill a mailbox; and limit the endpoint that verifies them, because the attempt count is exact only where the adapter counts atomically. The flatdb adapter reads, adds one and writes, so guesses that arrive in the same instant can share a count.
 
 ## Other one-time tokens
 

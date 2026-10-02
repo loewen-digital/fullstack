@@ -7,7 +7,8 @@ interface BucketEntry {
 
 /**
  * Create an in-memory rate limiter using a fixed window algorithm. It counts per process, on
- * Cloudflare Workers per isolate; `createBindingRateLimiter` counts on the Rate Limiting binding.
+ * Cloudflare Workers per isolate; `createBindingRateLimiter` counts on the Rate Limiting binding,
+ * `createKvRateLimiter` on a KV namespace.
  *
  * Usage:
  *   const limiter = createRateLimiter({ windowMs: 60_000, max: 100 })

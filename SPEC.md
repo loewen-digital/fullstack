@@ -74,7 +74,9 @@ The core **never** imports or depends on any framework-specific code. Every modu
 │   │   ├── index.ts             → createSecurity()
 │   │   ├── csrf.ts              → CSRF token generation/verification
 │   │   ├── cors.ts              → CORS configuration
-│   │   ├── rate-limit.ts        → rate limiting
+│   │   ├── rate-limit.ts        → rate limiting in memory
+│   │   ├── rate-limit-binding.ts → on Cloudflare's Rate Limiting binding
+│   │   ├── rate-limit-kv.ts     → on a Cloudflare KV namespace
 │   │   ├── sanitize.ts          → input sanitization
 │   │   └── types.ts
 │   ├── mail/
