@@ -1,12 +1,13 @@
 /**
- * Type-checks the ```ts blocks of a docs page against the package source, the way a SvelteKit 2
+ * Type-checks the ```ts blocks of a docs page against the package source, the way a SvelteKit 3
  * project with `strict: true` would compile them. `docs.test.ts` runs it for every page in PAGES:
  * paths under `docs/content/`, plus `README` for the repository README that npm shows.
  *
  * Rules for a page:
  * - A block whose first line is `// <path>.ts` (or `.tsx`) is written to that path. Files under
- *   `src/routes/` get a `./$types` stub next to them, `$lib/*` points at the page's `src/lib/`,
- *   `~/*` at its `app/`, and `$env/dynamic/private`, the Workers global `ScheduledEvent` and
+ *   `src/routes/` get a `./$types` stub next to them, `#lib/*` points at the page's `src/lib/`
+ *   through the `imports` of a `package.json` written next to the samples, as in a SvelteKit 3
+ *   project, `~/*` points at its `app/`, and `$env/dynamic/private`, the Workers global `ScheduledEvent` and
  *   the slices of h3, Astro and Remix the adapter pages use and `PagesFunction` are stubbed; the
  *   globals `KVNamespace`, `R2Bucket` and `RateLimit` are Cloudflare's own, from
  *   `@cloudflare/workers-types` (a devDependency only).
@@ -62,6 +63,9 @@ export const PAGES = [
   'README',
 ]
 
+// SvelteKit 3 declares the `#lib` alias as subpath imports; TypeScript resolves them from here.
+const PACKAGE_STUB = `{ "type": "module", "imports": { "#lib": "./src/lib/index.js", "#lib/*": "./src/lib/*" } }
+`
 const ENV_STUB = `declare module '$env/dynamic/private' {
   export const env: Record<string, string | undefined>
 }
@@ -201,6 +205,8 @@ export function writeSamples(name: string, blocks: Block[]): { dir: string; file
     files.add(path)
   }
 
+  write('package.json', PACKAGE_STUB)
+  files.delete(join(dir, 'package.json'))
   write('env.d.ts', ENV_STUB)
   write('workers.d.ts', WORKERS_STUB)
   write('frameworks.d.ts', FRAMEWORKS_STUB)
@@ -249,12 +255,10 @@ export function compile(dir: string, files: string[]): string[] {
     esModuleInterop: true,
     isolatedModules: true,
     jsx: ts.JsxEmit.Preserve,
-    baseUrl: dir,
     paths: {
       '@loewen-digital/fullstack': [join(ROOT, 'src/index.ts')],
       '@loewen-digital/fullstack/auth/flatdb': [join(ROOT, 'src/auth/adapters/flatdb.ts')],
       '@loewen-digital/fullstack/*': [join(ROOT, 'src/*/index.ts')],
-      '$lib/*': [join(dir, 'src/lib/*')],
       '~/*': [join(dir, 'app/*')],
     },
   }

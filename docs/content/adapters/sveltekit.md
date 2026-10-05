@@ -9,6 +9,8 @@ description: createHandle wires session, auth and CSRF into SvelteKit's hooks an
 
 The [Auth on flatdb](/guides/auth-on-flatdb) guide shows this wiring with `@loewen-digital/flatdb` as storage, built per request for Cloudflare Workers.
 
+The adapter runs on SvelteKit 2 and 3; it only reads `event` and `resolve`. The samples are written for SvelteKit 3. On SvelteKit 2 the `Handle` type comes from `@sveltejs/kit` and the alias is `$lib/…` instead of `#lib/….js`.
+
 ## Import
 
 ```ts
@@ -40,7 +42,7 @@ export const security = createSecurity({ csrf: { secret: env.CSRF_SECRET! } })
 ```ts
 // src/hooks.server.ts
 import { createHandle } from '@loewen-digital/fullstack/adapters/sveltekit'
-import { auth, session, security } from '$lib/server/stack.js'
+import { auth, session, security } from '#lib/server/stack.js'
 
 export const handle = createHandle({ auth, session, security })
 ```
@@ -48,10 +50,10 @@ export const handle = createHandle({ auth, session, security })
 With other hooks, `sequence` from SvelteKit takes it like any `Handle`:
 
 ```ts
-import type { Handle } from '@sveltejs/kit'
+import type { Handle } from '@sveltejs/kit/hooks'
 import { sequence } from '@sveltejs/kit/hooks'
 import { createHandle } from '@loewen-digital/fullstack/adapters/sveltekit'
-import { auth, session, security } from '$lib/server/stack.js'
+import { auth, session, security } from '#lib/server/stack.js'
 
 const logRequests: Handle = ({ event, resolve }) => {
   console.log(event.request.method, event.url.pathname)
@@ -114,7 +116,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 // src/routes/login/+page.server.ts
 import { fail, redirect } from '@sveltejs/kit'
 import { setAuthCookie, validateForm } from '@loewen-digital/fullstack/adapters/sveltekit'
-import { auth, authDb } from '$lib/server/stack.js'
+import { auth, authDb } from '#lib/server/stack.js'
 import type { Actions } from './$types'
 
 export const actions: Actions = {
@@ -144,7 +146,7 @@ export const actions: Actions = {
 // src/routes/logout/+page.server.ts
 import { redirect } from '@sveltejs/kit'
 import { clearAuthCookie } from '@loewen-digital/fullstack/adapters/sveltekit'
-import { auth } from '$lib/server/stack.js'
+import { auth } from '#lib/server/stack.js'
 import type { Actions } from './$types'
 
 export const actions: Actions = {
@@ -166,7 +168,7 @@ Fetch clients send the header. An HTML form carries the token in a hidden field 
 // src/routes/profile/+page.server.ts
 import { fail } from '@sveltejs/kit'
 import { getCsrfToken } from '@loewen-digital/fullstack/adapters/sveltekit'
-import { security } from '$lib/server/stack.js'
+import { security } from '#lib/server/stack.js'
 import type { Actions, PageServerLoad } from './$types'
 
 export const load: PageServerLoad = async ({ locals }) => {

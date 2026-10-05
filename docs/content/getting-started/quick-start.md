@@ -71,7 +71,7 @@ export const session = createSession({ driver: 'cookie', secret: env.SESSION_SEC
 ```ts
 // src/hooks.server.ts
 import { createHandle } from '@loewen-digital/fullstack/adapters/sveltekit'
-import { auth, session } from '$lib/server/stack'
+import { auth, session } from '#lib/server/stack.js'
 
 export const handle = createHandle({ auth, session })
 ```
@@ -100,8 +100,8 @@ export {}
 // src/routes/login/+page.server.ts
 import { fail, redirect } from '@sveltejs/kit'
 import { setAuthCookie, validateForm } from '@loewen-digital/fullstack/adapters/sveltekit'
-import { auth, authDb } from '$lib/server/stack'
-import { users } from '$lib/server/db'
+import { auth, authDb } from '#lib/server/stack.js'
+import { users } from '#lib/server/db.js'
 import type { Actions } from './$types'
 
 const rules = { email: 'required|email', password: 'required|string|min:8' }
@@ -144,7 +144,7 @@ export const actions: Actions = {
 ```ts
 // src/routes/dashboard/+page.server.ts
 import { redirect } from '@sveltejs/kit'
-import { users } from '$lib/server/db'
+import { users } from '#lib/server/db.js'
 import type { PageServerLoad } from './$types'
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -161,7 +161,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 // src/routes/logout/+page.server.ts
 import { redirect } from '@sveltejs/kit'
 import { clearAuthCookie } from '@loewen-digital/fullstack/adapters/sveltekit'
-import { auth } from '$lib/server/stack'
+import { auth } from '#lib/server/stack.js'
 import type { Actions } from './$types'
 
 export const actions: Actions = {

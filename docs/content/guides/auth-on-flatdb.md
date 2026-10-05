@@ -118,13 +118,13 @@ The hook builds the stack and hands the request to the adapter's `createHandle`:
 
 ```ts
 // src/hooks.server.ts
-import type { Handle } from '@sveltejs/kit'
+import type { Handle } from '@sveltejs/kit/hooks'
 import { env } from '$env/dynamic/private'
 import { FsAdapter, R2Adapter } from '@loewen-digital/flatdb'
 import { createHandle } from '@loewen-digital/fullstack/adapters/sveltekit'
 import { createSession } from '@loewen-digital/fullstack/session'
-import { createDb } from '$lib/server/db'
-import { createAppAuth } from '$lib/server/auth'
+import { createDb } from '#lib/server/db.js'
+import { createAppAuth } from '#lib/server/auth.js'
 
 export const handle: Handle = async ({ event, resolve }) => {
   if (!env.SESSION_SECRET) throw new Error('SESSION_SECRET is not set')
@@ -146,7 +146,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 // src/app.d.ts
 import type { AuthDbAdapter, AuthInstance, AuthSession } from '@loewen-digital/fullstack/auth'
 import type { SessionHandle } from '@loewen-digital/fullstack/session'
-import type { AppDb } from '$lib/server/db'
+import type { AppDb } from '#lib/server/db.js'
 
 declare global {
   namespace App {
@@ -174,7 +174,7 @@ export {}
 // src/routes/login/+page.server.ts
 import { fail, redirect } from '@sveltejs/kit'
 import { setAuthCookie } from '@loewen-digital/fullstack/adapters/sveltekit'
-import { SESSION_TTL } from '$lib/server/auth'
+import { SESSION_TTL } from '#lib/server/auth.js'
 import type { Actions } from './$types'
 
 export const actions: Actions = {
@@ -267,8 +267,8 @@ Tests use `MemoryAdapter` and never touch the filesystem. `createDb` and `create
 ```ts
 import { describe, it, expect } from 'vitest'
 import { MemoryAdapter } from '@loewen-digital/flatdb'
-import { createDb } from '$lib/server/db'
-import { createAppAuth } from '$lib/server/auth'
+import { createDb } from '#lib/server/db.js'
+import { createAppAuth } from '#lib/server/auth.js'
 
 describe('login', () => {
   it('verifies the password and creates a session', async () => {

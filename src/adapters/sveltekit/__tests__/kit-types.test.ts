@@ -4,8 +4,8 @@
  * adapter's structural mirror of `RequestEvent` and `Handle` drifts from SvelteKit.
  */
 import { describe, it, expect } from 'vite-plus/test'
-import type { Handle, RequestEvent } from '@sveltejs/kit'
-import { sequence } from '@sveltejs/kit/hooks'
+import type { RequestEvent } from '@sveltejs/kit'
+import { sequence, type Handle } from '@sveltejs/kit/hooks'
 import { createHandle, setAuthCookie, clearAuthCookie } from '../index.js'
 import { createSession } from '../../../session/index.js'
 

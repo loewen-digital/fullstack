@@ -488,12 +488,12 @@ env('DATABASE_URL', './data.db') // fallback
 
 ```ts
 import { createHandle } from '@loewen-digital/fullstack/adapters/sveltekit'
-import { stack } from '$lib/server/fullstack'
+import { stack } from '#lib/server/fullstack.js'
 
 export const handle = createHandle(stack)
 ```
 
-### $lib/server/fullstack.ts
+### src/lib/server/fullstack.ts
 
 ```ts
 import { loadConfig, createStack } from '@loewen-digital/fullstack'
@@ -506,7 +506,7 @@ export const { db, auth, validate, mail } = stack
 ### +page.server.ts
 
 ```ts
-import { db, auth, validate } from '$lib/server/fullstack'
+import { db, auth, validate } from '#lib/server/fullstack.js'
 import { fail, redirect } from '@sveltejs/kit'
 
 export async function load({ locals }) {

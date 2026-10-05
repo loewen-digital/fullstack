@@ -4,7 +4,7 @@
  * Usage in hooks.server.ts:
  *
  *   import { createHandle } from '@loewen-digital/fullstack/adapters/sveltekit'
- *   import { stack } from '$lib/server/stack'
+ *   import { stack } from '#lib/server/stack.js'
  *
  *   export const handle = createHandle(stack)
  *

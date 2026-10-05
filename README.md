@@ -34,7 +34,7 @@ The adapter wires them into the framework. On every request it opens the session
 ```ts
 // src/hooks.server.ts
 import { createHandle } from '@loewen-digital/fullstack/adapters/sveltekit'
-import { auth, session } from '$lib/server/stack'
+import { auth, session } from '#lib/server/stack.js'
 
 export const handle = createHandle({ auth, session })
 ```
