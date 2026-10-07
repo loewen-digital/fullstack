@@ -7,6 +7,7 @@ is the topmost released one here.
 
 ## Unreleased
 
+- The docs moved from Cloudflare Pages to the Worker `fullstack-docs`: https://fullstack-docs.loewen-digital.workers.dev. The old address fullstack-docs-vitepress.pages.dev redirects there. Decision: [0022](docs/decisions/0022-docs-on-a-worker.md).
 - The SvelteKit adapter is checked against SvelteKit 3: `createHandle`, `setAuthCookie` and `clearAuthCookie` fit Kit 3's `Handle` and `RequestEvent` as they are, and keep working on SvelteKit 2, because the adapter has no dependency on Kit. The docs samples are written for SvelteKit 3 now: the `Handle` type comes from `@sveltejs/kit/hooks`, the alias is `#lib/….js`; the adapter page says what differs on SvelteKit 2. Decision: [0021](docs/decisions/0021-sveltekit-3.md).
 - For contributors: `@sveltejs/kit` 3 and TypeScript 6 are the devDependencies. The docs harness resolves `#lib` through a `package.json` `imports` map and no longer sets `baseUrl`, which TypeScript 6 rejects.
 

@@ -2,7 +2,7 @@
 
 Backend primitives for JavaScript meta-frameworks: auth, sessions, validation, mail, storage, cache, queue, events, logging, errors, permissions, notifications, i18n, search, webhooks, realtime, and a Drizzle `db` module for apps on a SQL database. One package with one subpath per module, factory functions instead of a container, swappable drivers, Web Standard `Request` and `Response` everywhere, a framework-agnostic core and adapters for SvelteKit, Nuxt, Remix, Astro and plain fetch handlers (Pages Functions, Workers, Hono).
 
-Documentation: [fullstack-docs-vitepress.pages.dev](https://fullstack-docs-vitepress.pages.dev)
+Documentation: [fullstack-docs.loewen-digital.workers.dev](https://fullstack-docs.loewen-digital.workers.dev)
 
 ## Install
 
@@ -10,7 +10,7 @@ Documentation: [fullstack-docs-vitepress.pages.dev](https://fullstack-docs-vitep
 npm install @loewen-digital/fullstack
 ```
 
-Node 24, ESM only, TypeScript 5. The modules talk HTTP through `fetch` or take a client you hand them, so you install only what your drivers need: `@loewen-digital/flatdb` and `zod` for auth on flatdb, `nodemailer` for SMTP, `drizzle-orm` and `better-sqlite3` for the `db` module (`better-sqlite3` also for the sqlite search driver), a Redis client for the redis drivers. The package itself has no dependencies. Details on the [installation page](https://fullstack-docs-vitepress.pages.dev/getting-started/installation).
+Node 24, ESM only, TypeScript 5. The modules talk HTTP through `fetch` or take a client you hand them, so you install only what your drivers need: `@loewen-digital/flatdb` and `zod` for auth on flatdb, `nodemailer` for SMTP, `drizzle-orm` and `better-sqlite3` for the `db` module (`better-sqlite3` also for the sqlite search driver), a Redis client for the redis drivers. The package itself has no dependencies. Details on the [installation page](https://fullstack-docs.loewen-digital.workers.dev/getting-started/installation).
 
 ## What it looks like
 
@@ -50,7 +50,7 @@ const result = await validate(input, { email: 'required|email', password: 'requi
 if (!result.ok) console.log(result.errors) // [{ field: 'password', rule: 'min', message: '...' }]
 ```
 
-The [quick start](https://fullstack-docs-vitepress.pages.dev/getting-started/quick-start) builds register, login, a guarded page and logout from these pieces. The code blocks in this file and in the docs are type-checked against the package by the test suite.
+The [quick start](https://fullstack-docs.loewen-digital.workers.dev/getting-started/quick-start) builds register, login, a guarded page and logout from these pieces. The code blocks in this file and in the docs are type-checked against the package by the test suite.
 
 ## Modules
 
@@ -80,7 +80,7 @@ All subpaths sit below `@loewen-digital/fullstack`. Each module's page lists its
 | Feedback | `/feedback` | `createFeedbackHandler`: the endpoint of an in-app feedback form, files each message as a GitHub issue |
 | Testing | `/testing` | `createTestStack`, fake mail, queue and storage drivers, `defineFactory`, `withSavepoint` |
 
-A driver named in the config (`memory`, `console`, `cookie`, `sqlite`) needs nothing else. A driver that needs credentials or a client is built with its own factory and handed to the module's `createXInstance`, for example `createMailInstance(createResendDriver({ apiKey }), { driver: 'resend', from })`. The [driver pattern](https://fullstack-docs-vitepress.pages.dev/core-concepts/driver-pattern) page lists every driver and which kind it is.
+A driver named in the config (`memory`, `console`, `cookie`, `sqlite`) needs nothing else. A driver that needs credentials or a client is built with its own factory and handed to the module's `createXInstance`, for example `createMailInstance(createResendDriver({ apiKey }), { driver: 'resend', from })`. The [driver pattern](https://fullstack-docs.loewen-digital.workers.dev/core-concepts/driver-pattern) page lists every driver and which kind it is.
 
 ## Adapters
 
@@ -107,7 +107,7 @@ stack.fakeMail.sentTo('alice@example.com') // one message
 stack.reset()
 ```
 
-`defineFactory`, `sequence` and `pick` build test records; `withSavepoint`, `createDbCleaner` and `seedOnce` keep SQLite tests isolated. See the [testing pages](https://fullstack-docs-vitepress.pages.dev/testing/overview).
+`defineFactory`, `sequence` and `pick` build test records; `withSavepoint`, `createDbCleaner` and `seedOnce` keep SQLite tests isolated. See the [testing pages](https://fullstack-docs.loewen-digital.workers.dev/testing/overview).
 
 ## CLI
 

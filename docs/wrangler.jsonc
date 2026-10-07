@@ -1,0 +1,13 @@
+// The developer docs as an assets-only Worker: no `main`, Workers Static Assets serves the VitePress
+// build, `404-page` answers unknown paths with VitePress's 404.html. `npm run deploy` here builds and
+// deploys; CI does the same on every push to main that touches the docs (.github/workflows/docs.yml).
+// `account_id` here, so the workflow needs only CLOUDFLARE_API_TOKEN.
+{
+  "name": "fullstack-docs",
+  "compatibility_date": "2026-10-07",
+  "account_id": "b71c0f8f3c745568e6da685fc98398f9",
+  "assets": {
+    "directory": "./.vitepress/dist",
+    "not_found_handling": "404-page"
+  }
+}

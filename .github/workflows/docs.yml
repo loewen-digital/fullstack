@@ -1,0 +1,51 @@
+name: Docs
+
+# Every push to main that touches the docs builds VitePress and deploys the assets-only Worker
+# `fullstack-docs` with `wrangler deploy` (config: docs/wrangler.jsonc); the Actions tab offers a
+# manual run. Needs the secret CLOUDFLARE_API_TOKEN (token template "Edit Cloudflare Workers"); the
+# repo is public, so the org secret reaches it. Without the secret the deploy step is skipped. The
+# account id is `account_id` in the Wrangler config.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/content/**'
+      - 'docs/.vitepress/**'
+      - 'docs/package.json'
+      - 'docs/package-lock.json'
+      - 'docs/wrangler.jsonc'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+concurrency: docs
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+jobs:
+  deploy:
+    name: Build, deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: package.json
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+
+      - run: npm ci
+        working-directory: docs
+
+      - run: npm run build
+        working-directory: docs
+
+      - name: Deploy
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        run: npx wrangler deploy
+        working-directory: docs

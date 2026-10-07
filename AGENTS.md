@@ -268,6 +268,7 @@ Two ways to be here; check `GITHUB_ACTIONS`.
 - Never ask. Blocked means: comment the question with options, `needs-human`, stop.
 - Conventional commits (`feat:`, `fix:`, `chore:`, ...). Never force-push. Never commit secrets.
 - Files you write or edit are formatted on save by the hooks in `.claude/settings.json` (Claude Code) and `.codex/hooks.json` (Codex): `vp fmt` on that file, silent without `node_modules`. Do not hand-format; `npm run format` catches what the hook missed.
+- Cloudflare: the docs are the assets-only Worker `fullstack-docs`, deployed through `wrangler deploy` on every push to `main` that touches `docs/` (`.github/workflows/docs.yml`, config `docs/wrangler.jsonc`), never `wrangler pages`. The package itself deploys nothing; Pages Functions stay a runtime the adapters support, not a deploy target of this repository.
 - In the loop, Eddy merges, not the agent.
 - In the loop, never create or modify files under `.github/workflows/`: the App token lacks the `workflows` scope and the push is rejected. Describe the needed workflow change in a `needs-human` issue instead and continue. Locally, Eddy's `gh` has the scope.
 
