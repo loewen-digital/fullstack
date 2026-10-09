@@ -753,34 +753,27 @@ describe('paddle driver: checkout and manage link', () => {
 
 // What Paddle's sandbox really sent, see fixtures/paddle-sandbox/README.md.
 describe('paddle driver: a recorded sandbox run', () => {
-  const recording = [
-    '1-one-time-transaction-completed',
-    '2-subscription-created',
-    '3-subscription-first-transaction-completed',
-    '4-subscription-updated-cancel-scheduled',
-    '5-subscription-updated-cancel-removed',
-    '6-subscription-canceled',
-    '7-subscription-updated-after-cancel',
-  ].map(
-    (name) =>
-      JSON.parse(
-        readFileSync(new URL(`./fixtures/paddle-sandbox/${name}.json`, import.meta.url), 'utf8'),
-      ) as Notification,
-  )
-  const [purchase, created, firstPayment, cancelScheduled, cancelRemoved, canceled, afterCancel] =
-    recording as [
-      Notification,
-      Notification,
-      Notification,
-      Notification,
-      Notification,
-      Notification,
-      Notification,
-    ]
+  const recorded = (name: string): Notification =>
+    JSON.parse(
+      readFileSync(new URL(`./fixtures/paddle-sandbox/${name}.json`, import.meta.url), 'utf8'),
+    ) as Notification
+  const purchase = recorded('1-one-time-transaction-completed')
+  const created = recorded('2-subscription-created')
+  const firstPayment = recorded('3-subscription-first-transaction-completed')
+  const cancelScheduled = recorded('4-subscription-updated-cancel-scheduled')
+  const cancelRemoved = recorded('5-subscription-updated-cancel-removed')
+  const canceled = recorded('6-subscription-canceled')
+  const afterCancel = recorded('7-subscription-updated-after-cancel')
+  const refundPending = recorded('8-adjustment-created-pending')
+  const refundApproved = recorded('9-adjustment-updated-approved')
+  const untilCancel = [purchase, created, firstPayment, cancelScheduled, cancelRemoved]
+  const recording = [...untilCancel, canceled, afterCancel, refundPending, refundApproved]
+
   const transactionId = String(purchase.data.id)
   const subscriptionId = String(created.data.id)
   const periodEnd = new Date('2026-11-09T13:14:54.995903Z')
   const canceledAt = new Date('2026-10-09T13:33:03.009Z')
+  const refundedAt = new Date(refundApproved.occurred_at)
 
   function replay() {
     const billing = createBilling({
@@ -806,9 +799,8 @@ describe('paddle driver: a recorded sandbox run', () => {
     return { billing, holding, deliver }
   }
 
-  it('follows the purchase, the subscription, its cancel, the cancel taken back and the cancel at once', async () => {
+  it('follows the purchase, the subscription, its cancels and the refund', async () => {
     const { billing, holding, deliver } = replay()
-    const during = { now: new Date('2026-10-09T13:30:00Z') }
 
     // The user id travels in the custom data the checkout set.
     const bought = await deliver(purchase)
@@ -839,6 +831,7 @@ describe('paddle driver: a recorded sandbox run', () => {
       status: 'canceled',
       accessEndsAt: periodEnd,
     })
+    const during = { now: new Date('2026-10-09T13:25:00Z') }
     expect((await billing.entitlements('tester', during)).has('export')).toBe(true)
 
     // "Don't cancel subscription".
@@ -856,10 +849,34 @@ describe('paddle driver: a recorded sandbox run', () => {
       status: 'canceled',
       accessEndsAt: canceledAt,
     })
-
     const after = await billing.entitlements('tester', { now: new Date('2026-10-09T13:34:00Z') })
     expect(after.products).toEqual(['unlock'])
-    expect(after.has('export')).toBe(false)
+
+    // The payment refunded in the dashboard: first waiting for approval, which changes nothing.
+    const waiting = await deliver(refundPending)
+    expect(waiting.response.status).toBe(200)
+    expect(waiting.events).toEqual([])
+    expect(waiting.skipped).toEqual([])
+    expect(await holding(subscriptionId)).toMatchObject({ status: 'canceled' })
+
+    // Approved. The adjustment is `partial` by type and takes its one item in full; it names
+    // neither the price nor the user, and finds both through the subscription.
+    const refunded = await deliver(refundApproved)
+    expect(refunded.events).toEqual([
+      {
+        id: refundApproved.event_id,
+        type: 'payment.refunded',
+        occurredAt: refundedAt,
+        userId: 'tester',
+        product: 'pro',
+        holdingId: subscriptionId,
+      },
+    ])
+    expect(await holding(subscriptionId)).toMatchObject({
+      status: 'refunded',
+      accessEndsAt: refundedAt,
+    })
+    expect(await holding(transactionId)).toMatchObject({ status: 'active' })
     expect(await billing.account('tester')).toMatchObject({
       customerId: 'ctm_01sandboxcustomer000000000',
     })
@@ -867,9 +884,7 @@ describe('paddle driver: a recorded sandbox run', () => {
 
   it('ends in the same state when the two reports of the cancel arrive the other way round', async () => {
     const { holding, deliver } = replay()
-    for (const notification of [purchase, created, firstPayment, cancelScheduled, cancelRemoved]) {
-      await deliver(notification)
-    }
+    for (const notification of untilCancel) await deliver(notification)
 
     const first = await deliver(afterCancel)
     const second = await deliver(canceled)
@@ -885,18 +900,31 @@ describe('paddle driver: a recorded sandbox run', () => {
 
   it('ends in the same state when the whole run is delivered backwards, or all at once', async () => {
     const backwards = replay()
-    for (const notification of [...recording].reverse()) {
+    // The refund comes first and knows no subscription yet: 409, so Paddle delivers it again.
+    const early = await backwards.deliver(refundApproved)
+    expect(early.response.status).toBe(409)
+    for (const notification of recording.slice(0, -1).reverse()) {
       expect((await backwards.deliver(notification)).response.status).toBe(200)
     }
+    expect((await backwards.deliver(refundApproved)).response.status).toBe(200)
+
     const atOnce = replay()
-    await Promise.all(recording.map((notification) => atOnce.deliver(notification)))
+    const results = await Promise.all(
+      recording.map(async (notification) => ({
+        notification,
+        status: (await atOnce.deliver(notification)).response.status,
+      })),
+    )
+    for (const { notification, status } of results) {
+      if (status !== 200) expect((await atOnce.deliver(notification)).response.status).toBe(200)
+    }
 
     for (const { holding } of [backwards, atOnce]) {
       expect(await holding(transactionId)).toMatchObject({ product: 'unlock', status: 'active' })
       expect(await holding(subscriptionId)).toMatchObject({
         product: 'pro',
-        status: 'canceled',
-        accessEndsAt: canceledAt,
+        status: 'refunded',
+        accessEndsAt: refundedAt,
       })
     }
   })

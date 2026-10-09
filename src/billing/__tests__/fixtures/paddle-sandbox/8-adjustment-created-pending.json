@@ -1,0 +1,30 @@
+{
+  "event_id": "evt_01m4ge0h1jgqa3y2wkcmgdw7ed",
+  "event_type": "adjustment.created",
+  "occurred_at": "2026-10-09T13:35:30.866273Z",
+  "notification_id": "ntf_01m4ge0hajqfkmhxk1y42r1rs0",
+  "data": {
+    "id": "adj_01m4ge0h0wkrevw8zsx7y2yp0p",
+    "action": "refund",
+    "type": "partial",
+    "status": "pending_approval",
+    "customer_id": "ctm_01sandboxcustomer000000000",
+    "transaction_id": "txn_01m4gcsxjwd2mbxt59mk7s5v4k",
+    "subscription_id": "sub_01m4gcttpq41hc5g124hztqwa8",
+    "currency_code": "EUR",
+    "created_at": "2026-10-09T13:35:30.859759Z",
+    "updated_at": "2026-10-09T13:35:30.859759Z",
+    "items": [
+      {
+        "id": "adjitm_01m4ge0h0wkrevw8zsx9k75053",
+        "item_id": "txnitm_01m4gctafpbcqd5baeqq9mv7qq",
+        "type": "full"
+      }
+    ],
+    "totals": {
+      "subtotal": "756",
+      "tax": "144",
+      "total": "900"
+    }
+  }
+}
