@@ -1,6 +1,6 @@
 {
   "name": "@loewen-digital/fullstack",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Backend primitives for any JavaScript meta-framework",
   "homepage": "https://github.com/loewen-digital/fullstack#readme",
   "bugs": {
