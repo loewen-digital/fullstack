@@ -78,7 +78,7 @@ All subpaths sit below `@loewen-digital/fullstack`. Each module's page lists its
 | Webhooks | `/webhooks` | `createWebhooks`: verify signed incoming webhooks, send outgoing ones with retries and a delivery log |
 | Realtime | `/realtime` | `createRealtime`: channels with `broadcast`, `sse()` as a streaming `Response` |
 | Feedback | `/feedback` | `createFeedbackHandler`: the endpoint of an in-app feedback form, files each message as a GitHub issue |
-| Billing | `/billing`, `/billing/flatdb` | `createBilling`: checkouts for one-time purchases and subscriptions behind a driver, provider webhooks applied exactly once, what a user holds from a memory or flatdb store. Ships the `console` driver for development and the `paddle` driver for Paddle Billing |
+| Billing | `/billing`, `/billing/flatdb` | `createBilling`: checkouts for one-time purchases and subscriptions behind a driver, provider webhooks applied exactly once, what a user holds from a memory or flatdb store, and `entitlements(userId)`: the features and limits that gives them, with grace period and grants by hand. Ships the `console` driver for development and the `paddle` driver for Paddle Billing |
 | Testing | `/testing` | `createTestStack`, fake mail, queue, storage and billing drivers, `defineFactory`, `withSavepoint` |
 
 A driver named in the config (`memory`, `console`, `cookie`, `sqlite`) needs nothing else. A driver that needs credentials or a client is built with its own factory and handed to the module's `createXInstance`, for example `createMailInstance(createResendDriver({ apiKey }), { driver: 'resend', from })`. The [driver pattern](https://fullstack-docs.loewen-digital.workers.dev/core-concepts/driver-pattern) page lists every driver and which kind it is.

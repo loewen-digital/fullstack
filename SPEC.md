@@ -164,6 +164,7 @@ The core **never** imports or depends on any framework-specific code. Every modu
 │   ├── billing/
 │   │   ├── index.ts             → createBilling()
 │   │   ├── apply.ts             → one event onto one account: applied, unchanged, duplicate or stale
+│   │   ├── entitlements.ts      → features and limits of a user from holdings and grants by hand
 │   │   ├── errors.ts            → BillingError, BillingWebhookError
 │   │   ├── drivers/
 │   │   │   ├── console.ts       → checkouts completed locally, no provider

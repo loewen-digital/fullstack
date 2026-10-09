@@ -4,10 +4,16 @@
  */
 
 import type { AuthInstance, AuthSession } from '../../auth/index.js'
+import type { BillingEntitlements } from '../../billing/index.js'
 
 /** What the adapter reads from a stack: the auth instance that validates the cookie's token. */
 export interface FetchAdapterStack {
   auth: Pick<AuthInstance, 'validateSession'>
+  /**
+   * Opt in to `entitlements()` on the result of `sessionOf`: the billing instance, or anything
+   * with its `entitlements` method.
+   */
+  billing?: { entitlements(userId: string): Promise<BillingEntitlements> }
 }
 
 export interface FetchAdapterOptions {
@@ -52,6 +58,11 @@ export interface FetchSessionResult {
    * the dead token.
    */
   clearCookie: string | null
+  /**
+   * What the signed-in user may use, from billing; `null` without a session or without `billing`
+   * in the stack. Reads the store on the first call and answers every further call from that read.
+   */
+  entitlements(): Promise<BillingEntitlements | null>
 }
 
 export interface FetchAdapterInstance {

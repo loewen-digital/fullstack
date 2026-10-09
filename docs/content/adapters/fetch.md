@@ -50,7 +50,7 @@ The [Auth on flatdb](/guides/auth-on-flatdb) guide shows `createFlatdbAuthAdapte
 
 ### 2. The middleware
 
-`sessionOf(request)` returns `{ session, clearCookie }`. `session` is the validated `AuthSession` or `null`. `clearCookie` is `null` unless the request carried an auth cookie whose token is unknown or expired; then it is the `Set-Cookie` value that deletes the cookie, so the browser stops sending a dead token.
+`sessionOf(request)` returns `{ session, clearCookie, entitlements }`. `session` is the validated `AuthSession` or `null`. `clearCookie` is `null` unless the request carried an auth cookie whose token is unknown or expired; then it is the `Set-Cookie` value that deletes the cookie, so the browser stops sending a dead token.
 
 ```ts
 // functions/api/_middleware.ts
@@ -187,7 +187,7 @@ In Hono the `Request` is `c.req.raw`; everything else is the same calls.
 
 ## Options
 
-`createFetchAdapter(stack, options)` takes any object with `auth` and reads these options.
+`createFetchAdapter(stack, options)` takes any object with `auth` and reads these options. With `billing` next to `auth` (`createFetchAdapter({ auth, billing })`), `entitlements()` on the result of `sessionOf` answers what the signed-in user has paid for: it reads the billing store on the first call and answers `null` without a session or without `billing`. See [billing](/modules/billing#entitlements).
 
 | Option | Default | Description |
 |---|---|---|

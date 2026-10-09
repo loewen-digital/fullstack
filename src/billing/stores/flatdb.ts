@@ -2,6 +2,7 @@ import { emptyAccount } from '../apply.js'
 import { BillingError } from '../errors.js'
 import type {
   BillingAccountRecord,
+  BillingGrant,
   BillingHolding,
   BillingRefKind,
   BillingStore,
@@ -130,7 +131,13 @@ function serializeAccount(account: BillingAccountRecord): Record<string, unknown
       startedAt: holding.startedAt.toISOString(),
       currentPeriodEnd: holding.currentPeriodEnd?.toISOString() ?? null,
       accessEndsAt: holding.accessEndsAt?.toISOString() ?? null,
+      pastDueSince: holding.pastDueSince?.toISOString() ?? null,
       updatedAt: holding.updatedAt.toISOString(),
+    })),
+    grants: account.grants.map((grant) => ({
+      product: grant.product,
+      grantedAt: grant.grantedAt.toISOString(),
+      until: grant.until?.toISOString() ?? null,
     })),
     appliedEvents: account.appliedEvents,
   }
@@ -147,6 +154,10 @@ function parseAccount(data: string, userId: string): BillingAccountRecord {
     userId,
     customerId: typeof doc.customerId === 'string' ? doc.customerId : null,
     holdings: doc.holdings.map((holding: unknown) => parseHolding(holding, userId)),
+    // A file written before grants existed has none.
+    grants: Array.isArray(doc.grants)
+      ? doc.grants.map((grant: unknown) => parseGrant(grant, userId))
+      : [],
     appliedEvents: doc.appliedEvents.map(String),
   }
 }
@@ -169,7 +180,21 @@ function parseHolding(value: unknown, userId: string): BillingHolding {
     currentPeriodEnd:
       value.currentPeriodEnd == null ? null : toDate(value.currentPeriodEnd, 'currentPeriodEnd'),
     accessEndsAt: value.accessEndsAt == null ? null : toDate(value.accessEndsAt, 'accessEndsAt'),
+    pastDueSince: value.pastDueSince == null ? null : toDate(value.pastDueSince, 'pastDueSince'),
     updatedAt: toDate(value.updatedAt, 'updatedAt'),
+  }
+}
+
+function parseGrant(value: unknown, userId: string): BillingGrant {
+  if (!isRecord(value) || typeof value.product !== 'string') {
+    throw new BillingError(
+      `flatdb billing store: a grant of user ${JSON.stringify(userId)} names no product.`,
+    )
+  }
+  return {
+    product: value.product,
+    grantedAt: toDate(value.grantedAt, 'grantedAt'),
+    until: value.until == null ? null : toDate(value.until, 'until'),
   }
 }
 

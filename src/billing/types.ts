@@ -1,7 +1,15 @@
 /** How a product is sold: paid once and kept, or paid per period */
 export type BillingProductType = 'one-time' | 'subscription'
 
-export interface BillingProduct {
+/** What a product gives the user who holds it, or the default gives everyone */
+export interface BillingEntitlementSet {
+  /** Named features this unlocks: `['export', 'themes']` */
+  features?: readonly string[]
+  /** Numeric limits this sets, by name: `{ feeds: 500 }`. `Infinity` for no limit */
+  limits?: Readonly<Record<string, number>>
+}
+
+export interface BillingProduct extends BillingEntitlementSet {
   type: BillingProductType
   /** The provider's id of what is sold (a price or product id); events are matched through it */
   providerId: string
@@ -80,8 +88,19 @@ export interface BillingHolding {
   currentPeriodEnd: Date | null
   /** Set by a cancel (the date access ends) and by a refund (the date of the refund) */
   accessEndsAt: Date | null
+  /** Since when the holding is `past_due`: the time of the first failed payment; otherwise `null` */
+  pastDueSince: Date | null
   /** The time of the newest event applied to this holding */
   updatedAt: Date
+}
+
+/** A product given to a user by hand: a tester, a gift. No provider event touches it */
+export interface BillingGrant {
+  /** The key of the product in the config */
+  product: string
+  grantedAt: Date
+  /** The moment the grant ends; `null` for a grant without an end */
+  until: Date | null
 }
 
 /** What billing knows about one user */
@@ -90,6 +109,8 @@ export interface BillingAccount {
   /** The provider's customer for this user; `null` until an event names one */
   customerId: string | null
   holdings: BillingHolding[]
+  /** What was given by hand with `billing.grant()`, one entry per product at most */
+  grants: BillingGrant[]
 }
 
 /** A `BillingAccount` as a store keeps it, with the ids of the events already applied */
@@ -199,14 +220,58 @@ export interface PaddleDriverConfig {
   toleranceSeconds?: number
 }
 
-export interface BillingConfig<P extends BillingProducts = BillingProducts> {
+export interface BillingEntitlementsConfig<
+  D extends BillingEntitlementSet = BillingEntitlementSet,
+> {
+  /** What every user has, also one who bought nothing */
+  default?: D
+  /**
+   * How many days a subscription keeps granting after its payment failed. Left out: for as long
+   * as the provider keeps trying, which is until it cancels the subscription. `0`: not at all.
+   */
+  pastDueGraceDays?: number
+}
+
+type FeaturesIn<S> = S extends { features: readonly (infer F extends string)[] } ? F : never
+type LimitsIn<S> = S extends { limits: infer L } ? keyof L & string : never
+
+/** The feature names a billing config declares, on its products and in its default */
+export type BillingFeature<P, D = never> = FeaturesIn<P[keyof P]> | FeaturesIn<D>
+/** The limit names a billing config declares, on its products and in its default */
+export type BillingLimit<P, D = never> = LimitsIn<P[keyof P]> | LimitsIn<D>
+
+/** What a user may use right now, from what they paid for and what they were given */
+export interface BillingEntitlements<
+  F extends string = string,
+  L extends string = string,
+  K extends string = string,
+> {
+  userId: string
+  /** The products that grant right now, paid or given by hand */
+  products: K[]
+  /** Every feature the default and those products unlock */
+  features: F[]
+  /** Every limit of the config with the highest value the default and those products set; `0` when none does */
+  limits: Record<L, number>
+  /** Whether the user has a feature */
+  has(feature: F): boolean
+  /** A limit for the user; `0` when nothing sets it */
+  limit(name: L): number
+}
+
+export interface BillingConfig<
+  P extends BillingProducts = BillingProducts,
+  D extends BillingEntitlementSet = BillingEntitlementSet,
+> {
   /**
    * `'console'` completes checkouts locally without a provider; `'paddle'` sells through Paddle
    * Billing and needs the `paddle` options; or a driver of your own
    */
   driver: 'console' | 'paddle' | BillingDriver
-  /** What the app sells, by a key of your choice */
+  /** What the app sells, by a key of your choice, each with the features and limits it gives */
   products: P
+  /** What `entitlements()` answers beyond the products: the default for everyone, the grace period */
+  entitlements?: BillingEntitlementsConfig<D>
   /** Where accounts are kept: `createMemoryBillingStore()`, `createFlatdbBillingStore()`, your own */
   store: BillingStore
   /** Options of the console driver */
@@ -253,7 +318,11 @@ export interface BillingWebhookResult {
   skipped: { reason: BillingSkipReason; event: ProviderEvent }[]
 }
 
-export interface BillingInstance<K extends string = string> {
+export interface BillingInstance<
+  K extends string = string,
+  F extends string = string,
+  L extends string = string,
+> {
   /** Starts a checkout of a product for a user and returns what the client needs to continue */
   checkout(input: CheckoutInput<K>): Promise<BillingCheckout>
   /**
@@ -265,4 +334,17 @@ export interface BillingInstance<K extends string = string> {
   account(userId: string): Promise<BillingAccount>
   /** The link where the user manages or cancels what they bought */
   manageUrl(userId: string, options?: { returnUrl?: string }): Promise<string | null>
+  /**
+   * What the user may use right now: the features and limits of the default, of every product
+   * they hold in a granting state and of every product given by hand. One read from the store,
+   * no call to the provider. `now` is for tests.
+   */
+  entitlements(userId: string, options?: { now?: Date }): Promise<BillingEntitlements<F, L, K>>
+  /**
+   * Gives a user a product by hand, until `until` or for good. Independent of the provider: no
+   * event changes or removes it. A second grant of the same product replaces the first.
+   */
+  grant(userId: string, product: K, options?: { until?: Date }): Promise<BillingGrant>
+  /** Takes back what `grant()` gave; `false` when there was nothing. What the user paid for stays */
+  revoke(userId: string, product: K): Promise<boolean>
 }

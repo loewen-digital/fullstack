@@ -90,6 +90,7 @@ export {}
 | `session` | `SessionHandle` | the stack has `session`. Flash, old input, values; committed after the response, cookie written when its value changed |
 | `authSession` | `AuthSession \| null` | the stack has `auth`. The validated session behind the auth cookie, or `null`. Its `userId` is the key to load the user yourself; the adapter has no user store and puts no user object here |
 | `csrfVerified` | `boolean` | the stack has `security` and the method is not GET, HEAD or OPTIONS. See [CSRF](#csrf) |
+| `entitlements` | `() => Promise<BillingEntitlements \| null>` | the object handed to `createHandle` has `billing` (`createHandle({ ...stack, billing })`). What the signed-in user has paid for, `null` without one; reads the billing store on the first call of a request, and not at all when no route asks. See [billing](/modules/billing#entitlements) |
 
 ## Guarding a page
 
@@ -195,6 +196,7 @@ export const actions: Actions = {
 | `sessionCookie` | `'fsid'` | Name of the session cookie: the session id with the memory and redis drivers, the signed payload with the cookie driver |
 | `authCookie` | `'fs_token'` | Name of the auth cookie; `setAuthCookie` and `clearAuthCookie` take the same option |
 | `csrfExempt` | `[]` | Route ids (`event.route.id`, such as `/api/webhooks/stripe`) that skip the CSRF check |
+| `entitlementsFor` | the user id of `locals.authSession` | `(event) => id`: whose entitlements `locals.entitlements()` resolves. For an auth of your own, or a plan that belongs to a site or a team |
 
 ## Helpers
 

@@ -18,6 +18,7 @@ import type { FullstackLocals, SvelteKitHandle, SvelteKitRequestEvent } from './
 import type { SessionManager, SessionHandle } from '../../session/index.js'
 import type { AuthInstance, AuthSession } from '../../auth/index.js'
 import type { SecurityInstance } from '../../security/index.js'
+import type { BillingEntitlements } from '../../billing/index.js'
 
 export type {
   FullstackLocals,
@@ -36,6 +37,11 @@ export interface AdapterStack {
   session?: SessionManager
   auth?: AuthInstance
   security?: SecurityInstance
+  /**
+   * Opt in to `locals.entitlements()`: the billing instance, or anything with its
+   * `entitlements` method. Not part of `createStack`; add it as `{ ...stack, billing }`.
+   */
+  billing?: { entitlements(userId: string): Promise<BillingEntitlements> }
 }
 
 export interface HandleOptions {
@@ -57,6 +63,13 @@ export interface HandleOptions {
    * Use when you have specific POST endpoints that are public API (e.g. webhooks).
    */
   csrfExempt?: string[]
+
+  /**
+   * Whose entitlements `locals.entitlements()` resolves, as the id billing knows.
+   * Default: the user id of `locals.authSession`. Supply it for an auth of your own, or when
+   * the subject is not the user (a site, a team). `null` answers `null`.
+   */
+  entitlementsFor?: (event: SvelteKitRequestEvent) => string | null | undefined
 }
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
@@ -68,6 +81,7 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
  *  1. Opens the session from its cookie (if session module configured) → event.locals.session
  *  2. Reads auth token from cookie → validates session → event.locals.authSession
  *  3. Enforces CSRF for non-GET mutations (if security module configured)
+ *     and puts the lazy `event.locals.entitlements()` there (if billing is in the stack)
  *  4. Commits the session after the route resolves and writes the cookie when its value changed
  */
 export function createHandle(stack: AdapterStack, options: HandleOptions = {}): SvelteKitHandle {
@@ -96,6 +110,20 @@ export function createHandle(stack: AdapterStack, options: HandleOptions = {}): 
       }
 
       locals.authSession = authSession
+    }
+
+    // ── 2b. Entitlements, read when a route asks and once per request ──────
+    if (stack.billing) {
+      const billing = stack.billing
+      let resolved: Promise<BillingEntitlements | null> | undefined
+      locals.entitlements = () =>
+        (resolved ??= (async () => {
+          const subject = options.entitlementsFor
+            ? options.entitlementsFor(event)
+            : locals.authSession?.userId
+          if (subject === null || subject === undefined || subject === '') return null
+          return billing.entitlements(String(subject))
+        })())
     }
 
     // ── 3. CSRF check for mutating requests ────────────────────────────────

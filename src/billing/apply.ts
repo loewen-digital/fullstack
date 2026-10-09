@@ -9,7 +9,7 @@ export type ApplyOutcome = 'applied' | 'unchanged' | 'duplicate' | 'stale'
 
 /** The account of a user no event was applied for yet */
 export function emptyAccount(userId: string): BillingAccountRecord {
-  return { userId, customerId: null, holdings: [], appliedEvents: [] }
+  return { userId, customerId: null, holdings: [], grants: [], appliedEvents: [] }
 }
 
 /**
@@ -36,7 +36,13 @@ export function applyEvent(
     return { outcome: 'stale' }
   }
 
-  const next = nextHolding(current, event, productType)
+  const changed = nextHolding(current, event, productType)
+  // Past due since the first failed payment, for as long as the holding stays past due.
+  const next = changed && {
+    ...changed,
+    pastDueSince:
+      changed.status === 'past_due' ? (current?.pastDueSince ?? event.occurredAt) : null,
+  }
   const holdings =
     next === undefined
       ? account.holdings
@@ -46,8 +52,9 @@ export function applyEvent(
 
   return {
     outcome: next === undefined || (current && sameState(current, next)) ? 'unchanged' : 'applied',
+    // Everything else on the account stays, above all what was granted by hand.
     account: {
-      userId: account.userId,
+      ...account,
       customerId: account.customerId ?? customerId ?? null,
       holdings,
       appliedEvents: [...account.appliedEvents, event.id],
@@ -87,6 +94,7 @@ function nextHolding(
     startedAt: event.occurredAt,
     currentPeriodEnd: null,
     accessEndsAt: null,
+    pastDueSince: null,
     updatedAt: event.occurredAt,
   }
   const holding: BillingHolding = { ...base, updatedAt: event.occurredAt }

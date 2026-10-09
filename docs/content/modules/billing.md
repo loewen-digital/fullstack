@@ -1,6 +1,6 @@
 ---
 title: Billing
-description: Checkouts for one-time purchases and subscriptions through Paddle or a driver of your own, and what each user holds, from verified provider events
+description: Checkouts for one-time purchases and subscriptions through Paddle or a driver of your own, what each user holds from verified provider events, and what that lets them use
 ---
 
 # Billing
@@ -33,19 +33,28 @@ export const billing = createBilling({
   console: { webhookUrl: '/billing/webhook' },
   store: createFlatdbBillingStore({ adapter: new FsAdapter('./data') }),
   products: {
-    unlock: { type: 'one-time', providerId: 'pri_unlock' },
-    pro: { type: 'subscription', providerId: 'pri_pro' },
+    unlock: { type: 'one-time', providerId: 'pri_unlock', features: ['themes'] },
+    pro: {
+      type: 'subscription',
+      providerId: 'pri_pro',
+      features: ['themes', 'export'],
+      limits: { feeds: 500 },
+    },
   },
+  entitlements: { default: { limits: { feeds: 5 } } },
 })
 ```
+
+`features` and `limits` say what a product lets its holder use; they are optional and belong to [Entitlements](#entitlements).
 
 | Option | | |
 |---|---|---|
 | `driver` | required | `'console'`, `'paddle'`, or a `BillingDriver` |
-| `products` | required | What the app sells: `{ [key]: { type, providerId } }`. Two products with the same `providerId` throw |
+| `products` | required | What the app sells: `{ [key]: { type, providerId, features?, limits? } }`. Two products with the same `providerId` throw |
 | `store` | required | Where accounts are kept. There is no default: purchases in the memory of one process are lost with it |
 | `console` | optional | Options of the console driver: `webhookUrl` (default `/billing/webhook`), `periodDays` (default 30) |
 | `paddle` | with `driver: 'paddle'` | Options of the Paddle driver: `apiKey`, `webhookSecret`, `sandbox`, `checkoutUrl`, `toleranceSeconds` |
+| `entitlements` | optional | `default`: the features and limits every user has; `pastDueGraceDays`: how long a failed payment keeps granting. See [Entitlements](#entitlements) |
 | `onError` | optional | Called with what the store or the driver threw inside `handleWebhook` (default: `console.error`) |
 
 ## Starting a checkout
@@ -168,7 +177,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 }
 ```
 
-`billing.account(userId)` is one read from the store and no call to the provider. It answers `{ userId, customerId, holdings }`; a user billing has never seen has no holdings and `customerId: null`.
+`billing.account(userId)` is one read from the store and no call to the provider. It answers `{ userId, customerId, holdings, grants }`; a user billing has never seen has no holdings, no grants and `customerId: null`.
 
 | Field of a holding | |
 |---|---|
@@ -179,11 +188,106 @@ export const load: PageServerLoad = async ({ locals }) => {
 | `startedAt` | The time of the first event |
 | `currentPeriodEnd` | Subscriptions: the end of the paid period, or `null` |
 | `accessEndsAt` | Set by a cancel and by a refund, otherwise `null` |
+| `pastDueSince` | The time of the first failed payment while the holding is `past_due`, otherwise `null` |
 | `updatedAt` | The time of the newest event applied |
 
-Holdings are never removed; a canceled or refunded one stays with its status. The module records what happened and leaves the judgement to you: whether `past_due` still unlocks the product, and that `canceled` does until `accessEndsAt`, is a rule of your app.
+Holdings are never removed; a canceled or refunded one stays with its status. Holdings are the record of what happened. What they let the user do (that `canceled` still counts until `accessEndsAt`, how long `past_due` does) is answered by [entitlements](#entitlements), so no route has to work it out.
 
 `billing.manageUrl(userId, { returnUrl? })` returns the link where the user manages or cancels what they bought, or `null` when the provider has nothing to manage for them yet.
+
+## Entitlements
+
+Routes should not read holdings and decide for themselves what a canceled subscription or a failed payment means. Declare on each product what it gives, and ask one question:
+
+```ts
+// src/routes/export/+server.ts
+import { error } from '@sveltejs/kit'
+import { billing } from '#lib/server/billing.js'
+import type { RequestHandler } from './$types'
+
+export const GET: RequestHandler = async ({ locals }) => {
+  if (!locals.authSession) error(401)
+
+  const entitlements = await billing.entitlements(String(locals.authSession.userId))
+  if (!entitlements.has('export')) error(402, 'The export is part of Pro')
+  const feeds = entitlements.limit('feeds') // 5 without a plan, 500 with Pro
+
+  return Response.json({ feeds })
+}
+```
+
+A product declares `features` (names it unlocks) and `limits` (numbers it sets); `entitlements.default` is what every user has, also one who bought nothing. `billing.entitlements(userId)` is one read from the store and no call to the provider. It answers:
+
+| | |
+|---|---|
+| `has(feature)` | Whether the user has a feature. A name that is not in the config is a type error |
+| `limit(name)` | A limit for the user; `0` when nothing sets it for them |
+| `features`, `limits` | The same as plain data, for a `load` function: `has` and `limit` are functions and do not serialize |
+| `products` | The keys of the products that grant right now, paid or given by hand |
+
+Features add up over the default and everything the user holds. Of a limit the highest value counts, whatever sets it; use `Infinity` for no limit. The rules that turn a holding into an answer live here and nowhere else:
+
+| The user holds | Grants |
+|---|---|
+| a subscription that is `active` | yes |
+| a one-time purchase that is `active` | yes, for good |
+| a `canceled` subscription | until `accessEndsAt`, the end of what was paid for; not from that moment on |
+| a `past_due` subscription | by default for as long as the provider keeps trying, which ends when it cancels the subscription; with `pastDueGraceDays` for that many days after the first failed payment, `0` for not at all |
+| anything `refunded` | no |
+| a product given by hand | until its end date, or for good |
+
+`entitlements(userId, { now })` answers for another moment than the present, which is how a test checks an end date.
+
+### Giving a product by hand
+
+```ts
+import { createBilling, createMemoryBillingStore } from '@loewen-digital/fullstack/billing'
+
+const gifts = createBilling({
+  driver: 'console',
+  store: createMemoryBillingStore(),
+  products: { pro: { type: 'subscription', providerId: 'pri_pro', features: ['export'] } },
+})
+
+async function givesByHand() {
+  await gifts.grant('tester-1', 'pro') // for good
+  await gifts.grant('friend-2', 'pro', { until: new Date('2027-01-01') }) // a gift with an end
+  await gifts.revoke('tester-1', 'pro') // true; false when there was no grant
+}
+```
+
+A grant needs no provider and no purchase. It lives next to the holdings in the user's account, and no billing event changes it: a refund of the same product ends what was paid for, not what was given. Granting a product again replaces the earlier grant and its end date. `revoke` takes back a grant and nothing else; what a user paid for ends through the provider. `billing.account(userId).grants` lists them.
+
+### On the request
+
+The SvelteKit and the fetch adapter resolve entitlements for the signed-in user when billing is handed to them:
+
+```ts
+// src/hooks.server.ts
+import { createHandle } from '@loewen-digital/fullstack/adapters/sveltekit'
+import type { AuthInstance } from '@loewen-digital/fullstack/auth'
+import { billing } from '#lib/server/billing.js'
+
+declare const auth: AuthInstance // your auth instance
+
+export const handle = createHandle({ auth, billing })
+```
+
+```ts
+// src/routes/themes/+page.server.ts
+import { error } from '@sveltejs/kit'
+import type { PageServerLoad } from './$types'
+
+export const load: PageServerLoad = async ({ locals }) => {
+  const entitlements = await locals.entitlements?.()
+  if (!entitlements?.has('themes')) error(402)
+  return { limits: entitlements.limits }
+}
+```
+
+`locals.entitlements()` is a function on purpose: the store is read when a route asks, once per request, and not at all for the routes that never ask. It answers `null` without a signed-in user. The user id is `locals.authSession.userId`; for an auth of your own, or when the plan belongs to something else than the user (a site, a team), pass `entitlementsFor: (event) => id` to `createHandle`. With the fetch adapter the same function is on the result of `sessionOf`: `const { session, entitlements } = await adapter.sessionOf(request)`.
+
+A user id is whatever your app bills: billing never looks at it. A CMS with a plan per site starts checkouts with the site's id and asks `billing.entitlements(siteId)`.
 
 ## Stores
 
@@ -214,7 +318,7 @@ const store: BillingStore = {
     return accounts.get(userId) ?? null
   },
   async transact(userId, change) {
-    const current = accounts.get(userId) ?? { userId, customerId: null, holdings: [], appliedEvents: [] }
+    const current = accounts.get(userId) ?? { userId, customerId: null, holdings: [], grants: [], appliedEvents: [] }
     const { account, result } = change(current)
     if (account) accounts.set(userId, account)
     return result
@@ -392,7 +496,7 @@ const driver: BillingDriver = {
 
 ## Testing
 
-`createFakeBillingDriver` from [testing](/testing/fakes) builds the webhook request for any event, so a test covers "paid", "canceled" and "refunded" without a provider:
+`createFakeBillingDriver` from [testing](/testing/fakes) builds the webhook request for any event, so a test covers "paid", "not paid", "canceled" and "refunded" without a provider:
 
 ```ts
 import { expect } from 'vitest'
@@ -404,11 +508,12 @@ async function assertsBilling() {
   const billing = createBilling({
     driver: fakeBilling,
     store: createMemoryBillingStore(),
-    products: { pro: { type: 'subscription', providerId: 'pri_pro' } },
+    products: { pro: { type: 'subscription', providerId: 'pri_pro', features: ['export'] } },
   })
 
   await billing.checkout({ userId: 'u1', product: 'pro' })
   expect(fakeBilling.checkouts[0]?.providerId).toBe('pri_pro')
+  expect((await billing.entitlements('u1')).has('export')).toBe(false) // not paid yet
 
   const paidUntil = new Date('2026-11-09T00:00:00Z')
   await billing.handleWebhook(
@@ -420,6 +525,10 @@ async function assertsBilling() {
 
   const { holdings } = await billing.account('u1')
   expect(holdings[0]).toMatchObject({ status: 'canceled', accessEndsAt: paidUntil })
+  // Canceled, but paid for: the feature stays until the period is over.
+  const dayBefore = new Date('2026-11-08T00:00:00Z')
+  expect((await billing.entitlements('u1', { now: dayBefore })).has('export')).toBe(true)
+  expect((await billing.entitlements('u1', { now: paidUntil })).has('export')).toBe(false)
 
   const rejected = await billing.handleWebhook(fakeBilling.invalidWebhook())
   expect(rejected.response.status).toBe(401)
@@ -428,4 +537,4 @@ async function assertsBilling() {
 
 ## What it does not do
 
-Tax, invoices, coupons and seats are the provider's. The module does not decide what a purchase unlocks, counts no usage and has no UI. Partial refunds have no event of their own: a driver reports `payment.refunded` when the purchase is gone, and nothing for a partial one.
+Tax, invoices, coupons and seats are the provider's. The module counts no usage: a limit is a number the app reads, not a balance that is spent. It has no paywall and no pricing UI, and it is not `permissions`: that module answers what a role may do, this one what a user has paid for. Partial refunds have no event of their own: a driver reports `payment.refunded` when the purchase is gone, and nothing for a partial one.

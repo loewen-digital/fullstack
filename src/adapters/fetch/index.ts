@@ -15,6 +15,7 @@
  */
 
 import { parseCookies, serializeCookie } from '../cookies.js'
+import type { BillingEntitlements } from '../../billing/index.js'
 import type {
   FetchAdapterInstance,
   FetchAdapterOptions,
@@ -43,7 +44,7 @@ export function createFetchAdapter(
   stack: FetchAdapterStack,
   options: FetchAdapterOptions = {},
 ): FetchAdapterInstance {
-  const { auth } = stack
+  const { auth, billing } = stack
   const authCookie = options.authCookie ?? 'fs_token'
   const sameSite = SAME_SITE[options.sameSite ?? 'lax']
   const maxAge = options.maxAge ?? 7 * 24 * 3600
@@ -62,12 +63,25 @@ export function createFetchAdapter(
     async sessionOf(request: Request): Promise<FetchSessionResult> {
       const header = request.headers.get('cookie')
       const token = header ? parseCookies(header)[authCookie] : undefined
-      if (!token) return { session: null, clearCookie: null }
+      const nothing = async (): Promise<null> => null
+      if (!token) return { session: null, clearCookie: null, entitlements: nothing }
 
       const session = await auth.validateSession(token)
-      if (session) return { session, clearCookie: null }
+      if (session) {
+        let resolved: Promise<BillingEntitlements | null> | undefined
+        return {
+          session,
+          clearCookie: null,
+          entitlements: () =>
+            (resolved ??= billing ? billing.entitlements(String(session.userId)) : nothing()),
+        }
+      }
       // Here the request is at hand, so the deleting cookie matches its scheme.
-      return { session: null, clearCookie: cookie('', 0, isSecureRequest(request)) }
+      return {
+        session: null,
+        clearCookie: cookie('', 0, isSecureRequest(request)),
+        entitlements: nothing,
+      }
     },
 
     setAuthCookie(headers, token, overrides = {}): void {

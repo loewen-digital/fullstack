@@ -1,13 +1,19 @@
 import { applyEvent } from './apply.js'
 import { createConsoleDriver } from './drivers/console.js'
 import { createPaddleDriver } from './drivers/paddle.js'
+import { checkEntitlementsConfig, resolveEntitlements } from './entitlements.js'
 import { BillingError, BillingWebhookError } from './errors.js'
 import type {
   BillingAccount,
   BillingConfig,
   BillingDriver,
+  BillingEntitlementSet,
+  BillingEntitlements,
   BillingEvent,
+  BillingFeature,
+  BillingGrant,
   BillingInstance,
+  BillingLimit,
   BillingProducts,
   BillingProductType,
   BillingWebhookResult,
@@ -21,12 +27,18 @@ export type {
   BillingCheckout,
   BillingConfig,
   BillingDriver,
+  BillingEntitlementSet,
+  BillingEntitlements,
+  BillingEntitlementsConfig,
   BillingEvent,
   BillingEventDetail,
   BillingEventType,
+  BillingFeature,
+  BillingGrant,
   BillingHolding,
   BillingHoldingStatus,
   BillingInstance,
+  BillingLimit,
   BillingProduct,
   BillingProducts,
   BillingProductType,
@@ -77,10 +89,16 @@ function json(status: number, body: unknown): Response {
  * A user is a plain string id. Nothing is granted from a browser coming back from the
  * checkout, only from an event the driver verified.
  */
-export function createBilling<P extends BillingProducts>(
-  config: BillingConfig<P>,
-): BillingInstance<keyof P & string> {
-  const { store, products } = config
+export function createBilling<
+  const P extends BillingProducts,
+  const D extends BillingEntitlementSet = Record<never, never>,
+>(
+  config: BillingConfig<P, D>,
+): BillingInstance<keyof P & string, BillingFeature<P, D>, BillingLimit<P, D>> {
+  const { store } = config
+  const products: BillingProducts = config.products
+  const entitlements = config.entitlements ?? {}
+  checkEntitlementsConfig(products, entitlements)
   const driver = resolveDriver(config)
   const report =
     config.onError ?? ((error: unknown) => console.error('billing: webhook failed', error))
@@ -124,7 +142,7 @@ export function createBilling<P extends BillingProducts>(
 
   return {
     async checkout(input) {
-      const product = products[input.product]
+      const product = Object.hasOwn(products, input.product) ? products[input.product] : undefined
       if (!product) throw new BillingError(`billing: unknown product "${input.product}"`)
       requireUserId(input.userId)
       const account = await store.getAccount(input.userId)
@@ -216,6 +234,7 @@ export function createBilling<P extends BillingProducts>(
         userId,
         customerId: account?.customerId ?? null,
         holdings: account?.holdings ?? [],
+        grants: account?.grants ?? [],
       }
     },
 
@@ -230,6 +249,48 @@ export function createBilling<P extends BillingProducts>(
         returnUrl: options.returnUrl,
       })
     },
+
+    async entitlements(userId, options = {}) {
+      requireUserId(userId)
+      const account = await store.getAccount(userId)
+      // The names are checked against the config where they are typed; here they are strings.
+      return resolveEntitlements(
+        userId,
+        account,
+        products,
+        entitlements,
+        options.now ?? new Date(),
+      ) as BillingEntitlements<BillingFeature<P, D>, BillingLimit<P, D>, keyof P & string>
+    },
+
+    async grant(userId, product, options = {}) {
+      requireUserId(userId)
+      if (!Object.hasOwn(products, product)) {
+        throw new BillingError(`billing: unknown product "${product}"`)
+      }
+      const until = options.until ?? null
+      if (until !== null && Number.isNaN(until.getTime())) {
+        throw new BillingError('billing: `until` of a grant is not a valid date')
+      }
+      const grant: BillingGrant = { product, grantedAt: new Date(), until }
+      await store.transact(userId, (account) => ({
+        account: {
+          ...account,
+          grants: [...account.grants.filter((entry) => entry.product !== product), grant],
+        },
+        result: undefined,
+      }))
+      return grant
+    },
+
+    async revoke(userId, product) {
+      requireUserId(userId)
+      return store.transact(userId, (account) => {
+        const grants = account.grants.filter((entry) => entry.product !== product)
+        if (grants.length === account.grants.length) return { result: false }
+        return { account: { ...account, grants }, result: true }
+      })
+    },
   }
 }
 
@@ -241,7 +302,9 @@ function matchedEvent(event: ProviderEvent, userId: string, product: string): Bi
   return matched as BillingEvent
 }
 
-function resolveDriver(config: BillingConfig): BillingDriver {
+function resolveDriver(
+  config: Pick<BillingConfig, 'driver' | 'console' | 'paddle'>,
+): BillingDriver {
   if (config.driver === 'console') return createConsoleDriver(config.console)
   if (config.driver === 'paddle') {
     if (!config.paddle) {

@@ -9,6 +9,8 @@ import {
 import { createSession } from '../../../session/index.js'
 import { createSecurity } from '../../../security/index.js'
 import type { AuthInstance, AuthSession } from '../../../auth/index.js'
+import { createBilling, createMemoryBillingStore } from '../../../billing/index.js'
+import { createFakeBillingDriver } from '../../../testing/index.js'
 import type { FullstackLocals, SvelteKitRequestEvent, SvelteKitResolve } from '../types.js'
 
 // ── Test helpers ───────────────────────────────────────────────────────────
@@ -283,6 +285,109 @@ describe('createHandle (SvelteKit adapter)', () => {
       const event = makeEvent()
       await handle({ event, resolve: makeResolve() })
       expect(event.cookies.get('my_session')).toBeDefined()
+    })
+  })
+})
+
+describe('entitlements on locals', () => {
+  const SESSION: AuthSession = {
+    id: 's1',
+    userId: 7,
+    token: 'valid-token',
+    expiresAt: new Date(Date.now() + 3600_000),
+    createdAt: new Date(),
+  }
+  const auth = {
+    validateSession: async (token: string) => (token === SESSION.token ? SESSION : null),
+  } as unknown as AuthInstance
+
+  function paidBilling() {
+    const driver = createFakeBillingDriver()
+    const store = createMemoryBillingStore()
+    const billing = createBilling({
+      driver,
+      store,
+      products: { pro: { type: 'subscription', providerId: 'pri_pro', features: ['export'] } },
+    })
+    const paid = (userId: string) =>
+      billing.handleWebhook(
+        driver.webhook({ type: 'subscription.started', userId, providerId: 'pri_pro' }),
+      )
+    return { billing, store, paid }
+  }
+
+  async function run(
+    handle: ReturnType<typeof createHandle>,
+    event: TestEvent,
+    route: (locals: FullstackLocals) => Promise<void> = async () => {},
+  ) {
+    await handle({
+      event,
+      resolve: async (e) => {
+        await route(e.locals as FullstackLocals)
+        return new Response('ok')
+      },
+    })
+  }
+
+  it('is not there unless billing is in the stack', async () => {
+    const event = makeEvent()
+    await run(createHandle({ auth }), event)
+    expect(event.locals.entitlements).toBeUndefined()
+  })
+
+  it('resolves what the signed-in user paid for, with one store read per request', async () => {
+    const { billing, store, paid } = paidBilling()
+    await paid('7')
+    const reads = vi.spyOn(store, 'getAccount')
+    const handle = createHandle({ auth, billing })
+    const event = makeEvent()
+    event.cookies.set('fs_token', 'valid-token', { path: '/' })
+
+    await run(handle, event, async (locals) => {
+      // Nothing is read before a route asks.
+      expect(reads).not.toHaveBeenCalled()
+      const first = await locals.entitlements!()
+      const second = await locals.entitlements!()
+      expect(first?.userId).toBe('7')
+      expect(first?.has('export')).toBe(true)
+      expect(second).toBe(first)
+    })
+
+    expect(reads).toHaveBeenCalledTimes(1)
+  })
+
+  it('answers null for a visitor who is not signed in, without a store read', async () => {
+    const { billing, store } = paidBilling()
+    const reads = vi.spyOn(store, 'getAccount')
+    const event = makeEvent()
+
+    await run(createHandle({ auth, billing }), event, async (locals) => {
+      expect(await locals.entitlements!()).toBeNull()
+    })
+
+    expect(reads).not.toHaveBeenCalled()
+  })
+
+  it('resolves for the subject `entitlementsFor` names, without the auth module', async () => {
+    const { billing, paid } = paidBilling()
+    await paid('site_1')
+    const handle = createHandle(
+      { billing },
+      { entitlementsFor: (event) => event.url.searchParams.get('site') },
+    )
+
+    const site = makeEvent({ url: new URL('http://localhost/?site=site_1') })
+    await run(handle, site, async (locals) => {
+      expect((await locals.entitlements!())?.has('export')).toBe(true)
+    })
+    const other = makeEvent({ url: new URL('http://localhost/?site=site_2') })
+    await run(handle, other, async (locals) => {
+      expect((await locals.entitlements!())?.has('export')).toBe(false)
+    })
+    const none = makeEvent()
+    await run(handle, none, async (locals) => {
+      expect(await locals.entitlements!()).toBeNull()
     })
   })
 })

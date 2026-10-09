@@ -48,7 +48,12 @@ describe.each(stores)('billing on the %s', (_name, createStore) => {
 
   it('knows nothing about a user without events', async () => {
     const { billing } = await setup()
-    expect(await billing.account('u1')).toEqual({ userId: 'u1', customerId: null, holdings: [] })
+    expect(await billing.account('u1')).toEqual({
+      userId: 'u1',
+      customerId: null,
+      holdings: [],
+      grants: [],
+    })
   })
 
   it('applies a completed one-time purchase', async () => {
@@ -90,9 +95,11 @@ describe.each(stores)('billing on the %s', (_name, createStore) => {
           startedAt: at(0),
           currentPeriodEnd: null,
           accessEndsAt: null,
+          pastDueSince: null,
           updatedAt: at(0),
         },
       ],
+      grants: [],
     })
   })
 
@@ -800,9 +807,11 @@ describe('createFlatdbBillingStore', () => {
           startedAt: at(0).toISOString(),
           currentPeriodEnd: at(30).toISOString(),
           accessEndsAt: null,
+          pastDueSince: null,
           updatedAt: at(0).toISOString(),
         },
       ],
+      grants: [],
       appliedEvents: ['evt_1'],
     })
     expect(JSON.parse((await adapter.read('pay/refs/holding/sub_1.json'))!)).toEqual({

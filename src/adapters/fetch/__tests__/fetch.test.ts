@@ -1,6 +1,8 @@
-import { describe, it, expect } from 'vite-plus/test'
+import { describe, it, expect, vi } from 'vite-plus/test'
 import { createFetchAdapter, isSameOrigin, isSecureRequest } from '../index.js'
 import type { AuthSession } from '../../../auth/index.js'
+import { createBilling, createMemoryBillingStore } from '../../../billing/index.js'
+import { createFakeBillingDriver } from '../../../testing/index.js'
 
 // ── Test helpers ───────────────────────────────────────────────────────────────
 
@@ -42,7 +44,7 @@ describe('sessionOf', () => {
     const adapter = createFetchAdapter({ auth })
 
     const result = await adapter.sessionOf(request({ cookie: 'theme=dark; fs_token=valid-token' }))
-    expect(result).toEqual({ session: SESSION, clearCookie: null })
+    expect(result).toMatchObject({ session: SESSION, clearCookie: null })
     expect(asked).toEqual(['valid-token'])
   })
 
@@ -50,12 +52,12 @@ describe('sessionOf', () => {
     const { auth, asked } = fakeAuth()
     const adapter = createFetchAdapter({ auth })
 
-    expect(await adapter.sessionOf(request())).toEqual({ session: null, clearCookie: null })
-    expect(await adapter.sessionOf(request({ cookie: 'theme=dark' }))).toEqual({
+    expect(await adapter.sessionOf(request())).toMatchObject({ session: null, clearCookie: null })
+    expect(await adapter.sessionOf(request({ cookie: 'theme=dark' }))).toMatchObject({
       session: null,
       clearCookie: null,
     })
-    expect(await adapter.sessionOf(request({ cookie: 'fs_token=' }))).toEqual({
+    expect(await adapter.sessionOf(request({ cookie: 'fs_token=' }))).toMatchObject({
       session: null,
       clearCookie: null,
     })
@@ -149,6 +151,59 @@ describe('sessionOf', () => {
 })
 
 // ── setAuthCookie / clearAuthCookie ────────────────────────────────────────────
+
+describe('entitlements of a session', () => {
+  function paidBilling() {
+    const driver = createFakeBillingDriver()
+    const store = createMemoryBillingStore()
+    const billing = createBilling({
+      driver,
+      store,
+      products: { pro: { type: 'subscription', providerId: 'pri_pro', features: ['export'] } },
+    })
+    return { billing, store, driver }
+  }
+
+  it('resolves what the signed-in user paid for, with one store read', async () => {
+    const { auth } = fakeAuth()
+    const { billing, store, driver } = paidBilling()
+    await billing.handleWebhook(
+      driver.webhook({ type: 'subscription.started', userId: 'u1', providerId: 'pri_pro' }),
+    )
+    const reads = vi.spyOn(store, 'getAccount')
+    const adapter = createFetchAdapter({ auth, billing })
+
+    const result = await adapter.sessionOf(request({ cookie: 'fs_token=valid-token' }))
+    // Nothing is read before the handler asks.
+    expect(reads).not.toHaveBeenCalled()
+    const first = await result.entitlements()
+    const second = await result.entitlements()
+
+    expect(first?.userId).toBe('u1')
+    expect(first?.has('export')).toBe(true)
+    expect(second).toBe(first)
+    expect(reads).toHaveBeenCalledTimes(1)
+  })
+
+  it('answers null without a session and without billing in the stack', async () => {
+    const { auth } = fakeAuth()
+    const { billing, store } = paidBilling()
+    const reads = vi.spyOn(store, 'getAccount')
+
+    const anonymous = await createFetchAdapter({ auth, billing }).sessionOf(request())
+    const expired = await createFetchAdapter({ auth, billing }).sessionOf(
+      request({ cookie: 'fs_token=expired' }),
+    )
+    const noBilling = await createFetchAdapter({ auth }).sessionOf(
+      request({ cookie: 'fs_token=valid-token' }),
+    )
+
+    expect(await anonymous.entitlements()).toBeNull()
+    expect(await expired.entitlements()).toBeNull()
+    expect(await noBilling.entitlements()).toBeNull()
+    expect(reads).not.toHaveBeenCalled()
+  })
+})
 
 describe('setAuthCookie', () => {
   it('writes the attributes the SvelteKit adapter sets, Secure by default', () => {

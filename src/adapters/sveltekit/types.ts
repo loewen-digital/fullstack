@@ -22,6 +22,7 @@
 
 import type { SessionHandle } from '../../session/index.js'
 import type { AuthSession } from '../../auth/index.js'
+import type { BillingEntitlements } from '../../billing/index.js'
 
 export interface FullstackLocals {
   /**
@@ -41,6 +42,13 @@ export interface FullstackLocals {
    * Populated when security module is configured with CSRF enabled.
    */
   csrfVerified?: boolean
+
+  /**
+   * What the signed-in user may use, from billing; `null` without a user. Present when the
+   * stack handed to `createHandle` has `billing`. Reads the store on the first call of a
+   * request and answers every further call from that read.
+   */
+  entitlements?: () => Promise<BillingEntitlements | null>
 }
 
 // ── The slice of SvelteKit the adapter uses ───────────────────────────────────
