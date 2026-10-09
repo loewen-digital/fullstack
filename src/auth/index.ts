@@ -4,13 +4,16 @@ import type {
   AuthInstance,
   AuthUser,
   AuthSession,
+  TouchedAuthSession,
   OAuthProviderConfig,
   OAuthProvider,
 } from './types.js'
 import { hashPassword, verifyPassword } from './password.js'
 import {
   createAuthSession,
+  touchAuthSession,
   validateAuthSession,
+  type SessionExtension,
   destroyAuthSession,
   destroyUserSessions,
 } from './session.js'
@@ -20,7 +23,7 @@ import { sendPasswordResetEmail, resetPassword } from './password-reset.js'
 import { sendLoginCode, verifyLoginCode, type LoginCodeOptions } from './login-code.js'
 import { createOAuthProvider } from './oauth.js'
 
-export type { AuthInstance, AuthUser, AuthSession, AuthDbAdapter, AuthConfig }
+export type { AuthInstance, AuthUser, AuthSession, AuthDbAdapter, AuthConfig, TouchedAuthSession }
 export type {
   AuthToken,
   OAuthProvider,
@@ -60,6 +63,19 @@ export function createAuth(config: AuthConfig, deps: { db: AuthDbAdapter }): Aut
   if (!Number.isInteger(loginCode.maxAttempts) || loginCode.maxAttempts < 1) {
     throw new Error('loginCodeAttempts must be an integer of at least 1.')
   }
+  let extension: SessionExtension | undefined
+  if (config.sessionExtendAfter !== undefined) {
+    const afterSeconds = config.sessionExtendAfter
+    if (!Number.isFinite(afterSeconds) || afterSeconds < 0 || afterSeconds >= sessionTtl) {
+      throw new Error('sessionExtendAfter must be a number of seconds from 0 to below sessionTtl.')
+    }
+    if (!db.updateSessionExpiry) {
+      throw new Error(
+        'sessionExtendAfter needs an AuthDbAdapter with updateSessionExpiry(token, expiresAt).',
+      )
+    }
+    extension = { ttlSeconds: sessionTtl, afterSeconds }
+  }
 
   return {
     hashPassword(password: string): Promise<string> {
@@ -75,7 +91,11 @@ export function createAuth(config: AuthConfig, deps: { db: AuthDbAdapter }): Aut
     },
 
     validateSession(token: string): Promise<AuthSession | null> {
-      return validateAuthSession(db, token)
+      return validateAuthSession(db, token, extension)
+    },
+
+    touchSession(token: string): Promise<TouchedAuthSession> {
+      return touchAuthSession(db, token, extension)
     },
 
     destroySession(token: string): Promise<void> {

@@ -150,7 +150,75 @@ describe('sessionOf', () => {
   })
 })
 
-// ── setAuthCookie / clearAuthCookie ────────────────────────────────────────────
+// ── refreshCookie ──────────────────────────────────────────────────────────────
+
+describe('refreshCookie of an extended session', () => {
+  /** An auth whose `touchSession` reports the one known session as extended, or not. */
+  function touchingAuth(extended: boolean, expiresAt: Date) {
+    return {
+      async validateSession(): Promise<AuthSession | null> {
+        throw new Error('the adapter has to ask touchSession')
+      },
+      async touchSession(token: string) {
+        return token === SESSION.token
+          ? { session: { ...SESSION, expiresAt }, extended }
+          : { session: null, extended: false }
+      },
+    }
+  }
+
+  it('is the auth cookie again, alive until the session ends', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-01-01T00:00:00.000Z') })
+    try {
+      const auth = touchingAuth(true, new Date('2026-01-31T00:00:00.000Z'))
+      const adapter = createFetchAdapter({ auth }, { maxAge: 3600 })
+
+      const result = await adapter.sessionOf(request({ cookie: 'fs_token=valid-token' }))
+      expect(result.session?.token).toBe('valid-token')
+      expect(result.clearCookie).toBeNull()
+      expect(result.refreshCookie).toBe(
+        `fs_token=valid-token; Path=/; Max-Age=${30 * 24 * 3600}; HttpOnly; Secure; SameSite=Lax`,
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('follows the scheme of the request and the configured name and SameSite', async () => {
+    const auth = touchingAuth(true, new Date(Date.now() + 3600_000))
+    const adapter = createFetchAdapter({ auth }, { authCookie: 'sid', sameSite: 'strict' })
+
+    const result = await adapter.sessionOf(
+      request({ cookie: 'sid=valid-token' }, 'http://localhost:8788/api/me'),
+    )
+    expect(result.refreshCookie).toMatch(
+      /^sid=valid-token; Path=\/; Max-Age=\d+; HttpOnly; SameSite=Strict$/,
+    )
+  })
+
+  it('is null when the session was not extended, is unknown, or the request has no cookie', async () => {
+    const still = createFetchAdapter({ auth: touchingAuth(false, SESSION.expiresAt) })
+    const kept = await still.sessionOf(request({ cookie: 'fs_token=valid-token' }))
+    expect(kept.session).not.toBeNull()
+    expect(kept.refreshCookie).toBeNull()
+
+    const extending = createFetchAdapter({ auth: touchingAuth(true, SESSION.expiresAt) })
+    const unknown = await extending.sessionOf(request({ cookie: 'fs_token=stale' }))
+    expect(unknown.refreshCookie).toBeNull()
+    expect(unknown.clearCookie).not.toBeNull()
+    expect((await extending.sessionOf(request())).refreshCookie).toBeNull()
+  })
+
+  it('is null for an auth that only has validateSession', async () => {
+    const { auth } = fakeAuth()
+    const result = await createFetchAdapter({ auth }).sessionOf(
+      request({ cookie: 'fs_token=valid-token' }),
+    )
+    expect(result).toMatchObject({ session: SESSION, refreshCookie: null })
+  })
+})
+
+// ── entitlements ───────────────────────────────────────────────────────────────
 
 describe('entitlements of a session', () => {
   function paidBilling() {
@@ -204,6 +272,8 @@ describe('entitlements of a session', () => {
     expect(reads).not.toHaveBeenCalled()
   })
 })
+
+// ── setAuthCookie / clearAuthCookie ────────────────────────────────────────────
 
 describe('setAuthCookie', () => {
   it('writes the attributes the SvelteKit adapter sets, Secure by default', () => {

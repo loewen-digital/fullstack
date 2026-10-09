@@ -79,6 +79,10 @@ export function createFlatdbAuthAdapter(collections: FlatdbAuthCollections): Aut
       await sessions.delete({ token })
     },
 
+    async updateSessionExpiry(token, expiresAt) {
+      await sessions.update({ token }, { expiresAt: expiresAt.toISOString() })
+    },
+
     async deleteExpiredSessions(userId) {
       await sessions.delete({
         userId,

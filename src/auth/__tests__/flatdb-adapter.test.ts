@@ -292,6 +292,49 @@ describe('deleteUserSessions', () => {
   })
 })
 
+describe('updateSessionExpiry', () => {
+  it('writes the later expiry as an ISO string into the session document', async () => {
+    const session = await adapter.createSession({
+      userId: 'u1',
+      token: 'hash-a',
+      expiresAt: new Date('2026-01-08T00:00:00.000Z'),
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    })
+
+    await adapter.updateSessionExpiry!('hash-a', new Date('2026-01-09T00:00:00.000Z'))
+
+    const doc = await db.sessions.findById(session.id)
+    expect(doc?.expiresAt).toBe('2026-01-09T00:00:00.000Z')
+    expect(doc?.createdAt).toBe('2026-01-01T00:00:00.000Z')
+    expect((await adapter.findSession('hash-a'))?.expiresAt).toEqual(
+      new Date('2026-01-09T00:00:00.000Z'),
+    )
+  })
+
+  it('creates no session for a token that is gone', async () => {
+    await adapter.updateSessionExpiry!('gone', new Date(Date.now() + 1000))
+    expect(await adapter.findSession('gone')).toBeNull()
+    expect(await db.sessions.findOne({})).toBeNull()
+  })
+
+  it('runs through createAuth with sessionExtendAfter', async () => {
+    const sliding = createAuth({ sessionTtl: 3600, sessionExtendAfter: 0 }, { db: adapter })
+    const { _id } = await db.users.insert({ email: 'dana@example.com' })
+    const stale = await adapter.createSession({
+      userId: _id,
+      token: await hashToken('used-token'),
+      expiresAt: new Date(Date.now() + 60_000),
+      createdAt: new Date(Date.now() - 3_540_000),
+    })
+
+    const touched = await sliding.touchSession('used-token')
+    expect(touched.extended).toBe(true)
+    const doc = await db.sessions.findById(stale.id)
+    expect(doc?.expiresAt).toMatch(ISO)
+    expect(new Date(String(doc?.expiresAt)).getTime()).toBeGreaterThan(Date.now() + 3_500_000)
+  })
+})
+
 describe('deleteExpiredSessions', () => {
   it("removes only the given user's expired sessions", async () => {
     const past = new Date(Date.now() - 60_000)

@@ -50,7 +50,7 @@ The [Auth on flatdb](/guides/auth-on-flatdb) guide shows `createFlatdbAuthAdapte
 
 ### 2. The middleware
 
-`sessionOf(request)` returns `{ session, clearCookie, entitlements }`. `session` is the validated `AuthSession` or `null`. `clearCookie` is `null` unless the request carried an auth cookie whose token is unknown or expired; then it is the `Set-Cookie` value that deletes the cookie, so the browser stops sending a dead token.
+`sessionOf(request)` returns `{ session, clearCookie, refreshCookie, entitlements }`. `session` is the validated `AuthSession` or `null`. `clearCookie` is `null` unless the request carried an auth cookie whose token is unknown or expired; then it is the `Set-Cookie` value that deletes the cookie, so the browser stops sending a dead token. `refreshCookie` is `null` unless this call extended the session, which needs [`sessionExtendAfter`](/modules/auth#signed-in-while-in-use) in the auth config; then it is the `Set-Cookie` value that stores the token again, with a `Max-Age` that reaches to the session's new expiry. At most one of the two is set.
 
 ```ts
 // functions/api/_middleware.ts
@@ -66,15 +66,18 @@ export const onRequest: PagesFunction<Env, string, Data> = async (context) => {
   }
 
   data.stack = stackOf(request, env)
-  const { session, clearCookie } = await data.stack.cookies.sessionOf(request)
+  const { session, clearCookie, refreshCookie } = await data.stack.cookies.sessionOf(request)
   data.authSession = session
 
   const response = await context.next()
-  if (!clearCookie) return response
+  const cookie = clearCookie ?? refreshCookie
+  // A login or logout in the function has set the auth cookie itself; that one stands.
+  const setByFunction = response.headers.getSetCookie().some((c) => c.startsWith('fs_token='))
+  if (!cookie || setByFunction) return response
 
-  const cleared = new Response(response.body, response)
-  cleared.headers.append('Set-Cookie', clearCookie)
-  return cleared
+  const withCookie = new Response(response.body, response)
+  withCookie.headers.append('Set-Cookie', cookie)
+  return withCookie
 }
 ```
 
@@ -153,7 +156,7 @@ isSameOrigin(request, ['https://app.example.com']) // or the listed one
 
 The helpers that write the cookie get response `Headers`, not the request, so they cannot tell HTTPS from plain HTTP. The cookie therefore carries `Secure` unless `secure` says otherwise, in the options or per call. Over plain HTTP a browser drops a `Secure` cookie unless it treats the host as trustworthy, and not every browser does that for `localhost`; `isSecureRequest(request)` gives the option the right value in both worlds. It reads the scheme of the request URL and, behind a proxy that terminates TLS, the first `x-forwarded-proto` value.
 
-The deleting cookie of `sessionOf` follows the scheme of the request it was asked about.
+The deleting and the renewing cookie of `sessionOf` follow the scheme of the request it was asked about.
 
 ## A bare Worker, Hono
 
@@ -173,9 +176,10 @@ export default {
       return new Response('Forbidden', { status: 403 })
     }
 
-    const { session, clearCookie } = await cookies.sessionOf(request)
+    const { session, clearCookie, refreshCookie } = await cookies.sessionOf(request)
     const headers = new Headers()
-    if (clearCookie) headers.append('Set-Cookie', clearCookie)
+    const cookie = clearCookie ?? refreshCookie
+    if (cookie) headers.append('Set-Cookie', cookie)
 
     if (!session) return Response.json({ error: 'Not signed in' }, { status: 401, headers })
     return Response.json({ userId: session.userId }, { headers })
@@ -194,13 +198,13 @@ In Hono the `Request` is `c.req.raw`; everything else is the same calls.
 | `authCookie` | `'fs_token'` | Name of the auth cookie |
 | `secure` | `true` | Whether the cookie carries `Secure`; see [Secure](#secure) |
 | `sameSite` | `'lax'` | `'lax'`, `'strict'` or `'none'`; `'none'` needs `secure` |
-| `maxAge` | 7 days | Lifetime of the cookie in seconds; keep it in step with `sessionTtl` of the auth config |
+| `maxAge` | 7 days | Lifetime of the cookie `setAuthCookie` writes, in seconds; keep it in step with `sessionTtl` of the auth config. `refreshCookie` does not read it: its lifetime is what the extended session has left |
 
 ## Helpers
 
 | Helper | Description |
 |---|---|
-| `adapter.sessionOf(request)` | `{ session, clearCookie }`: the validated `AuthSession` or `null`, and the deleting `Set-Cookie` value for a dead token |
+| `adapter.sessionOf(request)` | `{ session, clearCookie, refreshCookie, entitlements }`: the validated `AuthSession` or `null`, the deleting `Set-Cookie` value for a dead token, and the renewing one for a session that was just extended |
 | `adapter.setAuthCookie(headers, token, { secure?, maxAge? })` | Appends the `Set-Cookie` header for the auth session token |
 | `adapter.clearAuthCookie(headers, { secure? })` | Appends the `Set-Cookie` header that deletes it |
 | `isSameOrigin(request, allowed?)` | Whether `Origin` or `Sec-Fetch-Site` place the request on the app's own origin or a listed one |

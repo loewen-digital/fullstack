@@ -1,4 +1,4 @@
-import type { AuthDbAdapter, AuthSession, AuthUser } from './types.js'
+import type { AuthDbAdapter, AuthSession, AuthUser, TouchedAuthSession } from './types.js'
 import { hashToken, randomToken } from './opaque-token.js'
 
 /**
@@ -29,23 +29,56 @@ export async function createAuthSession(
   return { ...stored, token }
 }
 
+/** When a validated session gets a later expiry: `sessionTtl` and `sessionExtendAfter` of the config. */
+export interface SessionExtension {
+  ttlSeconds: number
+  afterSeconds: number
+}
+
 /**
- * Validate a session token. Returns the session if valid, null if expired or not found.
+ * Validate a session token and, with `extension`, move its expiry to now plus the TTL.
+ *
+ * The store is written when the new expiry lies at least `afterSeconds` behind the stored one.
+ * A session expires one TTL after its last extension, so that distance is the time since then,
+ * and the store needs no extra field. An expiry is never moved earlier: after a shorter
+ * `sessionTtl` the sessions that are out run to the end they were given.
+ *
  * The returned session carries the presented token, not the stored hash, so
  * `destroyAuthSession(db, session.token)` works on what this returns.
+ */
+export async function touchAuthSession(
+  db: AuthDbAdapter,
+  token: string,
+  extension?: SessionExtension,
+): Promise<TouchedAuthSession> {
+  const hash = await hashToken(token)
+  const session = await db.findSession(hash)
+  if (!session) return { session: null, extended: false }
+  const now = new Date()
+  if (session.expiresAt < now) {
+    await db.deleteSession(hash)
+    return { session: null, extended: false }
+  }
+  if (extension && db.updateSessionExpiry) {
+    const expiresAt = new Date(now.getTime() + extension.ttlSeconds * 1000)
+    if (expiresAt.getTime() - session.expiresAt.getTime() >= extension.afterSeconds * 1000) {
+      await db.updateSessionExpiry(hash, expiresAt)
+      return { session: { ...session, expiresAt, token }, extended: true }
+    }
+  }
+  return { session: { ...session, token }, extended: false }
+}
+
+/**
+ * Validate a session token. Returns the session if valid, null if expired or not found;
+ * extends it like `touchAuthSession` without saying so.
  */
 export async function validateAuthSession(
   db: AuthDbAdapter,
   token: string,
+  extension?: SessionExtension,
 ): Promise<AuthSession | null> {
-  const hash = await hashToken(token)
-  const session = await db.findSession(hash)
-  if (!session) return null
-  if (session.expiresAt < new Date()) {
-    await db.deleteSession(hash)
-    return null
-  }
-  return { ...session, token }
+  return (await touchAuthSession(db, token, extension)).session
 }
 
 /**

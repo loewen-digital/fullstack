@@ -35,7 +35,11 @@ export type {
 // Users can pass any StackModules-compatible object; only the present modules are used.
 export interface AdapterStack {
   session?: SessionManager
-  auth?: AuthInstance
+  /**
+   * The auth instance. `touchSession` is optional so an auth of your own with only
+   * `validateSession` still fits; without it the handle never sends the auth cookie again.
+   */
+  auth?: Pick<AuthInstance, 'validateSession'> & Partial<Pick<AuthInstance, 'touchSession'>>
   security?: SecurityInstance
   /**
    * Opt in to `locals.entitlements()`: the billing instance, or anything with its
@@ -79,7 +83,8 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
  *
  * What it does per request:
  *  1. Opens the session from its cookie (if session module configured) → event.locals.session
- *  2. Reads auth token from cookie → validates session → event.locals.authSession
+ *  2. Reads auth token from cookie → validates session → event.locals.authSession,
+ *     and sets the auth cookie again when the session was extended (`sessionExtendAfter`)
  *  3. Enforces CSRF for non-GET mutations (if security module configured)
  *     and puts the lazy `event.locals.entitlements()` there (if billing is in the stack)
  *  4. Commits the session after the route resolves and writes the cookie when its value changed
@@ -106,7 +111,17 @@ export function createHandle(stack: AdapterStack, options: HandleOptions = {}): 
       let authSession: AuthSession | null = null
 
       if (token) {
-        authSession = await stack.auth.validateSession(token)
+        const touched = stack.auth.touchSession
+          ? await stack.auth.touchSession(token)
+          : { session: await stack.auth.validateSession(token), extended: false }
+        authSession = touched.session
+
+        // An extended session (`sessionExtendAfter`): the cookie has to live as long. Set before
+        // the route runs, so a logout in the route, `clearAuthCookie`, still wins.
+        if (authSession && touched.extended) {
+          const maxAge = Math.ceil((authSession.expiresAt.getTime() - Date.now()) / 1000)
+          setAuthCookie(event, token, { authCookie, maxAge: Math.max(0, maxAge) })
+        }
       }
 
       locals.authSession = authSession

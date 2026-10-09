@@ -8,7 +8,7 @@
  *
  *   export const onRequest: PagesFunction<Env> = async (context) => {
  *     const adapter = createFetchAdapter({ auth }, { secure: isSecureRequest(context.request) })
- *     const { session, clearCookie } = await adapter.sessionOf(context.request)
+ *     const { session, clearCookie, refreshCookie } = await adapter.sessionOf(context.request)
  *     context.data.authSession = session
  *     ...
  *   }
@@ -64,14 +64,21 @@ export function createFetchAdapter(
       const header = request.headers.get('cookie')
       const token = header ? parseCookies(header)[authCookie] : undefined
       const nothing = async (): Promise<null> => null
-      if (!token) return { session: null, clearCookie: null, entitlements: nothing }
+      if (!token) {
+        return { session: null, clearCookie: null, refreshCookie: null, entitlements: nothing }
+      }
 
-      const session = await auth.validateSession(token)
+      const { session, extended } = auth.touchSession
+        ? await auth.touchSession(token)
+        : { session: await auth.validateSession(token), extended: false }
       if (session) {
         let resolved: Promise<BillingEntitlements | null> | undefined
         return {
           session,
           clearCookie: null,
+          refreshCookie: extended
+            ? cookie(token, secondsUntil(session.expiresAt), isSecureRequest(request))
+            : null,
           entitlements: () =>
             (resolved ??= billing ? billing.entitlements(String(session.userId)) : nothing()),
         }
@@ -80,6 +87,7 @@ export function createFetchAdapter(
       return {
         session: null,
         clearCookie: cookie('', 0, isSecureRequest(request)),
+        refreshCookie: null,
         entitlements: nothing,
       }
     },
@@ -92,6 +100,11 @@ export function createFetchAdapter(
       headers.append('Set-Cookie', cookie('', 0, overrides.secure))
     },
   }
+}
+
+/** The cookie of an extended session lives until the session ends, not `maxAge` from the login. */
+function secondsUntil(date: Date): number {
+  return Math.max(0, Math.ceil((date.getTime() - Date.now()) / 1000))
 }
 
 /**

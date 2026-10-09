@@ -6,9 +6,13 @@
 import type { AuthInstance, AuthSession } from '../../auth/index.js'
 import type { BillingEntitlements } from '../../billing/index.js'
 
-/** What the adapter reads from a stack: the auth instance that validates the cookie's token. */
+/**
+ * What the adapter reads from a stack: the auth instance that validates the cookie's token.
+ * `touchSession` is optional so an auth of your own with only `validateSession` still fits;
+ * without it `refreshCookie` stays `null`.
+ */
 export interface FetchAdapterStack {
-  auth: Pick<AuthInstance, 'validateSession'>
+  auth: Pick<AuthInstance, 'validateSession'> & Partial<Pick<AuthInstance, 'touchSession'>>
   /**
    * Opt in to `entitlements()` on the result of `sessionOf`: the billing instance, or anything
    * with its `entitlements` method.
@@ -58,6 +62,13 @@ export interface FetchSessionResult {
    * the dead token.
    */
   clearCookie: string | null
+  /**
+   * The `Set-Cookie` value that stores the auth token again, when this call extended the
+   * session (`sessionExtendAfter` of the auth config); `null` otherwise. Append it to the
+   * response: the cookie then lives as long as the session, its `Max-Age` is the time to the
+   * session's new expiry. Leave it out of a response that logs the user out.
+   */
+  refreshCookie: string | null
   /**
    * What the signed-in user may use, from billing; `null` without a session or without `billing`
    * in the stack. Reads the store on the first call and answers every further call from that read.

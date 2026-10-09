@@ -98,7 +98,7 @@ export function createAppAuth(db: AppDb) {
 }
 ```
 
-Both factories hold no state and cost nothing to create, which matters below: on Workers they are built per request.
+Both factories hold no state and cost nothing to create, which matters below: on Workers they are built per request. To keep users signed in while they use the app, add `sessionExtendAfter` next to `sessionTtl` ([auth](/modules/auth#signed-in-while-in-use)); the adapter writes the later `expiresAt` into the session document and the hook below sends the cookie again.
 
 ## Session on the cookie driver
 

@@ -5,7 +5,7 @@ description: createHandle wires session, auth and CSRF into SvelteKit's hooks an
 
 # SvelteKit Adapter
 
-`createHandle(stack)` returns a SvelteKit `Handle`. Per request it opens the session from its cookie, validates the auth cookie, checks the CSRF header on mutating requests, fills `event.locals`, and writes the session cookie after the response. `setAuthCookie`, `clearAuthCookie`, `getCsrfToken` and `validateForm` cover login, logout and forms.
+`createHandle(stack)` returns a SvelteKit `Handle`. Per request it opens the session from its cookie, validates the auth cookie, checks the CSRF header on mutating requests, fills `event.locals`, and writes the session cookie after the response. With [`sessionExtendAfter`](/modules/auth#signed-in-while-in-use) in the auth config it also sets the auth cookie again whenever the session was extended, with a `maxAge` that reaches to the session's new expiry; a `clearAuthCookie` in the route still wins. `setAuthCookie`, `clearAuthCookie`, `getCsrfToken` and `validateForm` cover login, logout and forms.
 
 The [Auth on flatdb](/guides/auth-on-flatdb) guide shows this wiring with `@loewen-digital/flatdb` as storage, built per request for Cloudflare Workers.
 

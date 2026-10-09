@@ -28,6 +28,13 @@ export interface AuthSession {
   createdAt: Date
 }
 
+/** What `touchSession` answers: the validated session and whether its expiry was just moved. */
+export interface TouchedAuthSession {
+  session: AuthSession | null
+  /** `true` when this call wrote a later `expiresAt`; the cookie then has to be sent again. */
+  extended: boolean
+}
+
 /**
  * A one-time token (email verification, password reset, login code). It exists
  * while it is valid: issuing a new token of the same type for the user deletes
@@ -64,6 +71,12 @@ export interface AuthDbAdapter {
   createSession(data: Omit<AuthSession, 'id'>): Promise<AuthSession>
   findSession(token: string): Promise<AuthSession | null>
   deleteSession(token: string): Promise<void>
+  /**
+   * Set a later `expiresAt` on the session with that token hash; `sessionExtendAfter` needs it.
+   * Updates the session that is there and creates none: a logout that arrives at the same
+   * moment stays a logout.
+   */
+  updateSessionExpiry?(token: string, expiresAt: Date): Promise<void>
   deleteExpiredSessions(userId: string | number): Promise<void>
   /** Remove every session of the user; a password reset and `destroyUserSessions` call it */
   deleteUserSessions(userId: string | number): Promise<void>
@@ -119,6 +132,14 @@ export interface OAuthProvider {
 export interface AuthConfig {
   /** Session TTL in seconds (default: 7 days) */
   sessionTtl?: number
+  /**
+   * Keep a session alive while it is used: a session that is validated at least this many
+   * seconds after its login or its last extension expires `sessionTtl` from now. It is the
+   * shortest time between two writes to the session store, so a day costs one write per session
+   * and day; `0` writes on every validation. Needs `updateSessionExpiry` on the adapter and has
+   * to be less than `sessionTtl`. Default: unset, a session ends `sessionTtl` after the login.
+   */
+  sessionExtendAfter?: number
   /** Token TTL in seconds for email verification (default: 24 hours) */
   emailVerificationTtl?: number
   /** Token TTL in seconds for password reset (default: 1 hour) */
@@ -144,8 +165,16 @@ export interface AuthInstance {
   verifyPassword(password: string, hash: string): Promise<boolean>
   /** Create a new authenticated session for a user */
   createSession(user: AuthUser): Promise<AuthSession>
-  /** Validate a session token and return the associated session, or null if invalid/expired */
+  /**
+   * Validate a session token and return the associated session, or null if invalid/expired.
+   * With `sessionExtendAfter` the session's expiry moves as it does in `touchSession`.
+   */
   validateSession(token: string): Promise<AuthSession | null>
+  /**
+   * `validateSession` that also says whether the expiry was moved, which only happens with
+   * `sessionExtendAfter`. The adapters call it and send the auth cookie again when `extended`.
+   */
+  touchSession(token: string): Promise<TouchedAuthSession>
   /** Destroy a session by token */
   destroySession(token: string): Promise<void>
   /** Destroy every session of a user: logout everywhere, the recovery step after a takeover */

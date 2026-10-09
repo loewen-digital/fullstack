@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vite-plus/test'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vite-plus/test'
 import { createAuth, hashToken } from '../index.js'
 import type { AuthDbAdapter, AuthUser, AuthSession, AuthToken } from '../types.js'
 
@@ -40,6 +40,10 @@ function createTestDb(): AuthDbAdapter {
     async deleteSession(token) {
       const idx = sessions.findIndex((s) => s.token === token)
       if (idx !== -1) sessions.splice(idx, 1)
+    },
+    async updateSessionExpiry(token, expiresAt) {
+      const session = sessions.find((s) => s.token === token)
+      if (session) session.expiresAt = expiresAt
     },
     async deleteExpiredSessions(userId) {
       const now = new Date()
@@ -214,6 +218,145 @@ describe('session management', () => {
     await auth.destroySession(validated.token)
     expect(await auth.validateSession(session.token)).toBeNull()
     expect(await db.findSession(await hashToken(session.token))).toBeNull()
+  })
+})
+
+describe('session extension', () => {
+  const HOUR = 3600
+  const DAY = 24 * HOUR
+  const START = new Date('2026-01-01T00:00:00.000Z')
+
+  function later(seconds: number): Date {
+    return new Date(START.getTime() + seconds * 1000)
+  }
+
+  async function stored(token: string): Promise<Date | undefined> {
+    return (await db.findSession(await hashToken(token)))?.expiresAt
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'], now: START })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('without sessionExtendAfter a session ends a fixed time after the login', async () => {
+    const user = (await db.findUserByEmail('alice@example.com'))!
+    const session = await auth.createSession(user)
+
+    vi.setSystemTime(later(6 * DAY))
+    expect(await auth.touchSession(session.token)).toMatchObject({ extended: false })
+    expect((await auth.validateSession(session.token))?.expiresAt).toEqual(later(7 * DAY))
+    expect(await stored(session.token)).toEqual(later(7 * DAY))
+
+    vi.setSystemTime(later(7 * DAY + 1))
+    expect(await auth.validateSession(session.token)).toBeNull()
+  })
+
+  it('extends a validated session once sessionExtendAfter has passed, and not before', async () => {
+    const sliding = createAuth({ sessionTtl: 7 * DAY, sessionExtendAfter: DAY }, { db })
+    const user = (await db.findUserByEmail('alice@example.com'))!
+    const session = await sliding.createSession(user)
+
+    vi.setSystemTime(later(HOUR))
+    const early = await sliding.touchSession(session.token)
+    expect(early.extended).toBe(false)
+    expect(early.session?.expiresAt).toEqual(later(7 * DAY))
+    expect(await stored(session.token)).toEqual(later(7 * DAY))
+
+    vi.setSystemTime(later(DAY))
+    const due = await sliding.touchSession(session.token)
+    expect(due.extended).toBe(true)
+    expect(due.session?.expiresAt).toEqual(later(8 * DAY))
+    expect(due.session?.token).toBe(session.token)
+    expect(await stored(session.token)).toEqual(later(8 * DAY))
+
+    // The next request of the same day finds the session extended and writes nothing.
+    vi.setSystemTime(later(DAY + HOUR))
+    expect((await sliding.touchSession(session.token)).extended).toBe(false)
+    expect(await stored(session.token)).toEqual(later(8 * DAY))
+  })
+
+  it('validateSession extends as well and returns the new expiry', async () => {
+    const sliding = createAuth({ sessionTtl: 7 * DAY, sessionExtendAfter: DAY }, { db })
+    const user = (await db.findUserByEmail('alice@example.com'))!
+    const session = await sliding.createSession(user)
+
+    vi.setSystemTime(later(2 * DAY))
+    expect((await sliding.validateSession(session.token))?.expiresAt).toEqual(later(9 * DAY))
+    expect(await stored(session.token)).toEqual(later(9 * DAY))
+  })
+
+  it('keeps a session alive that is used every day, and ends it one TTL after the last use', async () => {
+    const sliding = createAuth({ sessionTtl: 7 * DAY, sessionExtendAfter: DAY }, { db })
+    const user = (await db.findUserByEmail('alice@example.com'))!
+    const session = await sliding.createSession(user)
+
+    for (let day = 1; day <= 30; day++) {
+      vi.setSystemTime(later(day * DAY))
+      expect(await sliding.validateSession(session.token)).not.toBeNull()
+    }
+
+    vi.setSystemTime(later(37 * DAY + 1))
+    expect(await sliding.validateSession(session.token)).toBeNull()
+    expect(await stored(session.token)).toBeUndefined()
+  })
+
+  it('does not bring back a session that has run out', async () => {
+    const sliding = createAuth({ sessionTtl: 7 * DAY, sessionExtendAfter: DAY }, { db })
+    const user = (await db.findUserByEmail('alice@example.com'))!
+    const session = await sliding.createSession(user)
+
+    vi.setSystemTime(later(7 * DAY + 1))
+    expect(await sliding.touchSession(session.token)).toEqual({ session: null, extended: false })
+    expect(await stored(session.token)).toBeUndefined()
+  })
+
+  it('answers an unknown token without a session and without a write', async () => {
+    const sliding = createAuth({ sessionExtendAfter: 0 }, { db })
+    expect(await sliding.touchSession('fake-token')).toEqual({ session: null, extended: false })
+  })
+
+  it('0 extends on every validation', async () => {
+    const sliding = createAuth({ sessionTtl: 7 * DAY, sessionExtendAfter: 0 }, { db })
+    const user = (await db.findUserByEmail('alice@example.com'))!
+    const session = await sliding.createSession(user)
+
+    vi.setSystemTime(later(1))
+    expect((await sliding.touchSession(session.token)).extended).toBe(true)
+    vi.setSystemTime(later(2))
+    expect((await sliding.touchSession(session.token)).extended).toBe(true)
+    expect(await stored(session.token)).toEqual(later(7 * DAY + 2))
+  })
+
+  it('never moves an expiry earlier when sessionTtl got shorter', async () => {
+    const user = (await db.findUserByEmail('alice@example.com'))!
+    const session = await createAuth({ sessionTtl: 30 * DAY }, { db }).createSession(user)
+    const shorter = createAuth({ sessionTtl: 7 * DAY, sessionExtendAfter: DAY }, { db })
+
+    vi.setSystemTime(later(2 * DAY))
+    const touched = await shorter.touchSession(session.token)
+    expect(touched.extended).toBe(false)
+    expect(touched.session?.expiresAt).toEqual(later(30 * DAY))
+    expect(await stored(session.token)).toEqual(later(30 * DAY))
+  })
+
+  it('refuses a sessionExtendAfter that could never apply, and an adapter that cannot extend', () => {
+    expect(() => createAuth({ sessionTtl: DAY, sessionExtendAfter: DAY }, { db })).toThrow(
+      'sessionExtendAfter',
+    )
+    expect(() => createAuth({ sessionExtendAfter: -1 }, { db })).toThrow('sessionExtendAfter')
+    expect(() => createAuth({ sessionExtendAfter: Number.NaN }, { db })).toThrow(
+      'sessionExtendAfter',
+    )
+
+    const fixed: AuthDbAdapter = { ...db, updateSessionExpiry: undefined }
+    expect(() => createAuth({ sessionExtendAfter: DAY }, { db: fixed })).toThrow(
+      'updateSessionExpiry',
+    )
+    expect(() => createAuth({}, { db: fixed })).not.toThrow()
   })
 })
 

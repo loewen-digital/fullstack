@@ -60,6 +60,25 @@ async function currentUser(token: string | undefined) {
 }
 ```
 
+## Signed in while in use
+
+By default a session ends `sessionTtl` after the login, however often it is used. With `sessionExtendAfter` a session that is validated gets a new expiry, `sessionTtl` from that moment, so a user who keeps coming back stays signed in and one who stays away for `sessionTtl` is signed out.
+
+```ts
+const sliding = createAuth(
+  { sessionTtl: 30 * 24 * 3600, sessionExtendAfter: 24 * 3600 }, // at most one write per session and day
+  { db },
+)
+
+async function sessionForRequest(token: string) {
+  const { session, extended } = await sliding.touchSession(token)
+  // extended: the store holds a later expiry now; send the cookie again so it lives as long
+  return { session, sendCookieAgain: extended }
+}
+```
+
+`sessionExtendAfter` is the shortest time between two writes: a session is extended when its login or its last extension lies at least that many seconds back, and every validation in between only reads. `0` writes on every validation. `validateSession` extends the same way; `touchSession` also says that it did, which is what the [SvelteKit](/adapters/sveltekit) and [fetch](/adapters/fetch) adapters ask to send the auth cookie again. The Nuxt, Remix and Astro adapters extend the session and leave the cookie to you. A session that has run out is not brought back, and an expiry never moves earlier: after a shorter `sessionTtl` the sessions that are out keep the end they were given. There is no upper limit to how long a session that stays in use can live ([decision 0028](https://github.com/loewen-digital/fullstack/blob/main/docs/decisions/0028-sliding-sessions.md)).
+
 ## Logout
 
 `destroySession(token)` ends one session. `destroyUserSessions(userId)` ends every session of the user, the caller's included: logout on every device, or the response to a stolen cookie.
@@ -177,11 +196,12 @@ async function finishGithubLogin(code: string, state: string) {
 
 ## Config options
 
-`createAuth(config, deps)` reads these; all lifetimes are seconds. It throws on a `loginCodeLength` outside 6 to 12 and a `loginCodeAttempts` below 1.
+`createAuth(config, deps)` reads these; all lifetimes are seconds. It throws on a `loginCodeLength` outside 6 to 12, a `loginCodeAttempts` below 1, and a `sessionExtendAfter` that is negative, not below `sessionTtl`, or set with an adapter that has no `updateSessionExpiry`.
 
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `sessionTtl` | `number` | `604800` | Lifetime of a session (7 days) |
+| `sessionExtendAfter` | `number` | none | Extend a validated session to `sessionTtl` from now once this many seconds have passed since its login or last extension; unset, a session ends `sessionTtl` after the login |
 | `emailVerificationTtl` | `number` | `86400` | Lifetime of an email verification token (24 hours) |
 | `passwordResetTtl` | `number` | `3600` | Lifetime of a password reset token (1 hour) |
 | `loginCodeSecret` | `string` | none | Secret the login codes are stored under; required for `sendLoginCode` and `verifyLoginCode` |
@@ -201,6 +221,7 @@ async function finishGithubLogin(code: string, state: string) {
 |---|---|
 | `findUserByEmail(email)`, `findUserById(id)` | Users, `null` when absent |
 | `createSession(data)`, `findSession(token)`, `deleteSession(token)`, `deleteExpiredSessions(userId)`, `deleteUserSessions(userId)` | Sessions: `deleteUserSessions` runs on a password reset and from `destroyUserSessions` |
+| `updateSessionExpiry(token, expiresAt)` | Optional, required for `sessionExtendAfter`: a later `expiresAt` on the session with that token hash. It updates the session that is there and creates none |
 | `createToken(data)`, `findToken(token, type)`, `deleteToken(id)`, `deleteTokens(userId, type)` | One-time tokens: `deleteTokens` runs before a new one is issued, `deleteToken` when one is presented |
 | `findUserToken(userId, type)`, `countTokenAttempt(id)` | Login codes: the user's one token of a type, and `attempts + 1` on it, returning the new count or `null` when the token is gone. Increment atomically where the store can |
 | `updateUserPassword(id, passwordHash)`, `markEmailVerified(id)` | Writes to the user |

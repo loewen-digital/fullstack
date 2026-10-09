@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vite-plus/test'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vite-plus/test'
 import {
   createHandle,
   getCsrfToken,
@@ -512,5 +512,107 @@ describe('auth integration', () => {
     await handle({ event, resolve: makeResolve() })
     expect(event.locals.authSession).toBeNull()
     expect('user' in event.locals).toBe(false)
+  })
+})
+
+describe('auth cookie of an extended session', () => {
+  const NOW = new Date('2026-01-01T00:00:00.000Z')
+  const session: AuthSession = {
+    id: 's1',
+    userId: 'u1',
+    token: 'good',
+    expiresAt: new Date('2026-01-31T00:00:00.000Z'),
+    createdAt: new Date('2025-12-20T00:00:00.000Z'),
+  }
+
+  function touchingAuth(extended: boolean) {
+    return {
+      validateSession: async (): Promise<AuthSession | null> => {
+        throw new Error('the handle has to ask touchSession')
+      },
+      touchSession: async (token: string) =>
+        token === 'good' ? { session, extended } : { session: null, extended: false },
+    }
+  }
+
+  /** An event that carries the auth cookie and records every `cookies.set` from here on. */
+  function eventWith(cookie: string, value: string, url = 'https://app.example.com/') {
+    const event = makeEvent({ url: new URL(url), request: new Request(url) })
+    event.cookies.set(cookie, value, { path: '/' })
+    const set = vi.spyOn(event.cookies, 'set')
+    return { event, set }
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'], now: NOW })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('sends the cookie again, alive until the session ends', async () => {
+    const { event, set } = eventWith('fs_token', 'good')
+
+    await createHandle({ auth: touchingAuth(true) })({ event, resolve: makeResolve() })
+
+    expect(event.locals.authSession).toEqual(session)
+    expect(set).toHaveBeenCalledExactlyOnceWith('fs_token', 'good', {
+      path: '/',
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: true,
+      maxAge: 30 * 24 * 3600,
+    })
+  })
+
+  it('uses the configured cookie name and the scheme of the request', async () => {
+    const { event, set } = eventWith('sid', 'good', 'http://localhost:5173/')
+
+    await createHandle(
+      { auth: touchingAuth(true) },
+      { authCookie: 'sid' },
+    )({
+      event,
+      resolve: makeResolve(),
+    })
+
+    expect(set).toHaveBeenCalledExactlyOnceWith(
+      'sid',
+      'good',
+      expect.objectContaining({ secure: false, maxAge: 30 * 24 * 3600 }),
+    )
+  })
+
+  it('leaves the cookie alone when the session was not extended or is unknown', async () => {
+    const still = eventWith('fs_token', 'good')
+    await createHandle({ auth: touchingAuth(false) })({
+      event: still.event,
+      resolve: makeResolve(),
+    })
+    expect(still.event.locals.authSession).toEqual(session)
+    expect(still.set).not.toHaveBeenCalled()
+
+    const unknown = eventWith('fs_token', 'stale')
+    await createHandle({ auth: touchingAuth(true) })({
+      event: unknown.event,
+      resolve: makeResolve(),
+    })
+    expect(unknown.event.locals.authSession).toBeNull()
+    expect(unknown.set).not.toHaveBeenCalled()
+  })
+
+  it('a logout in the route still clears the cookie', async () => {
+    const { event } = eventWith('fs_token', 'good')
+
+    await createHandle({ auth: touchingAuth(true) })({
+      event,
+      resolve: async (e) => {
+        clearAuthCookie(e)
+        return new Response('bye')
+      },
+    })
+
+    expect(event.cookies.get('fs_token')).toBeUndefined()
   })
 })
