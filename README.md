@@ -1,6 +1,6 @@
 # @loewen-digital/fullstack
 
-Backend primitives for JavaScript meta-frameworks: auth, sessions, validation, mail, storage, cache, queue, events, logging, errors, permissions, notifications, i18n, search, webhooks, realtime, billing, and a Drizzle `db` module for apps on a SQL database. One package with one subpath per module, factory functions instead of a container, swappable drivers, Web Standard `Request` and `Response` everywhere, a framework-agnostic core and adapters for SvelteKit, Nuxt, Remix, Astro and plain fetch handlers (Pages Functions, Workers, Hono).
+Backend primitives for JavaScript meta-frameworks: auth, sessions, validation, mail, storage, cache, queue, events, logging, errors, permissions, notifications, i18n, search, webhooks, realtime, billing, usage, and a Drizzle `db` module for apps on a SQL database. One package with one subpath per module, factory functions instead of a container, swappable drivers, Web Standard `Request` and `Response` everywhere, a framework-agnostic core and adapters for SvelteKit, Nuxt, Remix, Astro and plain fetch handlers (Pages Functions, Workers, Hono).
 
 Documentation: [fullstack-docs.loewen-digital.workers.dev](https://fullstack-docs.loewen-digital.workers.dev)
 
@@ -79,6 +79,7 @@ All subpaths sit below `@loewen-digital/fullstack`. Each module's page lists its
 | Realtime | `/realtime` | `createRealtime`: channels with `broadcast`, `sse()` as a streaming `Response` |
 | Feedback | `/feedback` | `createFeedbackHandler`: the endpoint of an in-app feedback form, files each message as a GitHub issue |
 | Billing | `/billing`, `/billing/flatdb` | `createBilling`: checkouts for one-time purchases and subscriptions behind a driver, provider webhooks applied exactly once, what a user holds from a memory or flatdb store, and `entitlements(userId)`: the features and limits that gives them, with grace period and grants by hand. Ships the `console` driver for development and the `paddle` driver for Paddle Billing |
+| Usage | `/usage`, `/usage/flatdb` | `createUsage`: counted balances per subject, a budget per period and prepaid credit. A spend fits or is refused as a whole, also when calls arrive together; credits apply once per key; totals per period and tag |
 | Testing | `/testing` | `createTestStack`, fake mail, queue, storage and billing drivers, `defineFactory`, `withSavepoint` |
 
 A driver named in the config (`memory`, `console`, `cookie`, `sqlite`) needs nothing else. A driver that needs credentials or a client is built with its own factory and handed to the module's `createXInstance`, for example `createMailInstance(createResendDriver({ apiKey }), { driver: 'resend', from })`. The [driver pattern](https://fullstack-docs.loewen-digital.workers.dev/core-concepts/driver-pattern) page lists every driver and which kind it is.

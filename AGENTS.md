@@ -60,6 +60,7 @@ src/
 ├── realtime/             → createRealtime(), websocket, SSE
 ├── feedback/             → createFeedbackHandler(), sinks (GitHub issue, KV)
 ├── billing/              → createBilling(), entitlements, drivers/ (console, paddle), stores/ (memory, flatdb)
+├── usage/                → createUsage(), counted balances, stores/ (memory, flatdb)
 ├── testing/              → createTestStack(), fakes, factories, DB helpers
 ├── adapters/
 │   ├── sveltekit/        → createHandle(), type augmentation

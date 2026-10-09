@@ -173,6 +173,14 @@ The core **never** imports or depends on any framework-specific code. Every modu
 │   │   │   ├── memory.ts
 │   │   │   └── flatdb.ts        → on flatdb's StorageAdapter, compare-and-swap per account
 │   │   └── types.ts
+│   ├── usage/
+│   │   ├── index.ts             → createUsage()
+│   │   ├── apply.ts             → spend, credit and the period of a date, as pure functions
+│   │   ├── errors.ts            → UsageError
+│   │   ├── stores/
+│   │   │   ├── memory.ts
+│   │   │   └── flatdb.ts        → on flatdb's StorageAdapter, compare-and-swap per subject
+│   │   └── types.ts
 │   ├── realtime/
 │   │   ├── index.ts             → createRealtime()
 │   │   ├── websocket.ts
@@ -244,6 +252,8 @@ The core **never** imports or depends on any framework-specific code. Every modu
     "./feedback": "./dist/feedback/index.js",
     "./billing": "./dist/billing/index.js",
     "./billing/flatdb": "./dist/billing/stores/flatdb.js",
+    "./usage": "./dist/usage/index.js",
+    "./usage/flatdb": "./dist/usage/stores/flatdb.js",
     "./testing": "./dist/testing/index.js",
     "./adapters/sveltekit": "./dist/adapters/sveltekit/index.js",
     "./adapters/nuxt": "./dist/adapters/nuxt/index.js",
@@ -397,6 +407,7 @@ config (standalone)
 ├── realtime (depends on: config)
 ├── feedback (depends on: security, for CORS headers and the RateLimiter type)
 ├── billing (standalone: a user is a string id, the provider a driver, the state a store)
+├── usage (standalone: a subject is a string id, the state a store)
 │
 └── testing (can mock any of the above)
 ```

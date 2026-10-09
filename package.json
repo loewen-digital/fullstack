@@ -119,6 +119,14 @@
       "import": "./dist/billing/stores/flatdb.js",
       "types": "./dist/billing/stores/flatdb.d.ts"
     },
+    "./usage": {
+      "import": "./dist/usage/index.js",
+      "types": "./dist/usage/index.d.ts"
+    },
+    "./usage/flatdb": {
+      "import": "./dist/usage/stores/flatdb.js",
+      "types": "./dist/usage/stores/flatdb.d.ts"
+    },
     "./testing": {
       "import": "./dist/testing/index.js",
       "types": "./dist/testing/index.d.ts"

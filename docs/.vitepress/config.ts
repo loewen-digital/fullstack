@@ -66,6 +66,7 @@ export default defineConfig({
             { text: 'Realtime', link: '/modules/realtime' },
             { text: 'Feedback', link: '/modules/feedback' },
             { text: 'Billing', link: '/modules/billing' },
+            { text: 'Usage', link: '/modules/usage' },
           ],
         },
         {

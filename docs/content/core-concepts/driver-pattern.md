@@ -66,6 +66,7 @@ const onR2 = createStorageInstance(
 | `search` | `sqlite-fts` | `createMeilisearchDriver`, `createTypesenseDriver`; a custom driver into `createSearch({ driver })` |
 | `db` | `sqlite` (`drizzle-orm` and `better-sqlite3`, optional peers you install) | none yet; `postgres`, `mysql` and `d1` are declared and throw |
 | `billing` | `console`, `paddle` | a `BillingDriver` of your own as `driver`; the store is separate: `createMemoryBillingStore`, `createFlatdbBillingStore` |
+| `usage` | none | no driver; the store is the swappable part: `createMemoryUsageStore`, `createFlatdbUsageStore`, or a `UsageStore` of your own |
 | `logging` | `consoleTransport()` is the default | `fileTransport`, `externalTransport`, passed as `transports` |
 
 ## Swapping drivers per environment
