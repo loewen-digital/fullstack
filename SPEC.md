@@ -161,6 +161,16 @@ The core **never** imports or depends on any framework-specific code. Every modu
 │   │   ├── github.ts            → githubIssueSink(), defusing of mentions
 │   │   ├── kv.ts                → kvSink()
 │   │   └── types.ts
+│   ├── billing/
+│   │   ├── index.ts             → createBilling()
+│   │   ├── apply.ts             → one event onto one account: applied, duplicate or stale
+│   │   ├── errors.ts            → BillingError, BillingWebhookError
+│   │   ├── drivers/
+│   │   │   └── console.ts       → checkouts completed locally, no provider
+│   │   ├── stores/
+│   │   │   ├── memory.ts
+│   │   │   └── flatdb.ts        → on flatdb's StorageAdapter, compare-and-swap per account
+│   │   └── types.ts
 │   ├── realtime/
 │   │   ├── index.ts             → createRealtime()
 │   │   ├── websocket.ts
@@ -171,6 +181,7 @@ The core **never** imports or depends on any framework-specific code. Every modu
 │   │   ├── fake-mail.ts
 │   │   ├── fake-storage.ts
 │   │   ├── fake-queue.ts
+│   │   ├── fake-billing.ts
 │   │   ├── db-helpers.ts        → transactions, cleanup
 │   │   └── factories.ts         → factory builder
 │   ├── adapters/
@@ -229,6 +240,8 @@ The core **never** imports or depends on any framework-specific code. Every modu
     "./webhooks": "./dist/webhooks/index.js",
     "./realtime": "./dist/realtime/index.js",
     "./feedback": "./dist/feedback/index.js",
+    "./billing": "./dist/billing/index.js",
+    "./billing/flatdb": "./dist/billing/stores/flatdb.js",
     "./testing": "./dist/testing/index.js",
     "./adapters/sveltekit": "./dist/adapters/sveltekit/index.js",
     "./adapters/nuxt": "./dist/adapters/nuxt/index.js",
@@ -381,6 +394,7 @@ config (standalone)
 ├── webhooks (depends on: config)
 ├── realtime (depends on: config)
 ├── feedback (depends on: security, for CORS headers and the RateLimiter type)
+├── billing (standalone: a user is a string id, the provider a driver, the state a store)
 │
 └── testing (can mock any of the above)
 ```

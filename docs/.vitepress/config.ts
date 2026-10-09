@@ -65,6 +65,7 @@ export default defineConfig({
             { text: 'Webhooks', link: '/modules/webhooks' },
             { text: 'Realtime', link: '/modules/realtime' },
             { text: 'Feedback', link: '/modules/feedback' },
+            { text: 'Billing', link: '/modules/billing' },
           ],
         },
         {

@@ -24,7 +24,7 @@ The package has no dependencies of its own: the modules talk HTTP through `fetch
 Install only what the driver you use needs:
 
 ```bash
-# auth on flatdb collections (see the Auth on flatdb guide)
+# auth on flatdb collections (see the Auth on flatdb guide); the flatdb billing store needs flatdb 0.3 or later
 npm install @loewen-digital/flatdb zod
 
 # db module (Drizzle on SQLite, for apps on a SQL database) and the sqlite-fts search driver

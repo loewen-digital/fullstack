@@ -1,11 +1,11 @@
 ---
 title: Fakes
-description: The mail, queue and storage fakes, and how to observe the other modules in tests
+description: The mail, queue, storage and billing fakes, and how to observe the other modules in tests
 ---
 
 # Fakes
 
-Three drivers exist for tests: `createFakeMailDriver`, `createFakeQueueDriver` and `createFakeStorageDriver`. They implement the module's driver interface, record what went through them, and expose that for assertions with your test runner's `expect`. `createTestStack` builds them for you as `fakeMail`, `fakeQueue` and `fakeStorage`; on their own they go into the module's `createXInstance`.
+Four drivers exist for tests: `createFakeMailDriver`, `createFakeQueueDriver`, `createFakeStorageDriver` and `createFakeBillingDriver`. They implement the module's driver interface, record what went through them, and expose that for assertions with your test runner's `expect`. `createTestStack` builds them for you as `fakeMail`, `fakeQueue` and `fakeStorage`; on their own they go into the module's `createXInstance`.
 
 ## Import
 
@@ -118,6 +118,43 @@ async function assertsFiles() {
 | `clear()` | Remove every file |
 
 `createFakeStorageDriver(baseUrl?)` builds URLs as `baseUrl/key`; the default is `http://localhost/storage`.
+
+## Billing
+
+`createFakeBillingDriver` records checkouts and builds the webhook request for any event; `billing.handleWebhook` takes it like a provider's delivery. It is not part of `createTestStack`, because billing needs your products.
+
+```ts
+import { expect } from 'vitest'
+import { createBilling, createMemoryBillingStore } from '@loewen-digital/fullstack/billing'
+import { createFakeBillingDriver } from '@loewen-digital/fullstack/testing'
+
+const fakeBilling = createFakeBillingDriver()
+const billing = createBilling({
+  driver: fakeBilling,
+  store: createMemoryBillingStore(),
+  products: { unlock: { type: 'one-time', providerId: 'pri_unlock' } },
+})
+
+async function assertsPurchases() {
+  await billing.handleWebhook(
+    fakeBilling.webhook({ type: 'purchase.completed', userId: 'u1', providerId: 'pri_unlock' }),
+  )
+  expect((await billing.account('u1')).holdings[0]?.status).toBe('active')
+
+  await billing.handleWebhook(
+    fakeBilling.webhook({ type: 'payment.refunded', userId: 'u1', providerId: 'pri_unlock' }),
+  )
+  expect((await billing.account('u1')).holdings[0]?.status).toBe('refunded')
+}
+```
+
+| Member | Description |
+|---|---|
+| `webhook(event \| events)` | A `Request` that delivers the events. `type` and `providerId` are required; `id`, `occurredAt` and `holdingId` get defaults, and two events for the same user and product concern the same holding |
+| `invalidWebhook()` | A `Request` that fails verification, answered with 401 |
+| `checkouts` | What every `billing.checkout` handed to the driver |
+| `manageRequests` | What every `billing.manageUrl` handed to the driver |
+| `clear()` | Forget checkouts and manage requests |
 
 ## The other modules
 

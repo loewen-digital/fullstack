@@ -111,6 +111,14 @@
       "import": "./dist/feedback/index.js",
       "types": "./dist/feedback/index.d.ts"
     },
+    "./billing": {
+      "import": "./dist/billing/index.js",
+      "types": "./dist/billing/index.d.ts"
+    },
+    "./billing/flatdb": {
+      "import": "./dist/billing/stores/flatdb.js",
+      "types": "./dist/billing/stores/flatdb.d.ts"
+    },
     "./testing": {
       "import": "./dist/testing/index.js",
       "types": "./dist/testing/index.d.ts"
@@ -159,7 +167,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260923.1",
-    "@loewen-digital/flatdb": "^0.2.1",
+    "@loewen-digital/flatdb": "^0.3.0",
     "@sveltejs/kit": "^3.0.0",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@types/better-sqlite3": "^7.6.13",
@@ -174,7 +182,7 @@
     "zod": "^3.25.76"
   },
   "peerDependencies": {
-    "@loewen-digital/flatdb": "^0.2.1",
+    "@loewen-digital/flatdb": "^0.2.1 || ^0.3.0",
     "better-sqlite3": "^12.8.0",
     "drizzle-orm": "^0.45.2"
   },

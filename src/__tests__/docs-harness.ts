@@ -45,6 +45,7 @@ export const PAGES = [
   'modules/realtime',
   'modules/search',
   'modules/webhooks',
+  'modules/billing',
   'modules/auth',
   'modules/session',
   'modules/security',
@@ -258,6 +259,7 @@ export function compile(dir: string, files: string[]): string[] {
     paths: {
       '@loewen-digital/fullstack': [join(ROOT, 'src/index.ts')],
       '@loewen-digital/fullstack/auth/flatdb': [join(ROOT, 'src/auth/adapters/flatdb.ts')],
+      '@loewen-digital/fullstack/billing/flatdb': [join(ROOT, 'src/billing/stores/flatdb.ts')],
       '@loewen-digital/fullstack/*': [join(ROOT, 'src/*/index.ts')],
       '~/*': [join(dir, 'app/*')],
     },

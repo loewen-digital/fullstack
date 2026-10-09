@@ -21,6 +21,7 @@
     "src/search/index.ts",
     "src/webhooks/index.ts",
     "src/realtime/index.ts",
+    "src/billing/index.ts",
     "src/testing/index.ts",
     "src/adapters/sveltekit/index.ts",
     "src/adapters/nuxt/index.ts",

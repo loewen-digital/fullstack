@@ -105,5 +105,5 @@ describe('users', () => {
 
 ## In this section
 
-- [Fakes](/testing/fakes): what the mail, queue and storage fakes record
+- [Fakes](/testing/fakes): what the mail, queue, storage and billing fakes record
 - [Factories](/testing/factories): `defineFactory`, `sequence` and `pick` for test data

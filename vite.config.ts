@@ -24,6 +24,8 @@ const entries: Record<string, string> = {
   'webhooks/index': 'src/webhooks/index.ts',
   'realtime/index': 'src/realtime/index.ts',
   'feedback/index': 'src/feedback/index.ts',
+  'billing/index': 'src/billing/index.ts',
+  'billing/stores/flatdb': 'src/billing/stores/flatdb.ts',
   'testing/index': 'src/testing/index.ts',
   'adapters/sveltekit/index': 'src/adapters/sveltekit/index.ts',
   'adapters/nuxt/index': 'src/adapters/nuxt/index.ts',
