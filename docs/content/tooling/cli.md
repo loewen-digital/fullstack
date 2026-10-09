@@ -23,7 +23,6 @@ npx fullstack <command>
 | `migrate:rollback` | Removes the last entry from Drizzle's migration journal. It does not undo the SQL; that is yours |
 | `migrate:status` | Lists the applied migrations with their timestamps |
 | `seed [file]` | Runs a seed file: the given path, or `database/seeds/index.ts` (a `.js` next to it wins) |
-| `generate migration <name>` | Writes `drizzle/migrations/<timestamp>_<name>.ts` with empty `up` and `down` functions |
 | `generate factory <name>` | Writes `database/factories/<name>.factory.ts` with a `defineFactory` scaffold |
 | `generate seed <name>` | Writes `database/seeds/<name>.seed.ts` with a default-exported seed function |
 
@@ -39,7 +38,7 @@ npx fullstack migrate
 npx fullstack migrate:status
 ```
 
-The file `generate migration` scaffolds is a TypeScript `up`/`down` pair; `migrate` does not run it. Use it for data migrations you run yourself, or generate schema migrations with Drizzle Kit.
+There is no `generate migration`: a migration is what Drizzle Kit generates from the schema, and `drizzle-kit generate --custom` writes an empty SQL file for one you fill in by hand. `migrate` applies both.
 
 ## Seeds
 

@@ -18,33 +18,6 @@ afterEach(() => {
   rmSync(tmpDir, { recursive: true, force: true })
 })
 
-describe('generateMigration', () => {
-  it('creates a migration file with the correct content', async () => {
-    const { generateMigration } = await import('../generate.js')
-    generateMigration('create users table')
-
-    const migrationsDir = join(tmpDir, 'drizzle', 'migrations')
-    expect(existsSync(migrationsDir)).toBe(true)
-
-    const files = (await import('node:fs')).readdirSync(migrationsDir)
-    expect(files).toHaveLength(1)
-    expect(files[0]).toMatch(/^\d{14}_create_users_table\.ts$/)
-
-    const content = readFileSync(join(migrationsDir, files[0]!), 'utf-8')
-    expect(content).toContain('export async function up')
-    expect(content).toContain('export async function down')
-  })
-
-  it('exits if name is empty', async () => {
-    const { generateMigration } = await import('../generate.js')
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {
-      throw new Error('exit')
-    }) as never)
-    expect(() => generateMigration('')).toThrow('exit')
-    exitSpy.mockRestore()
-  })
-})
-
 describe('generateFactory', () => {
   it('creates a factory file', async () => {
     const { generateFactory } = await import('../generate.js')

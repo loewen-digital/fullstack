@@ -658,7 +658,6 @@ export default defineConfig({
 npx fullstack migrate          # Run pending migrations
 npx fullstack migrate:rollback # Rollback last batch
 npx fullstack seed             # Run seeders
-npx fullstack generate migration create_posts_table
 npx fullstack generate factory PostFactory
 npx fullstack generate seed PostSeeder
 ```

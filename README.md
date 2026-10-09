@@ -120,7 +120,7 @@ npx fullstack migrate                      # pending Drizzle migrations from db.
 npx fullstack migrate:rollback
 npx fullstack migrate:status
 npx fullstack seed [file]                  # database/seeds/index.ts by default
-npx fullstack generate migration <name>    # also: generate factory <name>, generate seed <name>
+npx fullstack generate factory <name>      # also: generate seed <name>
 ```
 
 ## Vite plugin and Dev UI

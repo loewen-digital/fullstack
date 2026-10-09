@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { migrateRun, migrateRollback, migrateStatus } from './migrate.js'
 import { seedRun } from './seed.js'
-import { generateMigration, generateFactory, generateSeed } from './generate.js'
+import { generateFactory, generateSeed } from './generate.js'
 
 const args = process.argv.slice(2)
 const [command, subcommand, ...rest] = args
@@ -18,7 +18,6 @@ Commands:
 
   seed [file]              Run database seeders
 
-  generate migration <name>  Scaffold a new migration file
   generate factory <name>    Scaffold a new factory file
   generate seed <name>       Scaffold a new seed file
 
@@ -55,8 +54,10 @@ async function main(): Promise<void> {
 
   if (command === 'generate') {
     if (subcommand === 'migration') {
-      generateMigration(rest[0] ?? '')
-      return
+      console.error(
+        'generate migration is gone: migrate applies the SQL migrations of "npx drizzle-kit generate".',
+      )
+      process.exit(1)
     }
     if (subcommand === 'factory') {
       generateFactory(rest[0] ?? '')
@@ -66,7 +67,7 @@ async function main(): Promise<void> {
       generateSeed(rest[0] ?? '')
       return
     }
-    console.error(`Unknown generate target: "${subcommand}". Use: migration, factory, seed`)
+    console.error(`Unknown generate target: "${subcommand}". Use: factory, seed`)
     process.exit(1)
   }
 
