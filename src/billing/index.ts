@@ -1,5 +1,6 @@
 import { applyEvent } from './apply.js'
 import { createConsoleDriver } from './drivers/console.js'
+import { createPaddleDriver } from './drivers/paddle.js'
 import { BillingError, BillingWebhookError } from './errors.js'
 import type {
   BillingAccount,
@@ -8,6 +9,7 @@ import type {
   BillingEvent,
   BillingInstance,
   BillingProducts,
+  BillingProductType,
   BillingWebhookResult,
   DriverWebhookResult,
   ProviderEvent,
@@ -37,10 +39,12 @@ export type {
   DriverCheckoutInput,
   DriverManageInput,
   DriverWebhookResult,
+  PaddleDriverConfig,
   ProviderEvent,
 } from './types.js'
 export { BillingError, BillingWebhookError } from './errors.js'
 export { createConsoleDriver } from './drivers/console.js'
+export { createPaddleDriver } from './drivers/paddle.js'
 export { createMemoryBillingStore } from './stores/memory.js'
 
 function json(status: number, body: unknown): Response {
@@ -63,6 +67,8 @@ function json(status: number, body: unknown): Response {
  *       pro: { type: 'subscription', providerId: 'pri_pro' },
  *     },
  *   })
+ *
+ *   // With Paddle: driver: 'paddle', paddle: { apiKey, webhookSecret, sandbox }
  *
  *   const checkout = await billing.checkout({ userId, product: 'pro', successUrl: '/account' })
  *   // the webhook route: const { response, events } = await billing.handleWebhook(request)
@@ -96,6 +102,24 @@ export function createBilling<P extends BillingProducts>(
     const byHolding = await store.findUserId('holding', event.holdingId)
     if (byHolding !== null) return byHolding
     return event.customerId ? store.findUserId('customer', event.customerId) : null
+  }
+
+  /**
+   * What an event is about: the product its provider id stands for, or, for an event that names
+   * only its holding (a refund), what that holding is. `null` when the holding is not there yet:
+   * the purchase is still on its way.
+   */
+  async function soldBy(
+    event: ProviderEvent,
+    userId: string,
+  ): Promise<{ product: string; type: BillingProductType } | null> {
+    if (event.providerId !== undefined) {
+      const product = productByProviderId.get(event.providerId)
+      return product === undefined ? null : { product, type: products[product]!.type }
+    }
+    const account = await store.getAccount(userId)
+    const held = account?.holdings.find((holding) => holding.id === event.holdingId)
+    return held ? { product: held.product, type: held.type } : null
   }
 
   return {
@@ -139,13 +163,16 @@ export function createBilling<P extends BillingProducts>(
       let unmatched = false
       try {
         for (const providerEvent of delivery.events) {
-          const product = productByProviderId.get(providerEvent.providerId)
-          if (product === undefined) {
+          if (
+            providerEvent.providerId !== undefined &&
+            !productByProviderId.has(providerEvent.providerId)
+          ) {
             result.skipped.push({ reason: 'unknown-product', event: providerEvent })
             continue
           }
           const userId = await userIdOf(providerEvent)
-          if (userId === null) {
+          const sold = userId === null ? null : await soldBy(providerEvent, userId)
+          if (userId === null || sold === null) {
             unmatched = true
             result.skipped.push({ reason: 'unmatched', event: providerEvent })
             continue
@@ -158,14 +185,9 @@ export function createBilling<P extends BillingProducts>(
             await store.link('customer', providerEvent.customerId, userId)
           }
 
-          const event = matchedEvent(providerEvent, userId, product)
+          const event = matchedEvent(providerEvent, userId, sold.product)
           const outcome = await store.transact(userId, (account) => {
-            const applied = applyEvent(
-              account,
-              event,
-              products[product]!.type,
-              providerEvent.customerId,
-            )
+            const applied = applyEvent(account, event, sold.type, providerEvent.customerId)
             return { account: applied.account, result: applied.outcome }
           })
           if (outcome === 'applied') result.events.push(event)
@@ -179,8 +201,9 @@ export function createBilling<P extends BillingProducts>(
       }
 
       if (unmatched) {
-        // The event that names the user may still be on its way; the provider tries again.
-        result.response = json(409, { error: 'no user for this event yet' })
+        // The event that names the user or the purchase may still be on its way; the provider
+        // tries again.
+        result.response = json(409, { error: 'nothing to match this event to yet' })
       } else if (delivery.response) {
         result.response = delivery.response
       }
@@ -220,6 +243,14 @@ function matchedEvent(event: ProviderEvent, userId: string, product: string): Bi
 
 function resolveDriver(config: BillingConfig): BillingDriver {
   if (config.driver === 'console') return createConsoleDriver(config.console)
+  if (config.driver === 'paddle') {
+    if (!config.paddle) {
+      throw new BillingError(
+        'billing: driver "paddle" needs the `paddle` options (apiKey, webhookSecret)',
+      )
+    }
+    return createPaddleDriver(config.paddle)
+  }
   if (typeof config.driver === 'object' && config.driver !== null) return config.driver
   throw new BillingError(`billing: unknown driver "${String(config.driver)}"`)
 }

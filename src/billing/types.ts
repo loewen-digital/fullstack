@@ -40,8 +40,12 @@ export type ProviderEvent = BillingEventDetail & {
   userId?: string
   /** The provider's customer id, when the event has it */
   customerId?: string
-  /** The provider's id of the product, as in `BillingProduct.providerId` */
-  providerId: string
+  /**
+   * The provider's id of the product, as in `BillingProduct.providerId`. Left out when the
+   * provider's event does not say what was sold (a refund that names only its transaction):
+   * billing then takes the product of the holding, which has to exist by then.
+   */
+  providerId?: string
   /** The provider's id of the purchase (one-time) or the subscription the event is about */
   holdingId: string
 }
@@ -179,15 +183,36 @@ export interface ConsoleDriverConfig {
   periodDays?: number
 }
 
+export interface PaddleDriverConfig {
+  /** A server-side API key of Paddle Billing. A secret: read it from the environment */
+  apiKey: string
+  /** The secret key of the notification destination that delivers to the webhook route. A secret */
+  webhookSecret: string
+  /** Talk to Paddle's sandbox instead of the live API (default: `false`) */
+  sandbox?: boolean
+  /**
+   * The page of the app that opens the checkout with Paddle.js. Its domain has to be approved in
+   * Paddle. Default: the default payment link set in Paddle.
+   */
+  checkoutUrl?: string
+  /** How far the timestamp of a webhook's signature may be from now, in seconds (default: 5) */
+  toleranceSeconds?: number
+}
+
 export interface BillingConfig<P extends BillingProducts = BillingProducts> {
-  /** `'console'` completes checkouts locally without a provider; or a driver of your own */
-  driver: 'console' | BillingDriver
+  /**
+   * `'console'` completes checkouts locally without a provider; `'paddle'` sells through Paddle
+   * Billing and needs the `paddle` options; or a driver of your own
+   */
+  driver: 'console' | 'paddle' | BillingDriver
   /** What the app sells, by a key of your choice */
   products: P
   /** Where accounts are kept: `createMemoryBillingStore()`, `createFlatdbBillingStore()`, your own */
   store: BillingStore
   /** Options of the console driver */
   console?: ConsoleDriverConfig
+  /** Options of the Paddle driver; required with `driver: 'paddle'` */
+  paddle?: PaddleDriverConfig
   /** Called with what the store or the driver threw inside `handleWebhook` (default: `console.error`) */
   onError?: (error: unknown) => void
 }
@@ -209,7 +234,12 @@ export type BillingSkipReason =
   | 'duplicate'
   /** A newer event of the same holding was applied before */
   | 'stale'
-  /** No user id on the event, and none linked to its holding or customer */
+  /** The holding already was in the state the event describes */
+  | 'unchanged'
+  /**
+   * No user id on the event and none linked to its holding or customer, or no product on the
+   * event and no holding to take it from
+   */
   | 'unmatched'
   /** The provider's product id is not in the config */
   | 'unknown-product'

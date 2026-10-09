@@ -1,0 +1,57 @@
+{
+  "event_id": "evt_01hv8x2axb33yr5y238zfwcn5p",
+  "event_type": "transaction.completed",
+  "occurred_at": "2024-04-12T10:18:50.155553Z",
+  "notification_id": "ntf_01hv8x2azy7scaan4s0eb0273x",
+  "data": {
+    "id": "txn_01hv8wptq8987qeep44cyrewp9",
+    "status": "completed",
+    "origin": "web",
+    "customer_id": "ctm_01hv6y1jedq4p1n0yqn5ba3ky4",
+    "subscription_id": "sub_01hv8x29kz0t586xy6zn1a62ny",
+    "custom_data": null,
+    "currency_code": "USD",
+    "collection_mode": "automatic",
+    "billing_period": {
+      "ends_at": "2024-05-12T10:18:47.635628Z",
+      "starts_at": "2024-04-12T10:18:47.635628Z"
+    },
+    "created_at": "2024-04-12T10:12:33.2014Z",
+    "updated_at": "2024-04-12T10:18:49.738971238Z",
+    "items": [
+      {
+        "quantity": 10,
+        "price": {
+          "id": "pri_01gsz8x8sawmvhz1pv30nge1ke",
+          "product_id": "pro_01gsz4t5hdjse780zja8vvr7jg",
+          "type": "standard",
+          "billing_cycle": {
+            "interval": "month",
+            "frequency": 1
+          }
+        }
+      },
+      {
+        "quantity": 1,
+        "price": {
+          "id": "pri_01h1vjfevh5etwq3rb416a23h2",
+          "product_id": "pro_01h1vjes1y163xfj1rh1tkfb65",
+          "type": "standard",
+          "billing_cycle": {
+            "interval": "month",
+            "frequency": 1
+          }
+        }
+      },
+      {
+        "quantity": 1,
+        "price": {
+          "id": "pri_01gsz98e27ak2tyhexptwc58yk",
+          "product_id": "pro_01gsz97mq9pa4fkyy0wqenepkz",
+          "type": "standard",
+          "billing_cycle": null
+        }
+      }
+    ]
+  }
+}

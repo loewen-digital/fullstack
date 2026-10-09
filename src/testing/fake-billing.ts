@@ -26,14 +26,17 @@ import type {
 import { BillingWebhookError } from '../billing/index.js'
 
 /**
- * An event for `webhook()`. `type` and `providerId` are required; a test that does not care gets
- * an id of its own per event, the current time, and a holding id derived from user and product,
- * so two events for the same user and product concern the same purchase or subscription.
+ * An event for `webhook()`. Only `type` is required; a test that does not care gets an id of its
+ * own per event, the current time, and a holding id derived from user and product, so two events
+ * for the same user and product concern the same purchase or subscription.
  */
 export interface FakeBillingEvent {
   type: BillingEventType
-  /** The `providerId` of a product in the billing config */
-  providerId: string
+  /**
+   * The `providerId` of a product in the billing config. Leave it out, and set `holdingId`, for
+   * an event that names only its purchase, as a provider's refund may
+   */
+  providerId?: string
   userId?: string
   customerId?: string
   id?: string

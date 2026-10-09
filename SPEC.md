@@ -163,10 +163,11 @@ The core **never** imports or depends on any framework-specific code. Every modu
 │   │   └── types.ts
 │   ├── billing/
 │   │   ├── index.ts             → createBilling()
-│   │   ├── apply.ts             → one event onto one account: applied, duplicate or stale
+│   │   ├── apply.ts             → one event onto one account: applied, unchanged, duplicate or stale
 │   │   ├── errors.ts            → BillingError, BillingWebhookError
 │   │   ├── drivers/
-│   │   │   └── console.ts       → checkouts completed locally, no provider
+│   │   │   ├── console.ts       → checkouts completed locally, no provider
+│   │   │   └── paddle.ts        → Paddle Billing: transactions, signed webhooks, customer portal
 │   │   ├── stores/
 │   │   │   ├── memory.ts
 │   │   │   └── flatdb.ts        → on flatdb's StorageAdapter, compare-and-swap per account

@@ -121,7 +121,7 @@ async function assertsFiles() {
 
 ## Billing
 
-`createFakeBillingDriver` records checkouts and builds the webhook request for any event; `billing.handleWebhook` takes it like a provider's delivery. It is not part of `createTestStack`, because billing needs your products.
+`createFakeBillingDriver` records checkouts and builds the webhook request for any event; `billing.handleWebhook` takes it like a provider's delivery. Only `type` is required on an event; leave out `providerId` and set `holdingId` for an event that names only its purchase, as Paddle's refunds do. It is not part of `createTestStack`, because billing needs your products.
 
 ```ts
 import { expect } from 'vitest'

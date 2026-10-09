@@ -5,7 +5,7 @@ import type {
   BillingProductType,
 } from './types.js'
 
-export type ApplyOutcome = 'applied' | 'duplicate' | 'stale'
+export type ApplyOutcome = 'applied' | 'unchanged' | 'duplicate' | 'stale'
 
 /** The account of a user no event was applied for yet */
 export function emptyAccount(userId: string): BillingAccountRecord {
@@ -18,8 +18,10 @@ export function emptyAccount(userId: string): BillingAccountRecord {
  *
  * - An event id that was applied before is a `duplicate`.
  * - An event older than the newest one applied to its holding is `stale`: the state stays.
- * - Every other event is `applied` and its id is remembered, also when it changes no holding
- *   (a failed payment for something the user never held).
+ * - An event that leaves its holding as it was is `unchanged`: a provider that reports one
+ *   change with two events, or a failed payment for something the user never held. Its id is
+ *   remembered like that of an applied one.
+ * - Every other event is `applied`.
  */
 export function applyEvent(
   account: BillingAccountRecord,
@@ -43,7 +45,7 @@ export function applyEvent(
         : [...account.holdings, next]
 
   return {
-    outcome: 'applied',
+    outcome: next === undefined || (current && sameState(current, next)) ? 'unchanged' : 'applied',
     account: {
       userId: account.userId,
       customerId: account.customerId ?? customerId ?? null,
@@ -51,6 +53,19 @@ export function applyEvent(
       appliedEvents: [...account.appliedEvents, event.id],
     },
   }
+}
+
+const time = (date: Date | null): number | null => date?.getTime() ?? null
+
+/** Whether two versions of a holding differ in nothing but `updatedAt` */
+function sameState(a: BillingHolding, b: BillingHolding): boolean {
+  return (
+    a.product === b.product &&
+    a.type === b.type &&
+    a.status === b.status &&
+    time(a.currentPeriodEnd) === time(b.currentPeriodEnd) &&
+    time(a.accessEndsAt) === time(b.accessEndsAt)
+  )
 }
 
 function nextHolding(
@@ -89,12 +104,12 @@ function nextHolding(
         accessEndsAt: null,
       }
     case 'subscription.changed':
-      // A change takes back a cancel; a failed payment stays failed and a refund stays a refund,
-      // until a renewal says the subscription is paid again.
+      // The provider says the subscription runs, with this product and period: that takes back a
+      // cancel and a failed payment. A refund stays a refund until a renewal is paid again.
       return {
         ...holding,
         product: event.product,
-        status: holding.status === 'canceled' ? 'active' : holding.status,
+        status: holding.status === 'refunded' ? 'refunded' : 'active',
         currentPeriodEnd: event.currentPeriodEnd ?? holding.currentPeriodEnd,
         accessEndsAt: holding.status === 'refunded' ? holding.accessEndsAt : null,
       }
@@ -104,6 +119,14 @@ function nextHolding(
       // Only a paid subscription becomes past due; a canceled or refunded one stays what it is.
       return { ...holding, status: holding.status === 'active' ? 'past_due' : holding.status }
     case 'payment.refunded':
-      return { ...holding, status: 'refunded', accessEndsAt: event.occurredAt }
+      // A second report of the same refund keeps the date of the first.
+      return {
+        ...holding,
+        status: 'refunded',
+        accessEndsAt:
+          holding.status === 'refunded' && holding.accessEndsAt
+            ? holding.accessEndsAt
+            : event.occurredAt,
+      }
   }
 }

@@ -1,6 +1,6 @@
 ---
 title: Billing
-description: Checkouts for one-time purchases and subscriptions, and what each user holds, from verified provider events
+description: Checkouts for one-time purchases and subscriptions through Paddle or a driver of your own, and what each user holds, from verified provider events
 ---
 
 # Billing
@@ -9,7 +9,7 @@ description: Checkouts for one-time purchases and subscriptions, and what each u
 
 Nothing is ever granted because a browser came back from a checkout. State changes only through an event the driver verified.
 
-The `console` driver ships with the module and takes no money; it is for building the flow before a provider account exists. A driver for a real provider is a driver of its own, see [Your own driver](#your-own-driver).
+Two drivers ship with the module. `console` takes no money; it is for building the flow before a provider account exists. `paddle` sells through Paddle Billing, see [The Paddle driver](#the-paddle-driver). Going from one to the other is a change of config and secrets, plus the page that opens Paddle's checkout. Any other provider is a [driver of your own](#your-own-driver).
 
 ## Import
 
@@ -41,10 +41,11 @@ export const billing = createBilling({
 
 | Option | | |
 |---|---|---|
-| `driver` | required | `'console'`, or a `BillingDriver` |
+| `driver` | required | `'console'`, `'paddle'`, or a `BillingDriver` |
 | `products` | required | What the app sells: `{ [key]: { type, providerId } }`. Two products with the same `providerId` throw |
 | `store` | required | Where accounts are kept. There is no default: purchases in the memory of one process are lost with it |
 | `console` | optional | Options of the console driver: `webhookUrl` (default `/billing/webhook`), `periodDays` (default 30) |
+| `paddle` | with `driver: 'paddle'` | Options of the Paddle driver: `apiKey`, `webhookSecret`, `sandbox`, `checkoutUrl`, `toleranceSeconds` |
 | `onError` | optional | Called with what the store or the driver threw inside `handleWebhook` (default: `console.error`) |
 
 ## Starting a checkout
@@ -81,7 +82,7 @@ export const POST: RequestHandler = async ({ locals }) => {
 }
 ```
 
-`checkout({ userId, product, email?, successUrl?, cancelUrl? })` returns `{ id, url }`: the provider's id of the checkout and the page to send the browser to. `url` is `null` for a provider whose checkout only opens through its client script; the script takes `id`. The user's provider customer goes along when billing already knows it, so a returning buyer is not created twice.
+`checkout({ userId, product, email?, successUrl?, cancelUrl? })` returns `{ id, url }`: the provider's id of the checkout and the page to send the browser to. `url` is `null` when the provider has no page to send the browser to; its client script takes `id` then. The user's provider customer goes along when billing already knows it, so a returning buyer is not created twice.
 
 Arriving on `successUrl` proves nothing. Show "thank you, your purchase is on its way" there and read the state as below.
 
@@ -113,8 +114,8 @@ export const GET = handle // only the console driver uses GET; a provider's driv
 
 | Field | |
 |---|---|
-| `response` | What to answer with. `200` when everything was handled; the driver's status (`400`, `401`, `405`) when verification failed; `409` when an event has no user yet; `500` when the store or the driver failed |
-| `events` | The events that changed state, matched to your user id and product key. Each event shows up here once, however often it is delivered |
+| `response` | What to answer with. `200` when everything was handled; the driver's status (`400`, `401`, `405`) when verification failed; `409` when an event has no user or no purchase to belong to yet; `500` when the store or the driver failed |
+| `events` | The events that changed state, matched to your user id and product key. Each event shows up here once, however often it is delivered, and a change the provider tells with two events shows up once |
 | `skipped` | The events that changed nothing, as `{ reason, event }` |
 
 A non-2xx answer makes the provider deliver again later, which is what `409` and `500` are for.
@@ -123,7 +124,8 @@ A non-2xx answer makes the provider deliver again later, which is what `409` and
 |---|---|
 | `duplicate` | The event was applied before |
 | `stale` | A newer event of the same purchase or subscription was applied before; the state stays as it is |
-| `unmatched` | The event names no user, and neither its purchase nor its customer is linked to one yet. Answered with `409`: the event that names the user may still be on its way |
+| `unchanged` | The holding already was in the state the event describes: a cancel reported a second time, a failed payment for something the user never held |
+| `unmatched` | The event names no user, and neither its purchase nor its customer is linked to one yet; or it names no product, and the purchase it belongs to is not there yet. Answered with `409`: the event that fills the gap may still be on its way |
 | `unknown-product` | The provider's product id is not in `products` |
 
 ## Events
@@ -133,16 +135,16 @@ A non-2xx answer makes the provider deliver again later, which is what `409` and
 | `purchase.completed` | | A one-time purchase, `active` |
 | `subscription.started` | `currentPeriodEnd` | A subscription, `active` |
 | `subscription.renewed` | `currentPeriodEnd` | `active` again, also after a failed payment or a cancel |
-| `subscription.changed` | `currentPeriodEnd` | Another product or period. Takes back a cancel; a failed payment stays failed |
+| `subscription.changed` | `currentPeriodEnd` | The subscription runs, with this product and period: `active`, also after a cancel or a failed payment. A refund stays a refund |
 | `subscription.canceled` | `accessEndsAt` | `canceled`; the user has paid until `accessEndsAt` |
 | `payment.failed` | | An `active` subscription becomes `past_due`. Nothing else changes |
-| `payment.refunded` | | `refunded`, with `accessEndsAt` set to the time of the refund |
+| `payment.refunded` | | `refunded`, with `accessEndsAt` set to the time of the first report of the refund |
 
 Every event carries `id` (the provider's), `occurredAt`, `userId`, `product` and `holdingId`.
 
 **Exactly once.** An event is applied once per `id`, also when the provider delivers it twice in the same instant. The ids of the applied events are kept in the same record as the user's holdings and written with them in one step, so there is no moment in which an event counts as handled while its purchase is missing.
 
-**Order.** Deliveries arrive in any order. An event older than the newest one applied to its holding is `stale` and changes nothing: a renewal that arrives after the cancel that followed it does not bring the subscription back. An event for a holding nobody has seen creates it, so a refund that overtakes its purchase is there when the purchase arrives late.
+**Order.** Deliveries arrive in any order. An event older than the newest one applied to its holding is `stale` and changes nothing: a renewal that arrives after the cancel that followed it does not bring the subscription back. An event for a holding nobody has seen creates it, so a refund that overtakes its purchase is there when the purchase arrives late. The exception is an event without a product (Paddle's refunds name only their transaction): it waits for its purchase and is answered with `409` until then.
 
 **Your own side effects.** `events` is the place for them (a mail, a credit to a balance), but the module cannot make your code exactly-once: if your handler fails after the state was stored and you answer with an error, the redelivery reports the event under `skipped` as `duplicate`. Make a side effect that must not be lost idempotent on `event.id` and run it for `duplicate` entries too.
 
@@ -236,6 +238,106 @@ Because the browser arrives with a GET, the webhook route exports `GET` next to 
 
 The driver signs nothing and charges nothing: whoever can open the URL has "bought". It is a development tool, never a way to sell.
 
+## The Paddle driver
+
+`driver: 'paddle'` sells through [Paddle Billing](https://developer.paddle.com), the current API, not Paddle Classic. Paddle is the merchant of record: it charges and remits the VAT, issues the invoices and handles withdrawals. The driver calls Paddle with `fetch` and verifies webhooks with Web Crypto, so it adds no dependency and runs on Node and on Cloudflare Workers.
+
+```ts
+import { createBilling, createMemoryBillingStore } from '@loewen-digital/fullstack/billing'
+
+const paddleBilling = createBilling({
+  driver: 'paddle',
+  paddle: {
+    apiKey: process.env.PADDLE_API_KEY!,
+    webhookSecret: process.env.PADDLE_WEBHOOK_SECRET!,
+    sandbox: process.env.PADDLE_SANDBOX === 'true',
+  },
+  store: createMemoryBillingStore(), // your flatdb store, as in Setup
+  products: {
+    unlock: { type: 'one-time', providerId: 'pri_01h…' }, // the id of a price in Paddle
+    pro: { type: 'subscription', providerId: 'pri_01j…' },
+  },
+})
+```
+
+| Option of `paddle` | | |
+|---|---|---|
+| `apiKey` | required, secret | A server-side API key with the permissions `transaction.write` and `customer_portal_session.write` |
+| `webhookSecret` | required, secret | The secret key of the notification destination that delivers to your webhook route |
+| `sandbox` | default `false` | Talk to `sandbox-api.paddle.com` instead of `api.paddle.com`. Sandbox and live have separate keys, secrets and price ids |
+| `checkoutUrl` | optional | The page of your app that opens the checkout. Default: the default payment link set in Paddle |
+| `toleranceSeconds` | default `5` | How far the timestamp of a webhook's signature may be from now. Paddle's own SDKs use 5 |
+
+An empty `apiKey` or `webhookSecret` throws when billing is created, not at the first sale. Neither value appears in an error, an answer or a log line of the driver.
+
+### The checkout page
+
+Paddle has no checkout page of its own for the web: the checkout is an overlay that Paddle.js opens on a page of yours. `billing.checkout()` creates a Paddle transaction with the user id in its custom data and returns `{ id, url }`, where `url` is your page (the default payment link in Paddle, or `checkoutUrl`) with `?_ptxn=<transaction>`. A page that loads Paddle.js opens the checkout for that transaction by itself:
+
+```html
+<!-- the page behind the payment link -->
+<script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
+<script>
+  Paddle.Environment.set('sandbox') // leave out in production
+  Paddle.Initialize({
+    token: 'test_…', // a client-side token from Paddle; public, not the API key
+    checkout: { settings: { successUrl: 'https://app.example/account' } },
+  })
+</script>
+```
+
+`successUrl`, `cancelUrl` and `email` of `billing.checkout()` have no server-side counterpart in Paddle; set them in Paddle.js as above. `url` is `null` when Paddle has no payment link for the transaction; hand `id` to `Paddle.Checkout.open({ transactionId })` then.
+
+### Webhooks
+
+Create a [notification destination](https://developer.paddle.com/webhooks/about/notification-destinations) in Paddle that delivers to your webhook route, with these events: `transaction.completed`, `subscription.created`, `subscription.updated`, `subscription.canceled`, `subscription.paused`, `subscription.resumed`, `subscription.past_due`, `adjustment.created`, `adjustment.updated`.
+
+The driver checks the `Paddle-Signature` header before it reads anything: HMAC-SHA256 over `<ts>:<raw body>` with the destination's secret, compared in constant time, and a `ts` within `toleranceSeconds` of now. A wrong, missing or stale signature is answered with `401` and changes nothing. While a secret is rotated the header carries several signatures; one of them has to match.
+
+| Paddle | becomes |
+|---|---|
+| `transaction.completed`, per one-time price in it | `purchase.completed`; the holding is the transaction |
+| `transaction.completed` with `origin: subscription_recurring` | `subscription.renewed`, paid until the end of the transaction's billing period |
+| `subscription.created` | `subscription.started` |
+| any other `subscription.*`, status `active` or `trialing` | `subscription.changed` |
+| …with a cancel or pause scheduled | `subscription.canceled`, access until the scheduled date |
+| …status `canceled` or `paused` | `subscription.canceled`, access ended when it was canceled or paused |
+| …status `past_due` | `payment.failed` |
+| `adjustment.created` / `adjustment.updated`: `refund` or `chargeback`, `approved`, `full` | `payment.refunded` |
+| everything else | nothing, answered with `200` |
+
+A subscription event is read by the state of the subscription in it, not by its name: Paddle sends `subscription.updated` after a cancel as well, and it must not bring the subscription back. Where Paddle reports one change with two events, the second one is `unchanged` and your side effects run once.
+
+What to know:
+
+- **One price per checkout.** That is what `billing.checkout()` creates. Of a subscription with several items, the first one says which product it is. A transaction with several one-time prices becomes a purchase per price, and a refund of it finds only the first.
+- **Refunds name no price and no user.** They are matched through the transaction or subscription they belong to. A refund for a purchase billing never saw is answered with `409` until Paddle stops trying.
+- **A refunded subscription payment** marks the subscription `refunded` until its next renewal is paid; Paddle does not cancel it by itself. Partial, pending and rejected refunds and a chargeback that was reversed change nothing.
+- **A pause** has no status of its own: the subscription is `canceled` with `accessEndsAt` at the pause, and `active` again when it resumes.
+- **Retries.** Paddle delivers again on anything but a `200`: 60 times within three days live, 3 times within 15 minutes in the sandbox. It expects the answer within five seconds; `handleWebhook` makes a handful of store calls and none to Paddle.
+- **The manage link** is a session of Paddle's customer portal for the user's customer. It is temporary, so ask for it per request and do not store it. It is `null` before the first event of a user; `returnUrl` has no counterpart in Paddle.
+- **Coming from the console driver.** Holdings the console driver wrote stay in the store. Start Paddle on a store or `prefix` of its own.
+
+### Trying it in the sandbox
+
+The tests of the driver run against Paddle's documented notifications without a network. To see it work against Paddle itself:
+
+1. In the Paddle **sandbox**, create a product with a one-time price and one with a recurring price, and put the two `pri_…` ids into `products`.
+2. Create an API key with the two permissions above and a client-side token. Set `PADDLE_API_KEY`, `PADDLE_SANDBOX=true`, and the token on the checkout page.
+3. Set the default payment link (Checkout, Checkout configuration) to the checkout page above, or pass `checkoutUrl`. Outside the sandbox the page's website has to be approved by Paddle first.
+4. Create a notification destination for the URL of your webhook route with the events above, and set its secret key as `PADDLE_WEBHOOK_SECRET`. Paddle has to reach the route, so use a deployed preview of the app. Paddle's [webhook simulator](https://developer.paddle.com/webhooks/simulator) sends single events to it without a checkout.
+5. Start a checkout for each product and pay with one of [Paddle's test cards](https://developer.paddle.com/sdks/sandbox#test-cards). `billing.account(userId)` then shows an `active` holding for each, and the destination's log shows every delivery answered with `200`.
+6. Open `billing.manageUrl(userId)` and cancel the subscription: the holding becomes `canceled` with `accessEndsAt` at the end of the period.
+7. Refund the one-time transaction in full in the dashboard: the holding becomes `refunded`.
+8. Send a request with a changed body to the webhook route (`curl -X POST` with any `Paddle-Signature`): the answer is `401` and nothing changes.
+
+| Value | | Goes to |
+|---|---|---|
+| `PADDLE_API_KEY` | secret | `paddle.apiKey` |
+| `PADDLE_WEBHOOK_SECRET` | secret | `paddle.webhookSecret` |
+| `PADDLE_SANDBOX` | `true` everywhere but production | `paddle.sandbox` |
+| client-side token | public | `Paddle.Initialize` on the checkout page |
+
 ## Your own driver
 
 A driver is three methods:
@@ -283,6 +385,8 @@ const driver: BillingDriver = {
 
 - Throw `BillingWebhookError(message, status)` for a request that is not a valid delivery; nothing is changed and the status is the answer. Anything else a driver throws is answered with `500`.
 - `userId` and `customerId` are optional on an event. An event without `userId` is matched through its `holdingId`, then through its `customerId`, which is how a refund that only names its transaction finds its user.
+- `providerId` is optional too, for an event that does not say what was sold. Billing takes the product of the holding then, and answers `409` while the holding is not there.
+- Report `subscription.changed` only for a subscription the provider considers running: it clears a cancel and a failed payment.
 - `holdingId` is the provider's id of the purchase or the subscription and has to be the same on every event about it.
 - Never log the request, its headers or the provider's secrets.
 

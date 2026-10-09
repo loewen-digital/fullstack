@@ -59,7 +59,7 @@ src/
 ├── webhooks/             → createWebhooks(), incoming/outgoing
 ├── realtime/             → createRealtime(), websocket, SSE
 ├── feedback/             → createFeedbackHandler(), sinks (GitHub issue, KV)
-├── billing/              → createBilling(), drivers/ (console), stores/ (memory, flatdb)
+├── billing/              → createBilling(), drivers/ (console, paddle), stores/ (memory, flatdb)
 ├── testing/              → createTestStack(), fakes, factories, DB helpers
 ├── adapters/
 │   ├── sveltekit/        → createHandle(), type augmentation

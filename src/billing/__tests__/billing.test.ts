@@ -200,12 +200,15 @@ describe.each(stores)('billing on the %s', (_name, createStore) => {
   it('keeps a failed payment away from what it does not concern', async () => {
     const { billing, driver } = await setup()
 
-    // Nothing held: the event counts as applied, and there is still no holding.
-    const first = await billing.handleWebhook(
-      driver.webhook({ type: 'payment.failed', userId: 'u1', providerId: 'pri_pro', id: 'evt_f' }),
-    )
-    expect(first.events).toHaveLength(1)
+    // Nothing held: the event changes nothing, is remembered, and there is still no holding.
+    const failed = { type: 'payment.failed', userId: 'u1', providerId: 'pri_pro', id: 'evt_f' }
+    const first = await billing.handleWebhook(driver.webhook({ ...failed, type: 'payment.failed' }))
+    expect(first.response.status).toBe(200)
+    expect(first.events).toEqual([])
+    expect(first.skipped.map((entry) => entry.reason)).toEqual(['unchanged'])
     expect((await billing.account('u1')).holdings).toEqual([])
+    const again = await billing.handleWebhook(driver.webhook({ ...failed, type: 'payment.failed' }))
+    expect(again.skipped.map((entry) => entry.reason)).toEqual(['duplicate'])
 
     // A canceled subscription stays canceled.
     const subscription = { userId: 'u1', providerId: 'pri_pro', holdingId: 'sub_1' }
@@ -225,6 +228,127 @@ describe.each(stores)('billing on the %s', (_name, createStore) => {
       status: 'canceled',
       accessEndsAt: at(30),
     })
+  })
+
+  it('reports a change once when the provider tells it with two events', async () => {
+    const { billing, driver } = await setup()
+    const subscription = { userId: 'u1', providerId: 'pri_pro', holdingId: 'sub_1' }
+    await billing.handleWebhook(
+      driver.webhook({
+        ...subscription,
+        type: 'subscription.started',
+        occurredAt: at(0),
+        currentPeriodEnd: at(30),
+      }),
+    )
+
+    const cancel = { ...subscription, type: 'subscription.canceled', accessEndsAt: at(30) } as const
+    const first = await billing.handleWebhook(driver.webhook({ ...cancel, occurredAt: at(1) }))
+    const second = await billing.handleWebhook(driver.webhook({ ...cancel, occurredAt: at(2) }))
+
+    expect(first.events.map((event) => event.type)).toEqual(['subscription.canceled'])
+    expect(second.response.status).toBe(200)
+    expect(second.events).toEqual([])
+    expect(second.skipped.map((entry) => entry.reason)).toEqual(['unchanged'])
+    // The second event still counts as the newest one of the holding.
+    expect((await billing.account('u1')).holdings[0]).toMatchObject({
+      status: 'canceled',
+      updatedAt: at(2),
+    })
+
+    // A refund reported twice keeps the date of the first report.
+    const refund = { ...subscription, type: 'payment.refunded' } as const
+    await billing.handleWebhook(driver.webhook({ ...refund, occurredAt: at(3) }))
+    const repeated = await billing.handleWebhook(driver.webhook({ ...refund, occurredAt: at(4) }))
+    expect(repeated.skipped.map((entry) => entry.reason)).toEqual(['unchanged'])
+    expect((await billing.account('u1')).holdings[0]).toMatchObject({
+      status: 'refunded',
+      accessEndsAt: at(3),
+    })
+  })
+
+  it('takes a failed payment back when the provider says the subscription runs again', async () => {
+    const { billing, driver } = await setup()
+    const subscription = { userId: 'u1', providerId: 'pri_pro', holdingId: 'sub_1' }
+    await billing.handleWebhook(
+      driver.webhook([
+        { ...subscription, type: 'subscription.started', occurredAt: at(0) },
+        { ...subscription, type: 'payment.failed', occurredAt: at(30) },
+      ]),
+    )
+    expect((await billing.account('u1')).holdings[0]?.status).toBe('past_due')
+
+    await billing.handleWebhook(
+      driver.webhook({ ...subscription, type: 'subscription.changed', occurredAt: at(31) }),
+    )
+    expect((await billing.account('u1')).holdings[0]?.status).toBe('active')
+
+    // A refund stays a refund until a renewal is paid.
+    await billing.handleWebhook(
+      driver.webhook([
+        { ...subscription, type: 'payment.refunded', occurredAt: at(32) },
+        { ...subscription, type: 'subscription.changed', occurredAt: at(33) },
+      ]),
+    )
+    expect((await billing.account('u1')).holdings[0]?.status).toBe('refunded')
+    await billing.handleWebhook(
+      driver.webhook({ ...subscription, type: 'subscription.renewed', occurredAt: at(60) }),
+    )
+    expect((await billing.account('u1')).holdings[0]?.status).toBe('active')
+  })
+
+  it('takes the product of the holding for an event that names only its purchase', async () => {
+    const { billing, driver } = await setup()
+    const refund = { type: 'payment.refunded', holdingId: 'txn_1', customerId: 'ctm_1' } as const
+
+    // Nobody knows the purchase yet: the provider is asked to deliver again.
+    const early = await billing.handleWebhook(driver.webhook({ ...refund, id: 'evt_r' }))
+    expect(early.response.status).toBe(409)
+    expect(early.skipped.map((entry) => entry.reason)).toEqual(['unmatched'])
+
+    // The customer is known, the purchase still is not.
+    await billing.handleWebhook(
+      driver.webhook({
+        type: 'subscription.started',
+        userId: 'u1',
+        customerId: 'ctm_1',
+        providerId: 'pri_pro',
+        holdingId: 'sub_1',
+        occurredAt: at(0),
+      }),
+    )
+    const stillEarly = await billing.handleWebhook(driver.webhook({ ...refund, id: 'evt_r' }))
+    expect(stillEarly.response.status).toBe(409)
+    expect((await billing.account('u1')).holdings).toHaveLength(1)
+
+    await billing.handleWebhook(
+      driver.webhook({
+        type: 'purchase.completed',
+        userId: 'u1',
+        providerId: 'pri_unlock',
+        holdingId: 'txn_1',
+        occurredAt: at(1),
+      }),
+    )
+    const delivered = await billing.handleWebhook(
+      driver.webhook({ ...refund, id: 'evt_r', occurredAt: at(2) }),
+    )
+
+    expect(delivered.response.status).toBe(200)
+    expect(delivered.events).toEqual([
+      expect.objectContaining({
+        type: 'payment.refunded',
+        userId: 'u1',
+        product: 'unlock',
+        holdingId: 'txn_1',
+      }),
+    ])
+    const { holdings } = await billing.account('u1')
+    expect(holdings.find((holding) => holding.id === 'txn_1')).toMatchObject({
+      type: 'one-time',
+      status: 'refunded',
+    })
+    expect(holdings.find((holding) => holding.id === 'sub_1')?.status).toBe('active')
   })
 
   it('applies an event once when it is delivered again', async () => {
@@ -548,12 +672,12 @@ describe('createBilling', () => {
   it('refuses a driver name it does not know', () => {
     expect(() =>
       createBilling({
-        // @ts-expect-error 'paddle' is not built in
-        driver: 'paddle',
+        // @ts-expect-error 'stripe' is not built in
+        driver: 'stripe',
         store: createMemoryBillingStore(),
         products,
       }),
-    ).toThrow(/unknown driver "paddle"/)
+    ).toThrow(/unknown driver "stripe"/)
   })
 
   it('hands the manage link of the driver through, with what the user holds', async () => {
