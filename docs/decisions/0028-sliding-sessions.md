@@ -17,5 +17,4 @@ without it. The SvelteKit handle sets the auth cookie again, the fetch adapter h
 ## Consequences
 
 The renewed cookie lives as long as the session has left, whatever `maxAge` says. An expiry never moves
-earlier. Two requests at once may both write, with the same result. A session in use has no maximum age
-(out of scope in #35). Nuxt, Remix and Astro extend the store and do not send the cookie again yet.
+earlier. A session in use has no maximum age. Nuxt, Remix and Astro do not send the cookie again yet.
