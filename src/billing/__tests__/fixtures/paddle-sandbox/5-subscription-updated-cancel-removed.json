@@ -1,0 +1,42 @@
+{
+  "event_id": "evt_01m4gdnfn5m7vnd3z69p6p6cqf",
+  "event_type": "subscription.updated",
+  "occurred_at": "2026-10-09T13:29:28.997652Z",
+  "notification_id": "ntf_01m4gdng04rz08eea44s0k4g3c",
+  "data": {
+    "id": "sub_01m4gcttpq41hc5g124hztqwa8",
+    "status": "active",
+    "customer_id": "ctm_01sandboxcustomer000000000",
+    "custom_data": {
+      "userId": "tester"
+    },
+    "currency_code": "EUR",
+    "collection_mode": "automatic",
+    "current_billing_period": {
+      "ends_at": "2026-11-09T13:14:54.995903Z",
+      "starts_at": "2026-10-09T13:14:54.995903Z"
+    },
+    "scheduled_change": null,
+    "started_at": "2026-10-09T13:14:54.995903Z",
+    "next_billed_at": "2026-11-09T13:14:54.995903Z",
+    "canceled_at": null,
+    "paused_at": null,
+    "created_at": "2026-10-09T13:14:55.575Z",
+    "updated_at": "2026-10-09T13:29:28.905Z",
+    "items": [
+      {
+        "status": "active",
+        "quantity": 1,
+        "price": {
+          "id": "pri_01m4garp82he1mvf8xtnrzjz4c",
+          "product_id": "pro_01m4gaqfe8t5w04crnp2dxwt5t",
+          "type": "standard",
+          "billing_cycle": {
+            "interval": "month",
+            "frequency": 1
+          }
+        }
+      }
+    ]
+  }
+}

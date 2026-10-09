@@ -369,7 +369,7 @@ const paddleBilling = createBilling({
 | `apiKey` | required, secret | A server-side API key with the permissions `transaction.write` and `customer_portal_session.write` |
 | `webhookSecret` | required, secret | The secret key of the notification destination that delivers to your webhook route |
 | `sandbox` | default `false` | Talk to `sandbox-api.paddle.com` instead of `api.paddle.com`. Sandbox and live have separate keys, secrets and price ids |
-| `checkoutUrl` | optional | The page of your app that opens the checkout. Default: the default payment link set in Paddle |
+| `checkoutUrl` | optional | The page of your app that opens the checkout, instead of the default payment link set in Paddle. Paddle refuses it until its website is approved, also in the sandbox |
 | `toleranceSeconds` | default `5` | How far the timestamp of a webhook's signature may be from now. Paddle's own SDKs use 5 |
 
 An empty `apiKey` or `webhookSecret` throws when billing is created, not at the first sale. Neither value appears in an error, an answer or a log line of the driver.
@@ -407,7 +407,7 @@ The driver checks the `Paddle-Signature` header before it reads anything: HMAC-S
 | …with a cancel or pause scheduled | `subscription.canceled`, access until the scheduled date |
 | …status `canceled` or `paused` | `subscription.canceled`, access ended when it was canceled or paused |
 | …status `past_due` | `payment.failed` |
-| `adjustment.created` / `adjustment.updated`: `refund` or `chargeback`, `approved`, `full` | `payment.refunded` |
+| `adjustment.created` / `adjustment.updated`: `refund` or `chargeback`, `approved`, and of type `full` or with every item in full | `payment.refunded` |
 | everything else | nothing, answered with `200` |
 
 A subscription event is read by the state of the subscription in it, not by its name: Paddle sends `subscription.updated` after a cancel as well, and it must not bring the subscription back. Where Paddle reports one change with two events, the second one is `unchanged` and your side effects run once.
@@ -416,7 +416,7 @@ What to know:
 
 - **One price per checkout.** That is what `billing.checkout()` creates. Of a subscription with several items, the first one says which product it is. A transaction with several one-time prices becomes a purchase per price, and a refund of it finds only the first.
 - **Refunds name no price and no user.** They are matched through the transaction or subscription they belong to. A refund for a purchase billing never saw is answered with `409` until Paddle stops trying.
-- **A refunded subscription payment** marks the subscription `refunded` until its next renewal is paid; Paddle does not cancel it by itself. Partial, pending and rejected refunds and a chargeback that was reversed change nothing.
+- **A refunded subscription payment** marks the subscription `refunded` until its next renewal is paid; Paddle does not cancel it by itself. A refund counts when it takes everything: the dashboard sends it as `type: partial` with each item in full, and that is read as the whole. A refund of a part of an item or of the tax alone, a pending or rejected one, and a chargeback that was reversed change nothing.
 - **A pause** has no status of its own: the subscription is `canceled` with `accessEndsAt` at the pause, and `active` again when it resumes.
 - **Retries.** Paddle delivers again on anything but a `200`: 60 times within three days live, 3 times within 15 minutes in the sandbox. It expects the answer within five seconds; `handleWebhook` makes a handful of store calls and none to Paddle.
 - **The manage link** is a session of Paddle's customer portal for the user's customer. It is temporary, so ask for it per request and do not store it. It is `null` before the first event of a user; `returnUrl` has no counterpart in Paddle.
@@ -424,15 +424,15 @@ What to know:
 
 ### Trying it in the sandbox
 
-The tests of the driver run against Paddle's documented notifications without a network. To see it work against Paddle itself:
+The tests of the driver run without a network, against Paddle's documented notifications and against a run recorded in the sandbox: a purchase, a subscription, its cancel for the end of the period, the cancel taken back, and a cancel at once. To see it work against Paddle yourself:
 
 1. In the Paddle **sandbox**, create a product with a one-time price and one with a recurring price, and put the two `pri_…` ids into `products`.
 2. Create an API key with the two permissions above and a client-side token. Set `PADDLE_API_KEY`, `PADDLE_SANDBOX=true`, and the token on the checkout page.
-3. Set the default payment link (Checkout, Checkout configuration) to the checkout page above, or pass `checkoutUrl`. Outside the sandbox the page's website has to be approved by Paddle first.
+3. Set the default payment link (Checkout, Checkout configuration) to the checkout page above. The sandbox takes it as it is. A `checkoutUrl` is another matter: without an approved website Paddle answers `transaction_checkout_url_domain_is_not_approved`, in the sandbox too. For a live account Paddle asks for an approved website in both cases.
 4. Create a notification destination for the URL of your webhook route with the events above, and set its secret key as `PADDLE_WEBHOOK_SECRET`. Paddle has to reach the route, so use a deployed preview of the app. Paddle's [webhook simulator](https://developer.paddle.com/webhooks/simulator) sends single events to it without a checkout.
 5. Start a checkout for each product and pay with one of [Paddle's test cards](https://developer.paddle.com/sdks/sandbox#test-cards). `billing.account(userId)` then shows an `active` holding for each, and the destination's log shows every delivery answered with `200`.
 6. Open `billing.manageUrl(userId)` and cancel the subscription: the holding becomes `canceled` with `accessEndsAt` at the end of the period.
-7. Refund the one-time transaction in full in the dashboard: the holding becomes `refunded`.
+7. Refund the one-time transaction in full in the dashboard (Actions on the transaction). The sandbox approves refunds by itself, every ten minutes: the holding becomes `refunded` with the second event, not the first.
 8. Send a request with a changed body to the webhook route (`curl -X POST` with any `Paddle-Signature`): the answer is `401` and nothing changes.
 
 | Value | | Goes to |

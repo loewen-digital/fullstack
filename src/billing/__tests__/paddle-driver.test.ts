@@ -3,7 +3,8 @@ import { createHmac, randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { BillingError, createBilling, createMemoryBillingStore } from '../index.js'
 
-// Paddle's documented example notifications, see fixtures/paddle/README.md.
+// Paddle's documented example notifications, see fixtures/paddle/README.md. What the sandbox
+// really sent is replayed at the end of this file.
 type Notification = {
   event_id: string
   event_type: string
@@ -459,7 +460,36 @@ describe('paddle driver: events', () => {
       ),
     )
 
-    for (const result of [pending, partial, rejected]) {
+    // The whole item, but not approved yet: this is what the dashboard's refund starts as.
+    const wholeItemPending = await billing.handleWebhook(
+      delivery(
+        edit(fixture('adjustment-created'), 'evt_a4', '2024-04-15T09:02:00Z', {
+          items: [{ item_id: 'txnitm_1', type: 'full' }],
+        }),
+      ),
+    )
+    // Tax only, or a share of the period: not the purchase.
+    const taxOnly = await billing.handleWebhook(
+      delivery(
+        edit(fixture('adjustment-updated'), 'evt_a5', '2024-04-15T09:03:00Z', {
+          status: 'approved',
+          items: [{ item_id: 'txnitm_1', type: 'tax' }],
+        }),
+      ),
+    )
+    const oneOfTwo = await billing.handleWebhook(
+      delivery(
+        edit(fixture('adjustment-updated'), 'evt_a6', '2024-04-15T09:04:00Z', {
+          status: 'approved',
+          items: [
+            { item_id: 'txnitm_1', type: 'full' },
+            { item_id: 'txnitm_2', type: 'partial' },
+          ],
+        }),
+      ),
+    )
+
+    for (const result of [pending, partial, rejected, wholeItemPending, taxOnly, oneOfTwo]) {
       expect(result.response.status).toBe(200)
       expect(result.events).toEqual([])
       expect(result.skipped).toEqual([])
@@ -507,6 +537,24 @@ describe('paddle driver: events', () => {
       status: 'refunded',
       accessEndsAt: new Date('2024-04-15T08:54:10Z'),
     })
+  })
+
+  it('refunds from the adjustment the dashboard sends: partial by type, every item in full', async () => {
+    const { billing, holding } = setup()
+    await billing.handleWebhook(
+      delivery({ ...created, data: { ...created.data, id: 'sub_01hvccbx32q2gb40sqx7n42430' } }),
+    )
+    // As recorded in the sandbox for a refund of the whole payment: `type` stays `partial`.
+    const refund = edit(fixture('adjustment-updated'), 'evt_refund', '2024-04-15T08:54:10Z', {
+      status: 'approved',
+      type: 'partial',
+      items: [{ item_id: 'txnitm_01hvcc94b7qgz60qmrqmbm19zw', type: 'full' }],
+    })
+
+    const { events } = await billing.handleWebhook(delivery(refund))
+
+    expect(events.map((event) => event.type)).toEqual(['payment.refunded'])
+    expect(await holding('sub_01hvccbx32q2gb40sqx7n42430')).toMatchObject({ status: 'refunded' })
   })
 
   it('refunds a one-time purchase, also when the refund is delivered first', async () => {
@@ -700,5 +748,156 @@ describe('paddle driver: checkout and manage link', () => {
     expect(() =>
       createBilling({ ...base, driver: 'paddle', paddle: { apiKey: API_KEY, webhookSecret: '' } }),
     ).toThrow(/apiKey.*webhookSecret/)
+  })
+})
+
+// What Paddle's sandbox really sent, see fixtures/paddle-sandbox/README.md.
+describe('paddle driver: a recorded sandbox run', () => {
+  const recording = [
+    '1-one-time-transaction-completed',
+    '2-subscription-created',
+    '3-subscription-first-transaction-completed',
+    '4-subscription-updated-cancel-scheduled',
+    '5-subscription-updated-cancel-removed',
+    '6-subscription-canceled',
+    '7-subscription-updated-after-cancel',
+  ].map(
+    (name) =>
+      JSON.parse(
+        readFileSync(new URL(`./fixtures/paddle-sandbox/${name}.json`, import.meta.url), 'utf8'),
+      ) as Notification,
+  )
+  const [purchase, created, firstPayment, cancelScheduled, cancelRemoved, canceled, afterCancel] =
+    recording as [
+      Notification,
+      Notification,
+      Notification,
+      Notification,
+      Notification,
+      Notification,
+      Notification,
+    ]
+  const transactionId = String(purchase.data.id)
+  const subscriptionId = String(created.data.id)
+  const periodEnd = new Date('2026-11-09T13:14:54.995903Z')
+  const canceledAt = new Date('2026-10-09T13:33:03.009Z')
+
+  function replay() {
+    const billing = createBilling({
+      driver: 'paddle',
+      paddle: { apiKey: API_KEY, webhookSecret: SECRET },
+      store: createMemoryBillingStore(),
+      products: {
+        unlock: {
+          type: 'one-time',
+          providerId: purchase.data.items[0]!.price!.id,
+          features: ['themes'],
+        },
+        pro: {
+          type: 'subscription',
+          providerId: created.data.items[0]!.price!.id,
+          features: ['themes', 'export'],
+        },
+      },
+    })
+    const holding = async (id: string) =>
+      (await billing.account('tester')).holdings.find((entry) => entry.id === id)
+    const deliver = (notification: Notification) => billing.handleWebhook(delivery(notification))
+    return { billing, holding, deliver }
+  }
+
+  it('follows the purchase, the subscription, its cancel, the cancel taken back and the cancel at once', async () => {
+    const { billing, holding, deliver } = replay()
+    const during = { now: new Date('2026-10-09T13:30:00Z') }
+
+    // The user id travels in the custom data the checkout set.
+    const bought = await deliver(purchase)
+    expect(bought.events.map((event) => [event.type, event.userId, event.product])).toEqual([
+      ['purchase.completed', 'tester', 'unlock'],
+    ])
+    expect(await holding(transactionId)).toMatchObject({ type: 'one-time', status: 'active' })
+
+    // Paddle copied the custom data onto the subscription.
+    const started = await deliver(created)
+    expect(started.events.map((event) => event.type)).toEqual(['subscription.started'])
+    expect(await holding(subscriptionId)).toMatchObject({
+      status: 'active',
+      currentPeriodEnd: periodEnd,
+    })
+
+    // The first payment of the subscription is its start, not a purchase and not a renewal.
+    const paid = await deliver(firstPayment)
+    expect(paid.response.status).toBe(200)
+    expect(paid.events).toEqual([])
+    expect(paid.skipped).toEqual([])
+    expect((await billing.account('tester')).holdings).toHaveLength(2)
+
+    // Canceled in the customer portal for the end of the period: paid for until then.
+    const scheduled = await deliver(cancelScheduled)
+    expect(scheduled.events.map((event) => event.type)).toEqual(['subscription.canceled'])
+    expect(await holding(subscriptionId)).toMatchObject({
+      status: 'canceled',
+      accessEndsAt: periodEnd,
+    })
+    expect((await billing.entitlements('tester', during)).has('export')).toBe(true)
+
+    // "Don't cancel subscription".
+    const back = await deliver(cancelRemoved)
+    expect(back.events.map((event) => event.type)).toEqual(['subscription.changed'])
+    expect(await holding(subscriptionId)).toMatchObject({ status: 'active', accessEndsAt: null })
+
+    // Canceled at once: Paddle tells it twice, with the same timestamp.
+    const ended = await deliver(canceled)
+    const echo = await deliver(afterCancel)
+    expect(ended.events.map((event) => event.type)).toEqual(['subscription.canceled'])
+    expect(echo.events).toEqual([])
+    expect(echo.skipped.map((entry) => entry.reason)).toEqual(['unchanged'])
+    expect(await holding(subscriptionId)).toMatchObject({
+      status: 'canceled',
+      accessEndsAt: canceledAt,
+    })
+
+    const after = await billing.entitlements('tester', { now: new Date('2026-10-09T13:34:00Z') })
+    expect(after.products).toEqual(['unlock'])
+    expect(after.has('export')).toBe(false)
+    expect(await billing.account('tester')).toMatchObject({
+      customerId: 'ctm_01sandboxcustomer000000000',
+    })
+  })
+
+  it('ends in the same state when the two reports of the cancel arrive the other way round', async () => {
+    const { holding, deliver } = replay()
+    for (const notification of [purchase, created, firstPayment, cancelScheduled, cancelRemoved]) {
+      await deliver(notification)
+    }
+
+    const first = await deliver(afterCancel)
+    const second = await deliver(canceled)
+
+    // `subscription.updated` in the canceled state is the cancel; the dedicated event adds nothing.
+    expect(first.events.map((event) => event.type)).toEqual(['subscription.canceled'])
+    expect(second.skipped.map((entry) => entry.reason)).toEqual(['unchanged'])
+    expect(await holding(subscriptionId)).toMatchObject({
+      status: 'canceled',
+      accessEndsAt: canceledAt,
+    })
+  })
+
+  it('ends in the same state when the whole run is delivered backwards, or all at once', async () => {
+    const backwards = replay()
+    for (const notification of [...recording].reverse()) {
+      expect((await backwards.deliver(notification)).response.status).toBe(200)
+    }
+    const atOnce = replay()
+    await Promise.all(recording.map((notification) => atOnce.deliver(notification)))
+
+    for (const { holding } of [backwards, atOnce]) {
+      expect(await holding(transactionId)).toMatchObject({ product: 'unlock', status: 'active' })
+      expect(await holding(subscriptionId)).toMatchObject({
+        product: 'pro',
+        status: 'canceled',
+        accessEndsAt: canceledAt,
+      })
+    }
   })
 })

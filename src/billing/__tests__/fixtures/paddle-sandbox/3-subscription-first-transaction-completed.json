@@ -1,0 +1,38 @@
+{
+  "event_id": "evt_01m4gctvyfkb7qb12y7y0nfyay",
+  "event_type": "transaction.completed",
+  "occurred_at": "2026-10-09T13:14:56.847407Z",
+  "notification_id": "ntf_01m4gctwbh43kekeypdvv5dc0p",
+  "data": {
+    "id": "txn_01m4gcsxjwd2mbxt59mk7s5v4k",
+    "status": "completed",
+    "origin": "api",
+    "customer_id": "ctm_01sandboxcustomer000000000",
+    "subscription_id": "sub_01m4gcttpq41hc5g124hztqwa8",
+    "custom_data": {
+      "userId": "tester"
+    },
+    "currency_code": "EUR",
+    "collection_mode": "automatic",
+    "billing_period": {
+      "ends_at": "2026-11-09T13:14:54.995903Z",
+      "starts_at": "2026-10-09T13:14:54.995903Z"
+    },
+    "created_at": "2026-10-09T13:14:25.786416Z",
+    "updated_at": "2026-10-09T13:14:56.839363643Z",
+    "items": [
+      {
+        "quantity": 1,
+        "price": {
+          "id": "pri_01m4garp82he1mvf8xtnrzjz4c",
+          "product_id": "pro_01m4gaqfe8t5w04crnp2dxwt5t",
+          "type": "standard",
+          "billing_cycle": {
+            "interval": "month",
+            "frequency": 1
+          }
+        }
+      }
+    ]
+  }
+}

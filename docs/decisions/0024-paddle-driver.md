@@ -17,4 +17,4 @@ documented examples, cut down to the fields a driver reads.
 ## Consequences
 
 The app needs a page with Paddle.js and sets `successUrl` there. A refund that overtakes its
-purchase waits for a redelivery. Not checked against the sandbox by the agent; the docs list the steps.
+purchase waits. Run against the sandbox on 2026-10-09; renewal and failed payment were not.

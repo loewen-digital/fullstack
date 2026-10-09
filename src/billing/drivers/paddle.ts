@@ -240,7 +240,12 @@ function toEvents(notification: unknown): ProviderEvent[] {
 
   if (type === 'adjustment.created' || type === 'adjustment.updated') {
     const moneyBack = data.action === 'refund' || data.action === 'chargeback'
-    if (!moneyBack || data.status !== 'approved' || data.type !== 'full') return []
+    // A refund of everything is `type: full`, or names its items and takes each of them in full:
+    // that is what Paddle's dashboard sends, with `type: partial` on the adjustment itself.
+    const items = list(data.items).map((item) => fields(item))
+    const everything =
+      data.type === 'full' || (items.length > 0 && items.every((item) => item?.type === 'full'))
+    if (!moneyBack || data.status !== 'approved' || !everything) return []
     // An adjustment names its transaction, not what was sold: no `providerId`.
     return [
       {

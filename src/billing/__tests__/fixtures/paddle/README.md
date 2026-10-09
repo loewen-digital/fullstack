@@ -6,5 +6,5 @@ payloads of Paddle's webhook reference (https://developer.paddle.com/webhooks/ov
 timestamps are Paddle's. They carry no customer data, no secret and no signature: a test signs a
 payload with a secret it makes up for the run.
 
-What Paddle's examples do not show (an approved full refund, a scheduled cancel, a renewal) a test
-derives from these files and says so where it does.
+What Paddle's examples do not show (an approved full refund, a renewal, a pause) a test derives
+from these files and says so where it does. `../paddle-sandbox` holds what the sandbox really sent.
