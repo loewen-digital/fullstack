@@ -91,11 +91,11 @@ export function createAuth(config: AuthConfig, deps: { db: AuthDbAdapter }): Aut
     },
 
     validateSession(token: string): Promise<AuthSession | null> {
-      return validateAuthSession(db, token, extension)
+      return validateAuthSession(db, token, extension, config.onError)
     },
 
     touchSession(token: string): Promise<TouchedAuthSession> {
-      return touchAuthSession(db, token, extension)
+      return touchAuthSession(db, token, extension, config.onError)
     },
 
     destroySession(token: string): Promise<void> {

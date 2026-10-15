@@ -358,6 +358,62 @@ describe('session extension', () => {
     )
     expect(() => createAuth({}, { db: fixed })).not.toThrow()
   })
+
+  it('keeps the request alive when the extension cannot be written, and reports it', async () => {
+    const down = new Error('store down')
+    const failing: AuthDbAdapter = {
+      ...db,
+      async updateSessionExpiry() {
+        throw down
+      },
+    }
+    const onError = vi.fn()
+    const sliding = createAuth({ sessionTtl: 7 * DAY, sessionExtendAfter: DAY, onError }, { db })
+    const user = (await db.findUserByEmail('alice@example.com'))!
+    const session = await sliding.createSession(user)
+    const brittle = createAuth(
+      { sessionTtl: 7 * DAY, sessionExtendAfter: DAY, onError },
+      { db: failing },
+    )
+
+    vi.setSystemTime(later(2 * DAY))
+    const touched = await brittle.touchSession(session.token)
+    expect(touched).toEqual({ session: { ...session, expiresAt: later(7 * DAY) }, extended: false })
+    expect(onError).toHaveBeenCalledExactlyOnceWith(down)
+    expect(await stored(session.token)).toEqual(later(7 * DAY))
+
+    expect((await brittle.validateSession(session.token))?.expiresAt).toEqual(later(7 * DAY))
+    expect(onError).toHaveBeenCalledTimes(2)
+
+    // The store is back: the next validation extends as usual.
+    vi.setSystemTime(later(2 * DAY + HOUR))
+    expect((await sliding.touchSession(session.token)).extended).toBe(true)
+    expect(await stored(session.token)).toEqual(later(9 * DAY + HOUR))
+  })
+
+  it('reports a failed extension through console.error when onError is not set', async () => {
+    const down = new Error('store down')
+    const failing: AuthDbAdapter = {
+      ...db,
+      async updateSessionExpiry() {
+        throw down
+      },
+    }
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const user = (await db.findUserByEmail('alice@example.com'))!
+      const session = await auth.createSession(user)
+      const brittle = createAuth({ sessionTtl: 7 * DAY, sessionExtendAfter: DAY }, { db: failing })
+
+      vi.setSystemTime(later(2 * DAY))
+      expect(await brittle.validateSession(session.token)).toMatchObject({
+        expiresAt: later(7 * DAY),
+      })
+      expect(error).toHaveBeenCalledExactlyOnceWith('auth: session extension failed', down)
+    } finally {
+      error.mockRestore()
+    }
+  })
 })
 
 describe('one-time tokens', () => {

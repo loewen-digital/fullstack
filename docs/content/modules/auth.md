@@ -79,6 +79,8 @@ async function sessionForRequest(token: string) {
 
 `sessionExtendAfter` is the shortest time between two writes: a session is extended when its login or its last extension lies at least that many seconds back, and every validation in between only reads. `0` writes on every validation. `validateSession` extends the same way; `touchSession` also says that it did, which is what the [SvelteKit](/adapters/sveltekit) and [fetch](/adapters/fetch) adapters ask to send the auth cookie again. The Nuxt, Remix and Astro adapters extend the session and leave the cookie to you. A session that has run out is not brought back, and an expiry never moves earlier: after a shorter `sessionTtl` the sessions that are out keep the end they were given. There is no upper limit to how long a session that stays in use can live ([decision 0028](https://github.com/loewen-digital/fullstack/blob/main/docs/decisions/0028-sliding-sessions.md)).
 
+A write that fails does not fail the request. The session was found and is valid, only its later expiry could not be stored: `touchSession` and `validateSession` answer it as the store holds it, with `extended: false`, so the adapters send no refresh cookie for that request, and the error goes to `onError` of the config (default `console.error`). The next validation tries again ([decision 0030](https://github.com/loewen-digital/fullstack/blob/main/docs/decisions/0030-failed-extension-keeps-the-session.md)).
+
 ## Logout
 
 `destroySession(token)` ends one session. `destroyUserSessions(userId)` ends every session of the user, the caller's included: logout on every device, or the response to a stolen cookie.
@@ -202,6 +204,7 @@ async function finishGithubLogin(code: string, state: string) {
 |---|---|---|---|
 | `sessionTtl` | `number` | `604800` | Lifetime of a session (7 days) |
 | `sessionExtendAfter` | `number` | none | Extend a validated session to `sessionTtl` from now once this many seconds have passed since its login or last extension; unset, a session ends `sessionTtl` after the login |
+| `onError` | `(error: unknown) => void` | `console.error` | Called with what the store threw while a session was being extended; the session is answered as it is, with `extended: false` |
 | `emailVerificationTtl` | `number` | `86400` | Lifetime of an email verification token (24 hours) |
 | `passwordResetTtl` | `number` | `3600` | Lifetime of a password reset token (1 hour) |
 | `loginCodeSecret` | `string` | none | Secret the login codes are stored under; required for `sendLoginCode` and `verifyLoginCode` |

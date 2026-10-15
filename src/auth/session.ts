@@ -35,6 +35,11 @@ export interface SessionExtension {
   afterSeconds: number
 }
 
+/** Where a failed extension goes when the caller names nothing: `onError` of `createAuth`. */
+function reportExtensionFailure(error: unknown): void {
+  console.error('auth: session extension failed', error)
+}
+
 /**
  * Validate a session token and, with `extension`, move its expiry to now plus the TTL.
  *
@@ -43,6 +48,10 @@ export interface SessionExtension {
  * and the store needs no extra field. An expiry is never moved earlier: after a shorter
  * `sessionTtl` the sessions that are out run to the end they were given.
  *
+ * A write that fails does not fail the request: the session was found and is valid, only the
+ * bookkeeping did not happen. The error goes to `onError` and the session is returned as the
+ * store holds it, `extended: false`, so the adapters send no refresh cookie for that request.
+ *
  * The returned session carries the presented token, not the stored hash, so
  * `destroyAuthSession(db, session.token)` works on what this returns.
  */
@@ -50,6 +59,7 @@ export async function touchAuthSession(
   db: AuthDbAdapter,
   token: string,
   extension?: SessionExtension,
+  onError: (error: unknown) => void = reportExtensionFailure,
 ): Promise<TouchedAuthSession> {
   const hash = await hashToken(token)
   const session = await db.findSession(hash)
@@ -62,7 +72,12 @@ export async function touchAuthSession(
   if (extension && db.updateSessionExpiry) {
     const expiresAt = new Date(now.getTime() + extension.ttlSeconds * 1000)
     if (expiresAt.getTime() - session.expiresAt.getTime() >= extension.afterSeconds * 1000) {
-      await db.updateSessionExpiry(hash, expiresAt)
+      try {
+        await db.updateSessionExpiry(hash, expiresAt)
+      } catch (error) {
+        onError(error)
+        return { session: { ...session, token }, extended: false }
+      }
       return { session: { ...session, expiresAt, token }, extended: true }
     }
   }
@@ -77,8 +92,9 @@ export async function validateAuthSession(
   db: AuthDbAdapter,
   token: string,
   extension?: SessionExtension,
+  onError?: (error: unknown) => void,
 ): Promise<AuthSession | null> {
-  return (await touchAuthSession(db, token, extension)).session
+  return (await touchAuthSession(db, token, extension, onError)).session
 }
 
 /**

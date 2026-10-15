@@ -31,7 +31,10 @@ export interface AuthSession {
 /** What `touchSession` answers: the validated session and whether its expiry was just moved. */
 export interface TouchedAuthSession {
   session: AuthSession | null
-  /** `true` when this call wrote a later `expiresAt`; the cookie then has to be sent again. */
+  /**
+   * `true` when this call wrote a later `expiresAt`; the cookie then has to be sent again.
+   * `false` also when the write failed: the failure goes to `onError`, the session stays as it is.
+   */
   extended: boolean
 }
 
@@ -140,6 +143,13 @@ export interface AuthConfig {
    * to be less than `sessionTtl`. Default: unset, a session ends `sessionTtl` after the login.
    */
   sessionExtendAfter?: number
+  /**
+   * Called with what the store threw while a session was being extended (default:
+   * `console.error`). The session was found and is valid, only the later expiry could not be
+   * written: `touchSession` and `validateSession` answer it as the store holds it, with
+   * `extended: false`, and the request goes on.
+   */
+  onError?: (error: unknown) => void
   /** Token TTL in seconds for email verification (default: 24 hours) */
   emailVerificationTtl?: number
   /** Token TTL in seconds for password reset (default: 1 hour) */
