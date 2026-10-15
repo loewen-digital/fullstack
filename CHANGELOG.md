@@ -7,6 +7,8 @@ is the topmost released one here.
 
 ## Unreleased
 
+## v0.7.1 · 2026-10-15 · Sessions survive a failed extension
+
 - Auth: a request with a valid session goes through even when the session store cannot write the later expiry of `sessionExtendAfter`. `touchSession` and `validateSession` then answer the session as the store holds it, with `extended: false`, so the SvelteKit and fetch adapters send no refresh cookie for that request, and the next validation tries again. The failure is not silent: it goes to the new `onError` of `createAuth`, `console.error` by default. Before, the write's error failed the whole request. Decision: [0030](docs/decisions/0030-failed-extension-keeps-the-session.md). (#40)
 - CI runs the org's library workflow: one job `verify` (`npm ci`, check, unit tests, build) on every push to `main` and every pull request, with a manual run from the Actions tab; a newer push cancels the running one, and a push that touches nothing but the docs or a Markdown file runs no CI (the docs deploy through their own workflow, as before). The actions are on v5 and Node 24. `release.yml` is unchanged. Decision: [0029](docs/decisions/0029-ci-library-shape.md). (#41)
 
