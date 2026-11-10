@@ -43,8 +43,7 @@ export interface FlatdbAuthCollections {
  *   const db = flatdb(adapter, { users: collection(userSchema), sessions: collection(), tokens: collection() })
  *   const auth = createAuth({}, { db: createFlatdbAuthAdapter(db) })
  *
- * flatdb 0.2 types every collection as `Collection | PathCollection`; until
- * loewen-digital/flatdb#7 lands, pass `db.users as Collection` and so on.
+ * flatdb 0.4 types each collection from its definition, so `db` passes as it is.
  */
 export function createFlatdbAuthAdapter(collections: FlatdbAuthCollections): AuthDbAdapter {
   const { users, sessions, tokens } = collections

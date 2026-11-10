@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vite-plus/test'
 import { readFileSync } from 'node:fs'
-import { flatdb, collection, MemoryAdapter, type Collection } from '@loewen-digital/flatdb'
+import { flatdb, collection, MemoryAdapter } from '@loewen-digital/flatdb'
 import { z } from 'zod'
 import { createAuth, hashToken } from '../index.js'
 import { createFlatdbAuthAdapter } from '../adapters/flatdb.js'
@@ -8,19 +8,12 @@ import type { AuthDbAdapter } from '../types.js'
 
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
 
-// UPSTREAM: https://github.com/loewen-digital/flatdb/issues/7 — FlatDb<T> types every
-// collection as `Collection | PathCollection`, so auto-mode collections are cast here.
 function openDb(userSchema?: z.ZodType) {
-  const db = flatdb(new MemoryAdapter(), {
+  return flatdb(new MemoryAdapter(), {
     users: collection(userSchema),
     sessions: collection(),
     tokens: collection(),
   })
-  return {
-    users: db.users as Collection,
-    sessions: db.sessions as Collection,
-    tokens: db.tokens as Collection,
-  }
 }
 
 let db: ReturnType<typeof openDb>
@@ -157,16 +150,11 @@ describe('login codes on flatdb', () => {
 
   /** The collections with a zod schema on `tokens`. */
   function openWithTokenSchema(schema: z.ZodType) {
-    const store = flatdb(new MemoryAdapter(), {
+    return flatdb(new MemoryAdapter(), {
       users: collection(),
       sessions: collection(),
       tokens: collection(schema),
     })
-    return {
-      users: store.users as Collection,
-      sessions: store.sessions as Collection,
-      tokens: store.tokens as Collection,
-    }
   }
 
   async function send(instance: ReturnType<typeof createAuth>, userId: string): Promise<string> {

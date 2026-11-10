@@ -7,6 +7,8 @@ is the topmost released one here.
 
 ## Unreleased
 
+- The package installs next to `@loewen-digital/flatdb` 0.4: the optional peer range is now `^0.2.1 || ^0.3.0 || ^0.4.0`. Before, `npm install` of fullstack 0.7.1 and flatdb 0.4.0 stopped with `ERESOLVE`, and an app needed an override to get the pair. The package's own tests run against flatdb 0.4 now: the auth adapter, the billing store and the usage store. flatdb 0.4 types each collection from its definition, so `createFlatdbAuthAdapter(db)` takes the database as it is; the quick start and the Auth on flatdb guide no longer cast (`db.users as Collection`). On flatdb 0.2 and 0.3 the cast is still needed. (#44)
+
 ## v0.7.1 · 2026-10-15 · Sessions survive a failed extension
 
 - Auth: a request with a valid session goes through even when the session store cannot write the later expiry of `sessionExtendAfter`. `touchSession` and `validateSession` then answer the session as the store holds it, with `extended: false`, so the SvelteKit and fetch adapters send no refresh cookie for that request, and the next validation tries again. The failure is not silent: it goes to the new `onError` of `createAuth`, `console.error` by default. Before, the write's error failed the whole request. Decision: [0030](docs/decisions/0030-failed-extension-keeps-the-session.md). (#40)

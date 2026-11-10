@@ -27,7 +27,7 @@ echo "SESSION_SECRET=$(openssl rand -hex 32)" >> .env
 
 ```ts
 // src/lib/server/db.ts
-import { flatdb, collection, FsAdapter, type Collection } from '@loewen-digital/flatdb'
+import { flatdb, collection, FsAdapter } from '@loewen-digital/flatdb'
 import { z } from 'zod'
 
 const userSchema = z.object({
@@ -36,15 +36,11 @@ const userSchema = z.object({
   emailVerifiedAt: z.string().datetime().nullable().optional(),
 })
 
-const db = flatdb(new FsAdapter('./data'), {
+export const { users, sessions, tokens } = flatdb(new FsAdapter('./data'), {
   users: collection(userSchema),
   sessions: collection(),
   tokens: collection(),
 })
-
-export const users = db.users as Collection<z.infer<typeof userSchema>>
-export const sessions = db.sessions as Collection
-export const tokens = db.tokens as Collection
 ```
 
 ## 3. Auth and session

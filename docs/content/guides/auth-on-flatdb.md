@@ -30,7 +30,7 @@ flatdb is an optional peer dependency of fullstack; `@loewen-digital/fullstack/a
 
 ```ts
 // src/lib/server/db.ts
-import { flatdb, collection, type Collection, type StorageAdapter } from '@loewen-digital/flatdb'
+import { flatdb, collection, type StorageAdapter } from '@loewen-digital/flatdb'
 import { z } from 'zod'
 
 export const userSchema = z.object({
@@ -56,21 +56,12 @@ const tokenSchema = z.object({
   attempts: z.number().optional(), // login codes count their verifications here
 })
 
-export type UserDoc = z.infer<typeof userSchema>
-
 export function createDb(adapter: StorageAdapter) {
-  const db = flatdb(adapter, {
+  return flatdb(adapter, {
     users: collection(userSchema),
     sessions: collection(sessionSchema),
     tokens: collection(tokenSchema),
   })
-  // UPSTREAM: https://github.com/loewen-digital/flatdb/issues/7 — flatdb types every
-  // collection as `Collection | PathCollection`; auto-mode collections are cast here.
-  return {
-    users: db.users as Collection<UserDoc>,
-    sessions: db.sessions as Collection,
-    tokens: db.tokens as Collection,
-  }
 }
 
 export type AppDb = ReturnType<typeof createDb>
@@ -292,7 +283,7 @@ If that matters, sweep them from a Worker with a Cron Trigger on the same bucket
 
 ```ts
 // cron/src/index.ts
-import { flatdb, collection, R2Adapter, type Collection } from '@loewen-digital/flatdb'
+import { flatdb, collection, R2Adapter } from '@loewen-digital/flatdb'
 
 export default {
   async scheduled(_event: ScheduledEvent, env: { CONTENT: R2Bucket }) {
@@ -301,8 +292,8 @@ export default {
       tokens: collection(),
     })
     const now = new Date().toISOString()
-    await (db.sessions as Collection).delete({ expiresAt: { $lt: now } })
-    await (db.tokens as Collection).delete({ expiresAt: { $lt: now } })
+    await db.sessions.delete({ expiresAt: { $lt: now } })
+    await db.tokens.delete({ expiresAt: { $lt: now } })
   },
 }
 ```
