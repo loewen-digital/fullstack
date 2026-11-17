@@ -135,6 +135,7 @@ The core **never** imports or depends on any framework-specific code. Every modu
 │   │   │   ├── sms.ts
 │   │   │   └── in-app.ts
 │   │   ├── drivers/
+│   │   │   ├── apns.ts          → APNs: Apple's provider API for an iPhone or iPad app, token signed on Web Crypto
 │   │   │   ├── encoding.ts      → base64url, ES256 JWT
 │   │   │   └── web-push.ts      → Web Push: RFC 8291 encryption and VAPID on Web Crypto
 │   │   ├── stores/

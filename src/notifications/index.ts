@@ -36,6 +36,13 @@ export type {
   SmsDriver,
 } from './types.js'
 export type {
+  ApnsDeviceInput,
+  ApnsDriverConfig,
+  ApnsEnvironment,
+  ApnsKey,
+  ApnsTarget,
+} from './drivers/apns.js'
+export type {
   VapidKeys,
   WebPushDeviceInput,
   WebPushDriverConfig,
@@ -44,6 +51,7 @@ export type {
   WebPushUrgency,
 } from './drivers/web-push.js'
 export { NotificationsError, PushDeviceError } from './errors.js'
+export { APNS_MAX_PAYLOAD, createApnsDriver } from './drivers/apns.js'
 export {
   createWebPushDriver,
   generateVapidKeys,

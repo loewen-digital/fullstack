@@ -158,7 +158,7 @@ async function assertsPurchases() {
 
 ## Push
 
-`createFakePushDriver` takes the place of the Web Push driver in `channels.push.drivers`: it accepts what the app's registration code hands over, records what each device was sent, and answers as gone or failed for the devices a test names. `fakePush.device(name)` is a device to register; `name` is its key afterwards. It is not part of `createTestStack`, because the push channel needs a store.
+`createFakePushDriver` takes the place of the Web Push driver in `channels.push.drivers`, and `createFakePushDriver({ kind: 'apns' })` that of the APNs driver: it accepts what the app's registration code hands over, records what each device was sent, and answers as gone or failed for the devices a test names. `fakePush.device(name)` is a device to register; `name` is its key afterwards. It is not part of `createTestStack`, because the push channel needs a store.
 
 ```ts
 import { expect } from 'vitest'

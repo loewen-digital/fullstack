@@ -52,7 +52,7 @@ src/
 ├── errors/               → error classes, HTTP errors, handler
 ├── queue/                → createQueue(), job class, drivers/
 ├── events/               → createEventBus(), listeners
-├── notifications/        → createNotifications(), channels/, device register, drivers/ (web-push), stores/ (memory, flatdb)
+├── notifications/        → createNotifications(), channels/, device register, drivers/ (web-push, apns), stores/ (memory, flatdb)
 ├── i18n/                 → createI18n(), pluralization, formatting
 ├── search/               → createSearch(), drivers/ (sqlite-fts, meilisearch, typesense)
 ├── permissions/          → createPermissions(), roles, policies
