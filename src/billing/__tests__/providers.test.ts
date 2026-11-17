@@ -572,19 +572,20 @@ describe.each(stores)('a purchase made on the device, on the %s', (_name, create
   it('refuses a proof that does not verify and changes nothing', async () => {
     const { billing, app, store } = await setup()
 
+    // One after the other: a second refusal that waits for the first has nobody listening yet.
     const forged = billing.verifyPurchase({
       provider: 'app',
       userId: 'u1',
       proof: app.invalidProof(),
     })
+    await expect(forged).rejects.toMatchObject({ name: 'BillingPurchaseError', reason: 'invalid' })
+
     const made = billing.verifyPurchase({
       provider: 'app',
       userId: 'u1',
       // What a client could make up: it says it bought, and nothing verifies it.
       proof: { product: 'unlock', paid: true },
     })
-
-    await expect(forged).rejects.toMatchObject({ name: 'BillingPurchaseError', reason: 'invalid' })
     await expect(made).rejects.toMatchObject({ reason: 'invalid' })
     expect(await store.getAccount('u1')).toBeNull()
   })
