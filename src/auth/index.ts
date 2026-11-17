@@ -4,6 +4,7 @@ import type {
   AuthInstance,
   AuthUser,
   AuthSession,
+  AuthSweep,
   TouchedAuthSession,
   OAuthProviderConfig,
   OAuthProvider,
@@ -17,13 +18,22 @@ import {
   destroyAuthSession,
   destroyUserSessions,
 } from './session.js'
+import { sweepExpired } from './sweep.js'
 import { generateToken, verifyToken } from './token.js'
 import { sendVerificationEmail, verifyEmail } from './email-verification.js'
 import { sendPasswordResetEmail, resetPassword } from './password-reset.js'
 import { sendLoginCode, verifyLoginCode, type LoginCodeOptions } from './login-code.js'
 import { createOAuthProvider } from './oauth.js'
 
-export type { AuthInstance, AuthUser, AuthSession, AuthDbAdapter, AuthConfig, TouchedAuthSession }
+export type {
+  AuthInstance,
+  AuthUser,
+  AuthSession,
+  AuthSweep,
+  AuthDbAdapter,
+  AuthConfig,
+  TouchedAuthSession,
+}
 export type {
   AuthToken,
   OAuthProvider,
@@ -104,6 +114,10 @@ export function createAuth(config: AuthConfig, deps: { db: AuthDbAdapter }): Aut
 
     destroyUserSessions(userId: string | number): Promise<void> {
       return destroyUserSessions(db, userId)
+    },
+
+    sweep(): Promise<AuthSweep> {
+      return sweepExpired(db)
     },
 
     generateToken(userId: string | number, type: string, ttlSeconds?: number): Promise<string> {

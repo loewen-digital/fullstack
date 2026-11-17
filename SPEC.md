@@ -50,6 +50,7 @@ The core **never** imports or depends on any framework-specific code. Every modu
 │   │   ├── session.ts           → session management
 │   │   ├── password.ts          → hashing, verification
 │   │   ├── token.ts             → token generation, verification
+│   │   ├── sweep.ts             → expired sessions and tokens of all users
 │   │   ├── oauth.ts             → OAuth provider support
 │   │   ├── email-verification.ts
 │   │   ├── password-reset.ts

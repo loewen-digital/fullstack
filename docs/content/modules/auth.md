@@ -47,7 +47,7 @@ async function login(email: string, password: string) {
 }
 ```
 
-Hashing is scrypt through `node:crypto`; the parameters travel in the hash. `createSession` deletes the user's expired sessions before it inserts the new one ([decision 0002](https://github.com/loewen-digital/fullstack/blob/main/docs/decisions/0002-expired-sessions-on-login.md)), so the store stays bounded without a scheduled job.
+Hashing is scrypt through `node:crypto`; the parameters travel in the hash. `createSession` deletes the user's expired sessions before it inserts the new one ([decision 0002](https://github.com/loewen-digital/fullstack/blob/main/docs/decisions/0002-expired-sessions-on-login.md)), so the sessions of a user who comes back stay bounded without a scheduled job. What the others leave behind takes a [sweep](#expired-sessions-and-tokens).
 
 ## The current user
 
@@ -173,6 +173,23 @@ async function acceptInvite(token: string) {
 }
 ```
 
+## Expired sessions and tokens
+
+The module tidies up after the user it is dealing with: `createSession` removes that user's expired sessions, an expired session or token is deleted when it is presented, and a new token replaces the earlier one of its type. What an account leaves behind that does not come back stays in the store: its last sessions and up to one token per type, expired, until the account is deleted.
+
+`sweep()` removes all of that: every session and every one-time token that has expired, login codes included, whoever it belongs to. It answers how many.
+
+```ts
+async function tidyUp() {
+  const { sessions, tokens } = await auth.sweep() // { sessions: 12, tokens: 3 }
+  return sessions + tokens
+}
+```
+
+- **When it runs is yours.** Nothing in the module calls it. Call it from what runs on a schedule, or after a sign-in where nothing does: the app is awake then anyway.
+- **What has not expired is untouched.** A session or token is valid up to and including its `expiresAt`, here as everywhere else in the module.
+- **The adapter does the work.** `sweep()` needs `deleteExpired` on the adapter and throws without it: zeros would read as "nothing had expired" ([decision 0040](https://github.com/loewen-digital/fullstack/blob/main/docs/decisions/0040-auth-sweep.md)). The flatdb adapter has it.
+
 ## OAuth
 
 `oauthProvider(name, config)` builds a provider; `google` and `github` are built in. Redirect the browser to `getAuthorizationUrl(state)`, keep `state` in the session, and on the callback hand `code` and the returned state to `handleCallback`. It returns the provider's tokens and a normalized user; finding or creating your own user and calling `createSession` is yours.
@@ -225,6 +242,7 @@ async function finishGithubLogin(code: string, state: string) {
 | `findUserByEmail(email)`, `findUserById(id)` | Users, `null` when absent |
 | `createSession(data)`, `findSession(token)`, `deleteSession(token)`, `deleteExpiredSessions(userId)`, `deleteUserSessions(userId)` | Sessions: `deleteUserSessions` runs on a password reset and from `destroyUserSessions` |
 | `updateSessionExpiry(token, expiresAt)` | Optional, required for `sessionExtendAfter`: a later `expiresAt` on the session with that token hash. It updates the session that is there and creates none |
+| `deleteExpired(now)` | Optional, required for `sweep`: remove every session and every one-time token that ended before `now`, of all users, and answer how many of each, `{ sessions, tokens }`. What ends at `now` or later stays |
 | `createToken(data)`, `findToken(token, type)`, `deleteToken(id)`, `deleteTokens(userId, type)` | One-time tokens: `deleteTokens` runs before a new one is issued, `deleteToken` when one is presented |
 | `findUserToken(userId, type)`, `countTokenAttempt(id)` | Login codes: the user's one token of a type, and `attempts + 1` on it, returning the new count or `null` when the token is gone. Increment atomically where the store can |
 | `updateUserPassword(id, passwordHash)`, `markEmailVerified(id)` | Writes to the user |

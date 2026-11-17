@@ -60,6 +60,16 @@ function createTestDb(): AuthDbAdapter {
         if (String(sessions[i]!.userId) === String(userId)) sessions.splice(i, 1)
       }
     },
+    async deleteExpired(now) {
+      const removed = { sessions: 0, tokens: 0 }
+      for (let i = sessions.length - 1; i >= 0; i--) {
+        if (sessions[i]!.expiresAt < now) removed.sessions += sessions.splice(i, 1).length
+      }
+      for (let i = tokens.length - 1; i >= 0; i--) {
+        if (tokens[i]!.expiresAt < now) removed.tokens += tokens.splice(i, 1).length
+      }
+      return removed
+    },
     async createToken(data) {
       const token: AuthToken = { id: crypto.randomUUID(), ...data }
       tokens.push(token)
@@ -808,5 +818,116 @@ describe('login codes', () => {
     }
     expect(seen.size).toBe(10)
     expect(leadingZero).toBe(true)
+  })
+})
+
+describe('sweep', () => {
+  const MINUTE = 60
+  const HOUR = 60 * MINUTE
+  const DAY = 24 * HOUR
+  const START = new Date('2026-01-01T00:00:00.000Z')
+  let alice: AuthUser
+  let bob: AuthUser
+
+  function later(seconds: number): Date {
+    return new Date(START.getTime() + seconds * 1000)
+  }
+
+  beforeEach(async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: START })
+    alice = (await db.findUserByEmail('alice@example.com'))!
+    bob = (await db.findUserByEmail('bob@example.com'))!
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('removes the expired sessions and tokens of every user and says how many', async () => {
+    const codes = createAuth({ loginCodeSecret: 'login-code-secret' }, { db })
+    const alices = await auth.createSession(alice)
+    const bobs = await auth.createSession(bob)
+    await codes.sendLoginCode(alice, async () => {})
+    await auth.sendPasswordResetEmail(bob, async () => {})
+    const invite = await auth.generateToken(alice.id, 'invite', 30 * DAY)
+
+    vi.setSystemTime(later(DAY))
+    const live = await auth.createSession(alice)
+
+    // Ten minutes for the code, an hour for the reset link, seven days for a session.
+    vi.setSystemTime(later(7 * DAY + 1))
+    expect(await auth.sweep()).toEqual({ sessions: 2, tokens: 2 })
+
+    expect(await db.findSession(await hashToken(alices.token))).toBeNull()
+    expect(await db.findSession(await hashToken(bobs.token))).toBeNull()
+    expect(await db.findUserToken(alice.id, 'login_code')).toBeNull()
+    expect(await db.findUserToken(bob.id, 'password_reset')).toBeNull()
+
+    // What has not expired is as it was.
+    expect((await auth.validateSession(live.token))?.userId).toBe(alice.id)
+    expect(await auth.verifyToken(invite, 'invite')).toBe(alice.id)
+    expect(await auth.sweep()).toEqual({ sessions: 0, tokens: 0 })
+  })
+
+  it('hands the adapter the time of the call', async () => {
+    const deleteExpired = vi.fn(async (_now: Date) => ({ sessions: 3, tokens: 4 }))
+    const swept = createAuth({}, { db: { ...db, deleteExpired } })
+
+    vi.setSystemTime(later(DAY))
+    expect(await swept.sweep()).toEqual({ sessions: 3, tokens: 4 })
+
+    expect(deleteExpired).toHaveBeenCalledTimes(1)
+    expect(deleteExpired).toHaveBeenCalledWith(later(DAY))
+  })
+
+  it('answers the two counts, whatever else an adapter says', async () => {
+    const chatty = { sessions: 1, tokens: 2, users: 3 }
+    const swept = createAuth({}, { db: { ...db, deleteExpired: async () => chatty } })
+
+    expect(await swept.sweep()).toEqual({ sessions: 1, tokens: 2 })
+  })
+
+  it('throws for an adapter that has no deleteExpired', async () => {
+    const without: AuthDbAdapter = { ...db }
+    delete without.deleteExpired
+    const plain = createAuth({}, { db: without })
+
+    await expect(plain.sweep()).rejects.toThrow('sweep needs an AuthDbAdapter with deleteExpired')
+
+    // Everything else works on such an adapter.
+    const session = await plain.createSession(alice)
+    expect((await plain.validateSession(session.token))?.userId).toBe(alice.id)
+  })
+
+  it('lets what the store throws leave', async () => {
+    const failing = createAuth(
+      {},
+      {
+        db: {
+          ...db,
+          async deleteExpired() {
+            throw new Error('store is down')
+          },
+        },
+      },
+    )
+
+    await expect(failing.sweep()).rejects.toThrow('store is down')
+  })
+
+  it('runs when it is called, not with a login or a validated session', async () => {
+    const deleteExpired = vi.fn(async () => ({ sessions: 0, tokens: 0 }))
+    const quiet = createAuth(
+      { loginCodeSecret: 'login-code-secret' },
+      { db: { ...db, deleteExpired } },
+    )
+
+    const session = await quiet.createSession(alice)
+    await quiet.validateSession(session.token)
+    await quiet.sendLoginCode(alice, async () => {})
+    await quiet.verifyToken(await quiet.generateToken(alice.id, 'invite'), 'invite')
+    await quiet.destroySession(session.token)
+
+    expect(deleteExpired).not.toHaveBeenCalled()
   })
 })

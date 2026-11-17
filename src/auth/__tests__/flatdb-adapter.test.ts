@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vite-plus/test'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vite-plus/test'
 import { readFileSync } from 'node:fs'
 import { flatdb, collection, MemoryAdapter } from '@loewen-digital/flatdb'
 import { z } from 'zod'
@@ -365,6 +365,160 @@ describe('deleteExpiredSessions', () => {
     const user = await adapter.findUserById(_id)
     await auth.createSession(user!)
     expect(await adapter.findSession('stale')).toBeNull()
+  })
+})
+
+describe('deleteExpired', () => {
+  const NOW = new Date('2026-06-01T12:00:00.000Z')
+  const MINUTE = 60_000
+
+  function at(offset: number): Date {
+    return new Date(NOW.getTime() + offset)
+  }
+
+  function session(userId: string, token: string, expiresAt: Date) {
+    return adapter.createSession({ userId, token, expiresAt, createdAt: at(-60 * MINUTE) })
+  }
+
+  function token(userId: string, type: string, expiresAt: Date, attempts?: number) {
+    return adapter.createToken({
+      userId,
+      token: `${userId}-${type}`,
+      type,
+      expiresAt,
+      createdAt: at(-60 * MINUTE),
+      ...(attempts === undefined ? {} : { attempts }),
+    })
+  }
+
+  it('removes the sessions and tokens of every user that ended before now, and counts them', async () => {
+    await session('u1', 'u1-expired', at(-MINUTE))
+    await session('u1', 'u1-live', at(MINUTE))
+    await session('u2', 'u2-expired', at(-30 * 24 * 60 * MINUTE))
+    await session('u3', 'u3-live', at(7 * 24 * 60 * MINUTE))
+    await token('u1', 'email_verification', at(-MINUTE))
+    await token('u1', 'password_reset', at(MINUTE))
+    await token('u2', 'login_code', at(-1), 3)
+    await token('u2', 'invite', at(-MINUTE))
+    await token('u3', 'login_code', at(MINUTE), 0)
+
+    expect(await adapter.deleteExpired!(NOW)).toEqual({ sessions: 2, tokens: 3 })
+
+    expect(await adapter.findSession('u1-expired')).toBeNull()
+    expect(await adapter.findSession('u2-expired')).toBeNull()
+    expect(await adapter.findSession('u1-live')).not.toBeNull()
+    expect(await adapter.findSession('u3-live')).not.toBeNull()
+    expect(await db.sessions.count()).toBe(2)
+
+    expect(await adapter.findUserToken('u1', 'email_verification')).toBeNull()
+    expect(await adapter.findUserToken('u2', 'login_code')).toBeNull()
+    expect(await adapter.findUserToken('u2', 'invite')).toBeNull()
+    expect(await adapter.findUserToken('u1', 'password_reset')).not.toBeNull()
+    expect((await adapter.findUserToken('u3', 'login_code'))?.attempts).toBe(0)
+    expect(await db.tokens.count()).toBe(2)
+  })
+
+  it('leaves what ends at this very moment, and takes it a millisecond later', async () => {
+    await session('u1', 'ends-now', NOW)
+    await token('u1', 'invite', NOW)
+
+    expect(await adapter.deleteExpired!(NOW)).toEqual({ sessions: 0, tokens: 0 })
+    expect(await adapter.findSession('ends-now')).not.toBeNull()
+    expect(await adapter.findUserToken('u1', 'invite')).not.toBeNull()
+
+    expect(await adapter.deleteExpired!(at(1))).toEqual({ sessions: 1, tokens: 1 })
+    expect(await db.sessions.count()).toBe(0)
+    expect(await db.tokens.count()).toBe(0)
+  })
+
+  it('goes by the time it is given, not by the clock', async () => {
+    const tomorrow = new Date(Date.now() + 24 * 60 * MINUTE)
+    const yesterday = new Date(Date.now() - 24 * 60 * MINUTE)
+    await session('u1', 'ends-tomorrow', tomorrow)
+    await session('u1', 'ended-yesterday', yesterday)
+
+    expect(await adapter.deleteExpired!(new Date(yesterday.getTime() - MINUTE))).toEqual({
+      sessions: 0,
+      tokens: 0,
+    })
+    expect(await adapter.deleteExpired!(new Date(tomorrow.getTime() + MINUTE))).toEqual({
+      sessions: 2,
+      tokens: 0,
+    })
+  })
+
+  it('finds nothing in empty collections, and nothing twice', async () => {
+    expect(await adapter.deleteExpired!(NOW)).toEqual({ sessions: 0, tokens: 0 })
+
+    await session('u1', 'expired', at(-MINUTE))
+    await token('u1', 'invite', at(-MINUTE))
+    expect(await adapter.deleteExpired!(NOW)).toEqual({ sessions: 1, tokens: 1 })
+    expect(await adapter.deleteExpired!(NOW)).toEqual({ sessions: 0, tokens: 0 })
+  })
+
+  it('leaves the users alone', async () => {
+    const { _id } = await db.users.insert({
+      email: 'judy@example.com',
+      expiresAt: at(-MINUTE).toISOString(),
+    })
+    await session(_id, 'expired', at(-MINUTE))
+
+    await adapter.deleteExpired!(NOW)
+
+    expect((await adapter.findUserById(_id))?.email).toBe('judy@example.com')
+  })
+
+  describe('through auth.sweep()', () => {
+    const HOUR = 60 * MINUTE
+    const DAY = 24 * HOUR
+
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'], now: NOW })
+      auth = createAuth({ loginCodeSecret: 'login-code-secret' }, { db: adapter })
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('removes what the accounts left behind that did not come back', async () => {
+      const gone = (await adapter.findUserById(
+        (await db.users.insert({ email: 'gone@example.com' }))._id,
+      ))!
+      const active = (await adapter.findUserById(
+        (await db.users.insert({ email: 'active@example.com' }))._id,
+      ))!
+
+      await auth.createSession(gone)
+      await auth.sendLoginCode(gone, async () => {})
+      await auth.sendPasswordResetEmail(gone, async () => {})
+      await auth.sendVerificationEmail(gone, async () => {})
+
+      // The code is good for ten minutes, the reset link for an hour, the other link for a day.
+      vi.setSystemTime(at(10 * MINUTE))
+      expect(await auth.sweep()).toEqual({ sessions: 0, tokens: 0 })
+      vi.setSystemTime(at(10 * MINUTE + 1))
+      expect(await auth.sweep()).toEqual({ sessions: 0, tokens: 1 })
+      expect(await db.tokens.findOne({ userId: gone.id, type: 'login_code' })).toBeNull()
+
+      vi.setSystemTime(at(DAY + 1))
+      expect(await auth.sweep()).toEqual({ sessions: 0, tokens: 2 })
+      expect(await db.tokens.count()).toBe(0)
+
+      vi.setSystemTime(at(6 * DAY + HOUR))
+      const session = await auth.createSession(active)
+      let link = ''
+      await auth.sendVerificationEmail(active, async (_email, sent) => {
+        link = sent
+      })
+
+      // A session lasts seven days: the one of the account that left has run out, no other.
+      vi.setSystemTime(at(7 * DAY + 1))
+      expect(await auth.sweep()).toEqual({ sessions: 1, tokens: 0 })
+      expect(await db.sessions.findOne({ userId: gone.id })).toBeNull()
+      expect((await auth.validateSession(session.token))?.userId).toBe(active.id)
+      expect((await auth.verifyEmail(link))?.id).toBe(active.id)
+    })
   })
 })
 

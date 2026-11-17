@@ -58,6 +58,13 @@ export interface AuthToken {
   attempts?: number
 }
 
+/** What a sweep removed: the expired sessions and one-time tokens of all users, counted. */
+export interface AuthSweep {
+  sessions: number
+  /** One-time tokens of every type, login codes included */
+  tokens: number
+}
+
 /**
  * Persistence interface of the auth module. Implement it against your storage
  * (a Drizzle schema, flatdb collections via `@loewen-digital/fullstack/auth/flatdb`, ...).
@@ -83,6 +90,12 @@ export interface AuthDbAdapter {
   deleteExpiredSessions(userId: string | number): Promise<void>
   /** Remove every session of the user; a password reset and `destroyUserSessions` call it */
   deleteUserSessions(userId: string | number): Promise<void>
+  /**
+   * Remove every session and every one-time token that ended before `now`, whoever it belongs
+   * to, and say how many of each; `sweep` needs it. What ends at `now` or later stays: a session
+   * and a token are valid up to and including their `expiresAt`.
+   */
+  deleteExpired?(now: Date): Promise<AuthSweep>
   createToken(data: Omit<AuthToken, 'id'>): Promise<AuthToken>
   findToken(token: string, type: string): Promise<AuthToken | null>
   /**
@@ -189,6 +202,13 @@ export interface AuthInstance {
   destroySession(token: string): Promise<void>
   /** Destroy every session of a user: logout everywhere, the recovery step after a takeover */
   destroyUserSessions(userId: string | number): Promise<void>
+  /**
+   * Remove every expired session and one-time token, login codes included, of all users, and say
+   * how many. A login and a presented token only tidy up after the user they belong to; this
+   * reaches what accounts left behind that do not come back. When to call it is the app's
+   * business: a scheduled job, a sign-in. Throws when the adapter has no `deleteExpired`.
+   */
+  sweep(): Promise<AuthSweep>
   /** Generate a one-time token for a user (email verification, password reset, etc.) */
   generateToken(userId: string | number, type: string, ttlSeconds?: number): Promise<string>
   /** Verify and consume a one-time token, returning the user id on success */

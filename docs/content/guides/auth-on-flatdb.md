@@ -277,23 +277,42 @@ describe('login', () => {
 
 ## Expired auth sessions
 
-`auth.createSession` deletes the user's own expired sessions before it inserts the new one ([decision 0002](https://github.com/loewen-digital/fullstack/blob/main/docs/decisions/0002-expired-sessions-on-login.md)): one query per login, scoped to that user, no scheduled job needed for active users. `validateSession` deletes an expired session it comes across. fullstack runs no global sweep, so sessions of users who never return stay in the collection, as do the expired one-time tokens of users who never click the link.
+`auth.createSession` deletes the user's own expired sessions before it inserts the new one ([decision 0002](https://github.com/loewen-digital/fullstack/blob/main/docs/decisions/0002-expired-sessions-on-login.md)): one query per login, scoped to that user, no scheduled job needed for active users. `validateSession` deletes an expired session it comes across. Sessions of users who never return stay in the collection, as do the expired one-time tokens of users who never click the link.
 
-If that matters, sweep them from a Worker with a Cron Trigger on the same bucket. `adapter-cloudflare` builds a fetch-only Worker, so this is a second, tiny Worker:
+`auth.sweep()` removes those: every expired document in `sessions` and `tokens`, whoever it belongs to, and it answers how many. The adapter reads the index of the two collections and deletes one file per document that has expired; `users` is not touched. Nothing calls it for you. Without a scheduler, the login action is a good place, right after `auth.createSession(user)`: the app is awake anyway, and one that nobody signs in to gathers nothing new.
+
+```ts
+// src/lib/server/sweep.ts
+import type { AuthInstance } from '@loewen-digital/fullstack/auth'
+
+/** Removes what has expired, of every account. A sweep that fails does not fail the sign-in. */
+export async function sweepExpired(auth: AuthInstance): Promise<void> {
+  try {
+    await auth.sweep() // { sessions: 2, tokens: 1 }
+  } catch (error) {
+    console.error('auth: sweep failed', error)
+  }
+}
+```
+
+With a schedule it is the same call. On Workers that is a Cron Trigger; `adapter-cloudflare` builds a fetch-only Worker, so this is a second, tiny Worker on the same bucket:
 
 ```ts
 // cron/src/index.ts
 import { flatdb, collection, R2Adapter } from '@loewen-digital/flatdb'
+import { createAuth } from '@loewen-digital/fullstack/auth'
+import { createFlatdbAuthAdapter } from '@loewen-digital/fullstack/auth/flatdb'
 
 export default {
   async scheduled(_event: ScheduledEvent, env: { CONTENT: R2Bucket }) {
     const db = flatdb(new R2Adapter({ bucket: env.CONTENT, prefix: 'data' }), {
+      users: collection(),
       sessions: collection(),
       tokens: collection(),
     })
-    const now = new Date().toISOString()
-    await db.sessions.delete({ expiresAt: { $lt: now } })
-    await db.tokens.delete({ expiresAt: { $lt: now } })
+    const auth = createAuth({}, { db: createFlatdbAuthAdapter(db) })
+    const { sessions, tokens } = await auth.sweep()
+    console.log(`auth: swept ${sessions} sessions and ${tokens} tokens`)
   },
 }
 ```
@@ -307,4 +326,4 @@ export default {
 }
 ```
 
-Locally the same two `delete` calls run from any script against `FsAdapter('./data')`.
+Locally `auth.sweep()` runs from any script against `FsAdapter('./data')`.

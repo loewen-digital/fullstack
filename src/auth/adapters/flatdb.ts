@@ -93,6 +93,12 @@ export function createFlatdbAuthAdapter(collections: FlatdbAuthCollections): Aut
       await sessions.delete({ userId })
     },
 
+    // One read of each collection's index, and one delete per document that has run out.
+    async deleteExpired(now) {
+      const expired = { expiresAt: { $lt: now.toISOString() } }
+      return { sessions: await sessions.delete(expired), tokens: await tokens.delete(expired) }
+    },
+
     async createToken(data) {
       const doc = await tokens.insert({
         userId: data.userId,
