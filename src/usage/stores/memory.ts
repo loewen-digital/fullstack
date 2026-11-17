@@ -23,5 +23,9 @@ export function createMemoryUsageStore(): UsageStore {
       if (record) records.set(subject, structuredClone(record))
       return result
     },
+
+    async forget(subject) {
+      records.delete(subject)
+    },
   }
 }

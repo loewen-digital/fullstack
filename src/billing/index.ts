@@ -472,6 +472,11 @@ export function createBilling<
         return { account: { ...account, grants }, result: true }
       })
     },
+
+    async forget(userId) {
+      requireUserId(userId)
+      await store.forget(userId)
+    },
   }
 }
 

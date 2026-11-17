@@ -146,6 +146,11 @@ export function createUsage<const B extends UsageBalances>(
         }))
         .reverse()
     },
+
+    async forget(subject) {
+      requireSubject(subject)
+      await store.forget(subject)
+    },
   }
 }
 

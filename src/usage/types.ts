@@ -62,6 +62,8 @@ export interface UsageStore {
     subject: string,
     change: (record: UsageRecord) => { record?: UsageRecord; result: R },
   ): Promise<R>
+  /** Removes the record of a subject. One the store has no record of is no error */
+  forget(subject: string): Promise<void>
 }
 
 export interface UsageConfig<B extends UsageBalances = UsageBalances> {
@@ -150,4 +152,10 @@ export interface UsageInstance<B extends UsageBalances = UsageBalances> {
   ): Promise<UsageCreditResult>
   /** What a subject spent from a balance, per period and tag, newest period first */
   totals(subject: string, balance: keyof B & string): Promise<UsageTotals[]>
+  /**
+   * Removes everything usage keeps about a subject, of every balance: what it spent, what it has
+   * left, and the keys of its credits. For the day the account behind the subject is deleted.
+   * A prepaid balance that was paid for goes with it. A subject usage has never seen is no error.
+   */
+  forget(subject: string): Promise<void>
 }

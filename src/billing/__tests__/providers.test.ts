@@ -331,6 +331,47 @@ describe.each(stores)('several providers on the %s', (_name, createStore) => {
       },
     ])
   })
+
+  it('forgets what a user bought from every provider, with the links of each', async () => {
+    const { billing, web, app, store } = await setup()
+    for (const userId of ['u1', 'u2']) {
+      await billing.handleWebhook(
+        web.webhook({
+          type: 'subscription.started',
+          userId,
+          customerId: `cus_${userId}`,
+          providerId: 'pri_pro',
+          holdingId: `sub_${userId}`,
+        }),
+        { provider: 'web' },
+      )
+      // The same ids at the other provider are other purchases.
+      await billing.handleWebhook(
+        app.webhook({
+          type: 'purchase.completed',
+          userId,
+          customerId: `cus_${userId}`,
+          providerId: 'com.app.unlock',
+          holdingId: `sub_${userId}`,
+        }),
+        { provider: 'app' },
+      )
+    }
+
+    await billing.forget('u1')
+
+    expect(await store.getAccount('u1')).toBeNull()
+    for (const provider of ['web', 'app']) {
+      expect(await store.findUserId('holding', `${provider}:sub_u1`)).toBeNull()
+      expect(await store.findUserId('customer', `${provider}:cus_u1`)).toBeNull()
+      expect(await store.findUserId('holding', `${provider}:sub_u2`)).toBe('u2')
+      expect(await store.findUserId('customer', `${provider}:cus_u2`)).toBe('u2')
+    }
+    expect((await billing.account('u2')).holdings.map((holding) => holding.provider)).toEqual([
+      'web',
+      'app',
+    ])
+  })
 })
 
 describe.each(stores)('a purchase made on the device, on the %s', (_name, createStore) => {

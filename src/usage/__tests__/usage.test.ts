@@ -271,6 +271,72 @@ describe.each(stores)('usage on the %s', (_name, createStore) => {
     expect(writes).not.toHaveBeenCalled()
   })
 
+  it('forgets everything of a subject, of every balance, and nothing of another', async () => {
+    const { usage, store } = await setup()
+    for (const subject of ['u1', 'u2']) {
+      await usage.spend(subject, 'ai', 30, { ...october, tag: 'summarize' })
+      await usage.credit(subject, 'packs', 10, { key: 'evt_1' })
+      await usage.spend(subject, 'packs', 4, october)
+    }
+
+    await usage.forget('u1')
+
+    expect(await store.read('u1')).toBeNull()
+    expect(await usage.left('u1', 'ai', october)).toBe(100)
+    expect(await usage.left('u1', 'packs')).toBe(0)
+    expect(await usage.totals('u1', 'ai')).toEqual([])
+    expect(await usage.totals('u1', 'packs')).toEqual([])
+
+    expect(await usage.left('u2', 'ai', october)).toBe(70)
+    expect(await usage.left('u2', 'packs')).toBe(6)
+    expect(await usage.totals('u2', 'ai')).toEqual([
+      expect.objectContaining({ spent: 30, tags: { summarize: 30 } }),
+    ])
+  })
+
+  it('forgets a subject it has never seen without an error, and any subject twice', async () => {
+    const { usage, store } = await setup()
+
+    await expect(usage.forget('nobody')).resolves.toBeUndefined()
+    expect(await store.read('nobody')).toBeNull()
+
+    await usage.spend('u1', 'ai', 30, october)
+    await usage.forget('u1')
+    await expect(usage.forget('u1')).resolves.toBeUndefined()
+    expect(await usage.left('u1', 'ai', october)).toBe(100)
+  })
+
+  it('starts a forgotten subject anew, the keys of its credits included', async () => {
+    const { usage } = await setup()
+    await usage.credit('u1', 'packs', 10, { key: 'evt_1' })
+    await usage.spend('u1', 'ai', 100, october)
+
+    await usage.forget('u1')
+
+    // Nothing remembers that this key was credited before.
+    expect(await usage.credit('u1', 'packs', 10, { key: 'evt_1' })).toEqual({
+      applied: true,
+      left: 10,
+    })
+    expect(await usage.spend('u1', 'ai', 100, october)).toEqual({ ok: true, left: 0 })
+  })
+
+  it('forgets one of the subjects that differ only in case or contain path characters', async () => {
+    const { usage } = await setup()
+    const subjects = ['User', 'user', '../user', 'a/b', 'a']
+    for (const subject of subjects) await usage.spend(subject, 'ai', 10, october)
+
+    await usage.forget('User')
+    await usage.forget('../user')
+    await usage.forget('a/b')
+
+    expect(await usage.left('User', 'ai', october)).toBe(100)
+    expect(await usage.left('../user', 'ai', october)).toBe(100)
+    expect(await usage.left('a/b', 'ai', october)).toBe(100)
+    expect(await usage.left('user', 'ai', october)).toBe(90)
+    expect(await usage.left('a', 'ai', october)).toBe(90)
+  })
+
   it('keeps subjects apart that differ only in case or contain path characters', async () => {
     const { usage } = await setup()
 
@@ -322,6 +388,9 @@ describe('createUsage', () => {
     await expect(usage.spend('u1', 'toString', 1)).rejects.toThrow(/unknown balance/)
     await expect(usage.left('', 'ai')).rejects.toThrow(/subject/)
     await expect(usage.spend('', 'ai', 1)).rejects.toThrow(/subject/)
+    await expect(usage.forget('')).rejects.toThrow(/subject/)
+    // @ts-expect-error a subject is a string
+    await expect(usage.forget(undefined)).rejects.toThrow(/subject/)
     await expect(usage.credit('u1', 'packs', 1, { key: '' })).rejects.toThrow(/key/)
     // @ts-expect-error a credit needs its options
     await expect(usage.credit('u1', 'packs', 1)).rejects.toThrow(/key/)
@@ -441,8 +510,39 @@ describe('periodOf', () => {
 
 describe('createFlatdbUsageStore', () => {
   it('refuses an adapter without conditional writes', () => {
-    const adapter = { read: async () => null }
+    const adapter = { read: async () => null, delete: async () => {} }
     expect(() => createFlatdbUsageStore({ adapter })).toThrow(/readVersioned\/writeIf/)
+  })
+
+  it('forgets a subject by deleting its file, and no other file', async () => {
+    const adapter = new MemoryAdapter()
+    const usage = createUsage({
+      store: createFlatdbUsageStore({ adapter, prefix: 'counts' }),
+      balances,
+    })
+    await usage.credit('User 1', 'packs', 10, { key: 'evt_1' })
+    await usage.credit('user 1', 'packs', 10, { key: 'evt_1' })
+    await adapter.write('counts.json', '{}')
+    await adapter.write('other/~55ser~201.json', '{}')
+
+    await usage.forget('User 1')
+
+    expect(await adapter.read('counts/~55ser~201.json')).toBeNull()
+    expect(await adapter.list('counts')).toEqual(['user~201.json'])
+    expect(await adapter.read('counts.json')).toBe('{}')
+    expect(await adapter.read('other/~55ser~201.json')).toBe('{}')
+  })
+
+  it('forgets a file it refuses to read', async () => {
+    const adapter = new MemoryAdapter()
+    const usage = createUsage({ store: createFlatdbUsageStore({ adapter }), balances })
+    await adapter.write('usage/u1.json', '{"balances":{"packs":{"balance":-5}}}')
+    await expect(usage.left('u1', 'packs')).rejects.toThrow(/not a usage record/)
+
+    await usage.forget('u1')
+
+    expect(await adapter.read('usage/u1.json')).toBeNull()
+    expect(await usage.left('u1', 'packs')).toBe(0)
   })
 
   it('writes one JSON file per subject below the prefix', async () => {
@@ -504,6 +604,7 @@ describe('createFlatdbUsageStore', () => {
       store: createFlatdbUsageStore({
         adapter: {
           read: (path) => adapter.read(path),
+          delete: (path) => adapter.delete(path),
           readVersioned: (path) => adapter.readVersioned(path),
           writeIf: async () => null,
         },

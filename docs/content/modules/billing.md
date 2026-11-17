@@ -415,6 +415,50 @@ async function buysWithoutAStore(providerId: string) {
 }
 ```
 
+## When an account is deleted
+
+What a user bought and what was given to them is data about their account. `billing.forget(userId)` removes all of it: the account with its holdings, its grants and the ids of the events applied to it, and the links from the provider's ids back to the user.
+
+```ts
+// src/lib/server/account.ts
+import { billing } from '#lib/server/billing.js'
+
+export async function deleteAccount(userId: string) {
+  const { holdings } = await billing.account(userId)
+  const charged = holdings.some(
+    ({ type, status }) => type === 'subscription' && (status === 'active' || status === 'past_due'),
+  )
+  // Only the user can cancel at the provider: send them to billing.manageUrl(userId) first.
+  if (charged) throw new Error('This account still pays for a subscription.')
+
+  await billing.forget(userId)
+  // ... then the rest of the account
+}
+```
+
+- **The provider is not told.** `forget` calls no driver. The customer, the invoices and the purchases stay the provider's, and a subscription that runs goes on being charged with nobody left who could cancel it: look for one first, as above. Deleting the customer at the provider is yours.
+- **A user billing has never seen is no error**, and neither is forgetting one twice.
+- **An event that arrives later and names the user starts the account anew.** Nothing remembers a forgotten user, so nothing can tell that they are gone: the end of a canceled subscription or a refund is applied like any event, with its links. One that names only the purchase or the customer finds no user any more and is answered with `409` until the provider gives up.
+
+Where such an event can still come, the webhook route forgets again ([decision 0041](https://github.com/loewen-digital/fullstack/blob/main/docs/decisions/0041-forget-usage-and-billing.md)):
+
+```ts
+// src/lib/server/billing-webhook.ts
+import { billing } from '#lib/server/billing.js'
+
+/** `handleWebhook`, and nothing stays of an event for an account that is gone */
+export async function handleBillingWebhook(
+  request: Request,
+  userExists: (userId: string) => Promise<boolean>,
+): Promise<Response> {
+  const { response, events } = await billing.handleWebhook(request)
+  for (const userId of new Set(events.map((event) => event.userId))) {
+    if (!(await userExists(userId))) await billing.forget(userId)
+  }
+  return response
+}
+```
+
 ## Stores
 
 A store keeps one account per user and the links from provider ids back to users.
@@ -430,6 +474,7 @@ The flatdb store takes the adapter, not collections: it writes `billing/accounts
 - **`FsAdapter`**: holds within one process. Two processes on one folder (two dev servers) are not coordinated.
 - **`prefix`** (default `billing`) is a folder below the adapter's root. Do not name a collection the same: the files there have no collection index.
 - User ids become file names: lower-case letters, digits, `_` and `-` stay, everything else is escaped, so ids that differ only in case stay apart on every file system.
+- `forget` deletes the user's account file and the link files of the ids that file names: the customer the user is at each provider, and every holding. A link is deleted only while it leads to that user, and the links go first, so a `forget` that stopped halfway can be called again. It reads the file without the checks of the other calls: an account the store refuses to use can be forgotten too.
 
 ### Your own store
 
@@ -455,10 +500,16 @@ const store: BillingStore = {
   async findUserId(kind, id) {
     return refs.get(`${kind}:${id}`) ?? null
   },
+  async forget(userId) {
+    accounts.delete(userId)
+    for (const [key, linked] of refs) {
+      if (linked === userId) refs.delete(key)
+    }
+  },
 }
 ```
 
-`transact` carries the guarantee: read the account, call `change`, store what it returns, and let no concurrent `transact` for the same user slip in between. On SQL that is a transaction with a row lock or a version column. `change` is free of side effects, so call it again on the fresh account after a lost race; when it returns no `account`, write nothing. `link` keeps the first user an id was linked to; that is also what decides whose purchase a proof is, so it must hold when two requests link the same id at once. The ids `link` and `findUserId` get are a provider's id behind the provider's name, `paddle:ctm_01h…`.
+`transact` carries the guarantee: read the account, call `change`, store what it returns, and let no concurrent `transact` for the same user slip in between. On SQL that is a transaction with a row lock or a version column. `change` is free of side effects, so call it again on the fresh account after a lost race; when it returns no `account`, write nothing. `link` keeps the first user an id was linked to; that is also what decides whose purchase a proof is, so it must hold when two requests link the same id at once. The ids `link` and `findUserId` get are a provider's id behind the provider's name, `paddle:ctm_01h…`. `forget` removes the account of a user and every link that leads to them, and no link of another user.
 
 ### Coming from 0.7
 

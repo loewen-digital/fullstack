@@ -605,6 +605,200 @@ describe.each(stores)('billing on the %s', (_name, createStore) => {
       expect(account.holdings.map((holding) => holding.id)).toEqual([`txn_${ids.indexOf(userId)}`])
     }
   })
+
+  /** A subscription and a one-time purchase of one user, each with the ids a provider knows them by */
+  async function bought(
+    billing: Awaited<ReturnType<typeof setup>>['billing'],
+    driver: Awaited<ReturnType<typeof setup>>['driver'],
+    userId: string,
+  ) {
+    await billing.handleWebhook(
+      driver.webhook([
+        {
+          type: 'subscription.started',
+          id: `evt_sub_${userId}`,
+          userId,
+          customerId: `cus_${userId}`,
+          providerId: 'pri_pro',
+          holdingId: `sub_${userId}`,
+          occurredAt: at(0),
+          currentPeriodEnd: at(30),
+        },
+        {
+          type: 'purchase.completed',
+          id: `evt_txn_${userId}`,
+          userId,
+          customerId: `cus_${userId}`,
+          providerId: 'pri_unlock',
+          holdingId: `txn_${userId}`,
+          occurredAt: at(1),
+        },
+      ]),
+    )
+  }
+
+  it('forgets a user: the account, what was given by hand, and every link to them', async () => {
+    const { billing, driver, store } = await setup()
+    await bought(billing, driver, 'u1')
+    await billing.grant('u1', 'team')
+    expect((await billing.entitlements('u1')).products.sort()).toEqual(['pro', 'team', 'unlock'])
+
+    await billing.forget('u1')
+
+    expect(await store.getAccount('u1')).toBeNull()
+    expect(await billing.account('u1')).toEqual({
+      userId: 'u1',
+      customers: {},
+      holdings: [],
+      grants: [],
+    })
+    expect((await billing.entitlements('u1')).products).toEqual([])
+    expect(await store.findUserId('holding', 'fake:sub_u1')).toBeNull()
+    expect(await store.findUserId('holding', 'fake:txn_u1')).toBeNull()
+    expect(await store.findUserId('customer', 'fake:cus_u1')).toBeNull()
+  })
+
+  it('forgets nothing of another user', async () => {
+    const { billing, driver, store } = await setup()
+    await bought(billing, driver, 'u1')
+    await bought(billing, driver, 'u2')
+    await billing.grant('u2', 'team')
+    const before = await billing.account('u2')
+
+    await billing.forget('u1')
+
+    expect(await billing.account('u2')).toEqual(before)
+    expect(await store.findUserId('holding', 'fake:sub_u2')).toBe('u2')
+    expect(await store.findUserId('holding', 'fake:txn_u2')).toBe('u2')
+    expect(await store.findUserId('customer', 'fake:cus_u2')).toBe('u2')
+    // A refund that names only the purchase still finds its user.
+    const refund = await billing.handleWebhook(
+      driver.webhook({ type: 'payment.refunded', id: 'evt_refund', holdingId: 'txn_u2' }),
+    )
+    expect(refund.events).toEqual([
+      expect.objectContaining({ type: 'payment.refunded', userId: 'u2', product: 'unlock' }),
+    ])
+  })
+
+  it('finds no user any more for an event that names only what a forgotten user held', async () => {
+    const { billing, driver, store } = await setup()
+    await bought(billing, driver, 'u1')
+    await billing.forget('u1')
+
+    const byHolding = await billing.handleWebhook(
+      driver.webhook({ type: 'payment.refunded', id: 'evt_1', holdingId: 'txn_u1' }),
+    )
+    const byCustomer = await billing.handleWebhook(
+      driver.webhook({
+        type: 'subscription.renewed',
+        id: 'evt_2',
+        customerId: 'cus_u1',
+        providerId: 'pri_pro',
+        holdingId: 'sub_new',
+      }),
+    )
+
+    expect(byHolding.events).toEqual([])
+    expect(byHolding.skipped.map((skip) => skip.reason)).toEqual(['unmatched'])
+    expect(byCustomer.events).toEqual([])
+    expect(byCustomer.skipped.map((skip) => skip.reason)).toEqual(['unmatched'])
+    expect(await store.getAccount('u1')).toBeNull()
+  })
+
+  it('starts the account anew when an event names a forgotten user', async () => {
+    const { billing, driver, store } = await setup()
+    await bought(billing, driver, 'u1')
+    await billing.forget('u1')
+
+    // Nothing remembers that this event was applied before: the provider is the one to stop.
+    const again = await billing.handleWebhook(
+      driver.webhook({
+        type: 'subscription.started',
+        id: 'evt_sub_u1',
+        userId: 'u1',
+        customerId: 'cus_u1',
+        providerId: 'pri_pro',
+        holdingId: 'sub_u1',
+        occurredAt: at(0),
+        currentPeriodEnd: at(30),
+      }),
+    )
+
+    expect(again.events).toEqual([expect.objectContaining({ id: 'evt_sub_u1', userId: 'u1' })])
+    expect((await billing.account('u1')).holdings.map((holding) => holding.id)).toEqual(['sub_u1'])
+    expect(await store.findUserId('holding', 'fake:sub_u1')).toBe('u1')
+
+    await billing.forget('u1')
+    expect(await store.getAccount('u1')).toBeNull()
+    expect(await store.findUserId('holding', 'fake:sub_u1')).toBeNull()
+  })
+
+  it('forgets a user it has never seen without an error, and any user twice', async () => {
+    const { billing, driver, store } = await setup()
+
+    await expect(billing.forget('nobody')).resolves.toBeUndefined()
+    expect(await store.getAccount('nobody')).toBeNull()
+
+    await bought(billing, driver, 'u1')
+    await billing.forget('u1')
+    await expect(billing.forget('u1')).resolves.toBeUndefined()
+    expect(await store.getAccount('u1')).toBeNull()
+  })
+
+  it('forgets a user who only got something by hand', async () => {
+    const { billing, store } = await setup()
+    await billing.grant('u1', 'pro')
+
+    await billing.forget('u1')
+
+    expect(await store.getAccount('u1')).toBeNull()
+    expect((await billing.entitlements('u1')).products).toEqual([])
+  })
+
+  it('leaves a link that leads to another user', async () => {
+    const { billing, driver, store } = await setup()
+    await bought(billing, driver, 'u1')
+    // The provider reports a purchase of u1 for u2 as well: the first link of an id stays.
+    await billing.handleWebhook(
+      driver.webhook({
+        type: 'purchase.completed',
+        id: 'evt_other',
+        userId: 'u2',
+        customerId: 'cus_u1',
+        providerId: 'pri_unlock',
+        holdingId: 'txn_u1',
+        occurredAt: at(2),
+      }),
+    )
+    expect((await billing.account('u2')).holdings.map((holding) => holding.id)).toEqual(['txn_u1'])
+
+    await billing.forget('u2')
+
+    expect(await store.getAccount('u2')).toBeNull()
+    expect(await store.findUserId('holding', 'fake:txn_u1')).toBe('u1')
+    expect(await store.findUserId('customer', 'fake:cus_u1')).toBe('u1')
+    expect((await billing.account('u1')).holdings).toHaveLength(2)
+  })
+
+  it('forgets one of the users whose ids differ only in case or contain path characters', async () => {
+    const { billing, driver, store } = await setup()
+    const ids = ['Abc', 'abc', '../abc', 'a/b', 'a']
+    for (const userId of ids) await bought(billing, driver, userId)
+
+    await billing.forget('Abc')
+    await billing.forget('../abc')
+    await billing.forget('a/b')
+
+    for (const userId of ['Abc', '../abc', 'a/b']) {
+      expect(await store.getAccount(userId)).toBeNull()
+      expect(await store.findUserId('holding', `fake:sub_${userId}`)).toBeNull()
+    }
+    for (const userId of ['abc', 'a']) {
+      expect((await billing.account(userId)).holdings).toHaveLength(2)
+      expect(await store.findUserId('holding', `fake:sub_${userId}`)).toBe(userId)
+      expect(await store.findUserId('customer', `fake:cus_${userId}`)).toBe(userId)
+    }
+  })
 })
 
 describe('createBilling', () => {
@@ -663,6 +857,50 @@ describe('createBilling', () => {
       billing.checkout({ userId: 'u1', product: 'gold' }),
     ).rejects.toThrow(BillingError)
     await expect(billing.checkout({ userId: '', product: 'pro' })).rejects.toThrow(BillingError)
+    await expect(billing.forget('')).rejects.toThrow(/userId must be a non-empty string/)
+  })
+
+  it('tells no provider that a user is forgotten', async () => {
+    const { billing, driver } = setup()
+    await billing.handleWebhook(
+      driver.webhook({ type: 'subscription.started', userId: 'u1', providerId: 'pri_pro' }),
+    )
+    const calls = vi.fn()
+    const watched = createBilling({
+      driver: new Proxy(driver, {
+        get(target, name, receiver) {
+          const value: unknown = Reflect.get(target, name, receiver)
+          if (typeof value !== 'function') return value
+          return (...args: unknown[]) => {
+            calls(name)
+            return Reflect.apply(value, target, args)
+          }
+        },
+      }),
+      store: createMemoryBillingStore(),
+      products,
+    })
+    await watched.handleWebhook(
+      driver.webhook({ type: 'subscription.started', userId: 'u1', providerId: 'pri_pro' }),
+    )
+    calls.mockClear()
+
+    await watched.forget('u1')
+
+    expect(calls).not.toHaveBeenCalled()
+    expect((await watched.account('u1')).holdings).toEqual([])
+  })
+
+  it('lets what the store throws leave forget', async () => {
+    const store: BillingStore = {
+      ...createMemoryBillingStore(),
+      async forget() {
+        throw new Error('store down')
+      },
+    }
+    const billing = createBilling({ driver: createFakeBillingDriver(), store, products })
+
+    await expect(billing.forget('u1')).rejects.toThrow('store down')
   })
 
   it('refuses two products with the same provider id', () => {
@@ -770,9 +1008,158 @@ describe('createFlatdbBillingStore', () => {
   it('refuses an adapter without conditional writes', () => {
     expect(() =>
       createFlatdbBillingStore({
-        adapter: { read: async () => null },
+        adapter: { read: async () => null, delete: async () => {} },
       }),
     ).toThrow(/readVersioned\/writeIf/)
+  })
+
+  /** Every file below a folder of a `MemoryAdapter`, with its path from the root */
+  async function filesIn(adapter: MemoryAdapter, folder: string): Promise<string[]> {
+    const files: string[] = []
+    for (const name of await adapter.list(folder)) {
+      const path = `${folder}/${name}`
+      if (name.endsWith('.json')) files.push(path)
+      else files.push(...(await filesIn(adapter, path)))
+    }
+    return files.sort()
+  }
+
+  async function withTwoUsers() {
+    const adapter = new MemoryAdapter()
+    const driver = createFakeBillingDriver()
+    const store = createFlatdbBillingStore({ adapter, prefix: 'pay' })
+    const billing = createBilling({ driver, store, products })
+    for (const userId of ['User 1', 'u2']) {
+      await billing.handleWebhook(
+        driver.webhook([
+          {
+            type: 'subscription.started',
+            userId,
+            customerId: `cus_${userId}`,
+            providerId: 'pri_pro',
+            holdingId: `sub_${userId}`,
+            occurredAt: at(0),
+          },
+          {
+            type: 'purchase.completed',
+            userId,
+            customerId: `cus_${userId}`,
+            providerId: 'pri_unlock',
+            holdingId: `txn_${userId}`,
+            occurredAt: at(1),
+          },
+        ]),
+      )
+    }
+    return { adapter, driver, store, billing }
+  }
+
+  it('forgets a user by deleting the account file and the link files, and no other file', async () => {
+    const { adapter, billing } = await withTwoUsers()
+    await adapter.write('pay.json', '{}')
+    expect(await filesIn(adapter, 'pay')).toEqual([
+      'pay/accounts/u2.json',
+      'pay/accounts/~55ser~201.json',
+      'pay/refs/customer/fake~3acus_u2.json',
+      'pay/refs/customer/fake~3acus_~55ser~201.json',
+      'pay/refs/holding/fake~3asub_u2.json',
+      'pay/refs/holding/fake~3asub_~55ser~201.json',
+      'pay/refs/holding/fake~3atxn_u2.json',
+      'pay/refs/holding/fake~3atxn_~55ser~201.json',
+    ])
+
+    await billing.forget('User 1')
+
+    expect(await filesIn(adapter, 'pay')).toEqual([
+      'pay/accounts/u2.json',
+      'pay/refs/customer/fake~3acus_u2.json',
+      'pay/refs/holding/fake~3asub_u2.json',
+      'pay/refs/holding/fake~3atxn_u2.json',
+    ])
+    expect(await adapter.read('pay.json')).toBe('{}')
+  })
+
+  it('deletes the links before the account, so a forget that stopped halfway can be repeated', async () => {
+    const { adapter, driver } = await withTwoUsers()
+    const deleted: string[] = []
+    let failAt = 2
+    const store = createFlatdbBillingStore({
+      prefix: 'pay',
+      adapter: {
+        read: (path) => adapter.read(path),
+        readVersioned: (path) => adapter.readVersioned(path),
+        writeIf: (path, data, version) => adapter.writeIf(path, data, version),
+        async delete(path) {
+          if (deleted.length === failAt) throw new Error('storage down')
+          deleted.push(path)
+          await adapter.delete(path)
+        },
+      },
+    })
+    const billing = createBilling({ driver, store, products })
+
+    await expect(billing.forget('u2')).rejects.toThrow('storage down')
+    // The account is still there, and it still names what is left to delete.
+    expect(await adapter.read('pay/accounts/u2.json')).not.toBeNull()
+    expect(deleted).toHaveLength(2)
+
+    failAt = -1
+    await billing.forget('u2')
+
+    expect(deleted.at(-1)).toBe('pay/accounts/u2.json')
+    expect(deleted.slice(0, -1).every((path) => path.startsWith('pay/refs/'))).toBe(true)
+    expect((await filesIn(adapter, 'pay')).filter((path) => path.includes('u2'))).toEqual([])
+  })
+
+  it('forgets an account file it refuses to read', async () => {
+    const adapter = new MemoryAdapter()
+    const store = createFlatdbBillingStore({ adapter })
+    const link = JSON.stringify({ userId: 'old' })
+    // As fullstack 0.7 wrote it: the holdings name no provider.
+    await adapter.write(
+      'billing/accounts/old.json',
+      JSON.stringify({
+        userId: 'old',
+        customerId: 'cus_1',
+        holdings: [{ id: 'sub_1', product: 'pro', type: 'subscription', status: 'active' }],
+        appliedEvents: ['evt_1'],
+      }),
+    )
+    // Half of it can still be told.
+    await adapter.write(
+      'billing/accounts/mixed.json',
+      JSON.stringify({
+        userId: 'mixed',
+        customers: { fake: 'cus_2', broken: 7 },
+        holdings: [
+          { provider: 'fake', id: 'sub_2' },
+          { provider: 'fake', id: 'x'.repeat(300) },
+          { provider: 'fake' },
+          'not a holding',
+        ],
+      }),
+    )
+    await adapter.write(
+      'billing/refs/customer/fake~3acus_2.json',
+      JSON.stringify({ userId: 'mixed' }),
+    )
+    await adapter.write(
+      'billing/refs/holding/fake~3asub_2.json',
+      JSON.stringify({ userId: 'mixed' }),
+    )
+    await adapter.write('billing/refs/holding/fake~3asub_3.json', link)
+    await adapter.write('billing/accounts/garbage.json', 'not json')
+    await adapter.write('billing/accounts/list.json', '[]')
+    for (const userId of ['old', 'mixed', 'garbage', 'list']) {
+      await expect(store.getAccount(userId)).rejects.toThrow()
+    }
+
+    for (const userId of ['old', 'mixed', 'garbage', 'list']) await store.forget(userId)
+
+    expect(await filesIn(adapter, 'billing')).toEqual(['billing/refs/holding/fake~3asub_3.json'])
+    for (const userId of ['old', 'mixed', 'garbage', 'list']) {
+      expect(await store.getAccount(userId)).toBeNull()
+    }
   })
 
   it('writes one file per user and per linked id below the prefix', async () => {
@@ -968,6 +1355,7 @@ describe('createFlatdbBillingStore', () => {
     const store = createFlatdbBillingStore({
       adapter: {
         read: (path) => adapter.read(path),
+        delete: (path) => adapter.delete(path),
         readVersioned: (path) => adapter.readVersioned(path),
         writeIf: async () => null,
       },

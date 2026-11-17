@@ -144,7 +144,7 @@ export interface BillingAccountRecord extends BillingAccount {
 export type BillingRefKind = 'customer' | 'holding'
 
 /**
- * Where billing keeps its state. Four methods; `transact` carries the guarantee: no update of
+ * Where billing keeps its state. Five methods; `transact` carries the guarantee: no update of
  * an account is lost, however many requests write it at the same time.
  *
  * The ids `link` and `findUserId` get are a provider's id behind the name of its provider
@@ -167,6 +167,12 @@ export interface BillingStore {
   link(kind: BillingRefKind, id: string, userId: string): Promise<void>
   /** The user id a provider id was linked to */
   findUserId(kind: BillingRefKind, id: string): Promise<string | null>
+  /**
+   * Removes the account of a user and the links that lead to them, so that `getAccount` answers
+   * `null` and no provider id finds the user any more. Links of other users stay. A user the
+   * store does not know is no error.
+   */
+  forget(userId: string): Promise<void>
 }
 
 export interface BillingCheckout {
@@ -535,4 +541,13 @@ export interface BillingInstance<
   grant(userId: string, product: K, options?: { until?: Date }): Promise<BillingGrant>
   /** Takes back what `grant()` gave; `false` when there was nothing. What the user paid for stays */
   revoke(userId: string, product: K): Promise<boolean>
+  /**
+   * Removes everything billing keeps about a user: the account with its holdings, its grants and
+   * the events applied to it, and the links from the provider's ids to the user. For the day the
+   * account is deleted. A user billing has never seen is no error.
+   *
+   * No provider is told: a subscription that runs goes on and is charged, and the customer stays
+   * the provider's. An event that names the user and arrives afterwards starts their account anew.
+   */
+  forget(userId: string): Promise<void>
 }

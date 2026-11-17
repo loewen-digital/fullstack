@@ -1,4 +1,4 @@
-import { emptyAccount } from '../apply.js'
+import { emptyAccount, scopedId } from '../apply.js'
 import { BillingError } from '../errors.js'
 import type {
   BillingAccountRecord,
@@ -18,6 +18,7 @@ import type {
  */
 export interface FlatdbBillingAdapter {
   read(path: string): Promise<string | null>
+  delete(path: string): Promise<void>
   readVersioned?(path: string): Promise<{ data: string | null; version: string | null }>
   writeIf?(path: string, data: string, version: string | null): Promise<string | null>
 }
@@ -46,6 +47,11 @@ const ATTEMPTS = 20
  * events for one user that arrive in the same instant are both kept, and the same event
  * delivered twice at once is applied once. The guarantee is the adapter's: across every
  * Worker isolate with `R2Adapter`, within one process with `FsAdapter`.
+ *
+ * `forget` deletes the account file and the links of the ids that file names: the customer the
+ * user is at each provider, and every holding. Those are the ids billing links for a user; a link
+ * the file does not name is not found (docs/decisions/0041). A link is only deleted while it
+ * leads to this user.
  *
  * Usage:
  *   const adapter = new R2Adapter({ bucket: env.DATA })
@@ -97,12 +103,60 @@ export function createFlatdbBillingStore(config: FlatdbBillingStoreConfig): Bill
     },
 
     async findUserId(kind, id) {
-      const data = await adapter.read(refPath(kind, id))
-      if (data === null) return null
-      const ref: unknown = JSON.parse(data)
-      return isRecord(ref) && typeof ref.userId === 'string' ? ref.userId : null
+      return ownerAt(refPath(kind, id))
+    },
+
+    async forget(userId) {
+      const path = accountPath(userId)
+      const data = await adapter.read(path)
+      if (data === null) return
+      // The links first: an account without its links is found and forgotten again when this
+      // stops halfway, links without their account are not.
+      for (const [kind, id] of linkedIn(data)) {
+        const ref = refPath(kind, id)
+        if ((await ownerAt(ref)) === userId) await adapter.delete(ref)
+      }
+      await adapter.delete(path)
     },
   }
+
+  /** The user a link file leads to */
+  async function ownerAt(path: string): Promise<string | null> {
+    const data = await adapter.read(path)
+    if (data === null) return null
+    const ref: unknown = JSON.parse(data)
+    return isRecord(ref) && typeof ref.userId === 'string' ? ref.userId : null
+  }
+}
+
+/**
+ * The provider ids an account file names, the way they are linked. Read without the checks of
+ * `parseAccount`: a file the store refuses to use (one of fullstack 0.7, one that was edited by
+ * hand) has to go as well, with whatever of its links can still be told.
+ */
+function linkedIn(data: string): [BillingRefKind, string][] {
+  let doc: unknown
+  try {
+    doc = JSON.parse(data)
+  } catch {
+    return []
+  }
+  if (!isRecord(doc)) return []
+  const links: [BillingRefKind, string][] = []
+  const add = (kind: BillingRefKind, provider: unknown, id: unknown): void => {
+    if (typeof provider !== 'string' || typeof id !== 'string') return
+    const scoped = scopedId(provider, id)
+    if (isFileName(scoped)) links.push([kind, scoped])
+  }
+  if (isRecord(doc.customers)) {
+    for (const [provider, id] of Object.entries(doc.customers)) add('customer', provider, id)
+  }
+  if (Array.isArray(doc.holdings)) {
+    for (const holding of doc.holdings) {
+      if (isRecord(holding)) add('holding', holding.provider, holding.id)
+    }
+  }
+  return links
 }
 
 /**
@@ -111,18 +165,28 @@ export function createFlatdbBillingStore(config: FlatdbBillingStoreConfig): Bill
  * that ignores case; `/` and `.` cannot leave the folder.
  */
 function fileName(id: string): string {
-  let name = ''
-  for (const byte of new TextEncoder().encode(id)) {
-    const char = String.fromCharCode(byte)
-    name += /[a-z0-9_-]/.test(char) ? char : `~${byte.toString(16).padStart(2, '0')}`
-  }
-  if (name === '' || name.length > 200) {
+  const name = escaped(id)
+  if (!fits(name)) {
     throw new BillingError(
       `flatdb billing store: ${JSON.stringify(id)} cannot be a file name (empty, or too long).`,
     )
   }
   return name
 }
+
+function escaped(id: string): string {
+  let name = ''
+  for (const byte of new TextEncoder().encode(id)) {
+    const char = String.fromCharCode(byte)
+    name += /[a-z0-9_-]/.test(char) ? char : `~${byte.toString(16).padStart(2, '0')}`
+  }
+  return name
+}
+
+const fits = (name: string): boolean => name !== '' && name.length <= 200
+
+/** Whether an id can be a file name; one that cannot was never linked */
+const isFileName = (id: string): boolean => fits(escaped(id))
 
 // Dates are stored as ISO 8601 strings (JSON has no `Date`) and returned as `Date`.
 function serializeAccount(account: BillingAccountRecord): Record<string, unknown> {

@@ -12,6 +12,7 @@ import type { UsageBalanceRecord, UsagePeriodRecord, UsageRecord, UsageStore } f
  */
 export interface FlatdbUsageAdapter {
   read(path: string): Promise<string | null>
+  delete(path: string): Promise<void>
   readVersioned?(path: string): Promise<{ data: string | null; version: string | null }>
   writeIf?(path: string, data: string, version: string | null): Promise<string | null>
 }
@@ -37,6 +38,9 @@ const ATTEMPTS = 20
  * so calls that spend at the same time cannot together spend more than there is. The guarantee
  * is the adapter's: across every Worker isolate with `R2Adapter`, within one process with
  * `FsAdapter`.
+ *
+ * `forget` deletes the file, so nothing named after the subject stays. It does not read it
+ * first: a file the store refuses to use can be forgotten too.
  *
  * Usage:
  *   const adapter = new R2Adapter({ bucket: env.DATA })
@@ -76,6 +80,10 @@ export function createFlatdbUsageStore(config: FlatdbUsageStoreConfig): UsageSto
         `flatdb usage store: the record of ${JSON.stringify(subject)} could not be written, ` +
           `${ATTEMPTS} attempts lost against other writers.`,
       )
+    },
+
+    async forget(subject) {
+      await adapter.delete(pathOf(subject))
     },
   }
 }

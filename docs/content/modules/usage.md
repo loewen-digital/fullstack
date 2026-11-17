@@ -180,6 +180,24 @@ Amounts are whole numbers, 0 or more; anything else throws. With fractions, "is 
 
 Amounts stay exact up to `Number.MAX_SAFE_INTEGER`, about 9 × 10¹⁵; a credit that would go beyond throws.
 
+## When an account is deleted
+
+What a subject spent and what it has left is data about the account behind it. `usage.forget(subject)` removes the subject's record, with every balance in it.
+
+```ts
+// src/lib/server/account.ts
+import { usage } from '#lib/server/usage.js'
+
+export async function deleteAccount(userId: string) {
+  await usage.forget(userId)
+  // ... then the rest of the account
+}
+```
+
+- **A subject usage has never seen is no error**, and neither is forgetting one twice.
+- **What was paid for goes with it.** A prepaid balance that is not spent is gone, without a trace of how much it was. Read `left` first when you owe a refund.
+- **Forget last.** Nothing remembers the subject afterwards, the keys of its credits included: a spend or a credit that arrives later starts the record anew, and a purchase event that is delivered again credits again. Stop what spends and credits for the account first.
+
 ## Stores
 
 | Store | | Holds its guarantee across |
@@ -193,6 +211,7 @@ The flatdb store writes `usage/<subject>.json` with the adapter's compare-and-sw
 - **`FsAdapter`**: holds within one process. Two processes on one folder are not coordinated.
 - **`prefix`** (default `usage`) is a folder below the adapter's root. Do not name a collection the same.
 - A file that is not a usage record is refused; the store never guesses a balance.
+- `forget` deletes the subject's file, so nothing named after the subject stays. It does not read the file first: one the store refuses can be forgotten too.
 
 ### Your own store
 
@@ -211,10 +230,13 @@ const ownStore: UsageStore = {
     if (record) records.set(subject, record)
     return result
   },
+  async forget(subject) {
+    records.delete(subject)
+  },
 }
 ```
 
-`transact` carries the guarantee: read the record, call `change`, store what it returns, and let no concurrent `transact` for the same subject slip in between. On SQL that is a transaction with a row lock, or a version column that the `UPDATE` checks. `change` is free of side effects, so call it again on the fresh record after a lost race; when it returns no `record`, write nothing. A record is plain JSON.
+`transact` carries the guarantee: read the record, call `change`, store what it returns, and let no concurrent `transact` for the same subject slip in between. On SQL that is a transaction with a row lock, or a version column that the `UPDATE` checks. `change` is free of side effects, so call it again on the fresh record after a lost race; when it returns no `record`, write nothing. A record is plain JSON. `forget` removes the record of a subject, and does nothing for one that has none.
 
 ## What it does not do
 

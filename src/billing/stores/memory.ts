@@ -33,5 +33,12 @@ export function createMemoryBillingStore(): BillingStore {
     async findUserId(kind: BillingRefKind, id) {
       return refs.get(`${kind}:${id}`) ?? null
     },
+
+    async forget(userId) {
+      accounts.delete(userId)
+      for (const [key, linked] of refs) {
+        if (linked === userId) refs.delete(key)
+      }
+    },
   }
 }
