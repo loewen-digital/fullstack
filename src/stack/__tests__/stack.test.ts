@@ -164,6 +164,33 @@ describe('createStack', () => {
     expect(stack.i18n.t('hello')).toBe('Hallo')
   })
 
+  it('knows the keys of the messages its config names', () => {
+    const stack = createStack({
+      i18n: {
+        locale: 'de',
+        fallback: 'en',
+        messages: {
+          en: { hello: 'Hello', auth: { errors: { invalid: 'Invalid' } } },
+          de: { hello: 'Hallo' },
+        },
+      },
+    })
+
+    expect(stack.i18n.t('auth.errors.invalid')).toBe('Invalid')
+    // @ts-expect-error not a key of the config's messages
+    expect(stack.i18n.t('helo')).toBe('helo')
+  })
+
+  it('takes any key for an i18n config whose messages are not known in the code', () => {
+    const messages: Record<string, Record<string, unknown>> = { de: { hello: 'Hallo' } }
+    const withLoaded = createStack({ i18n: { locale: 'de', messages } })
+    const without = createStack({ i18n: { locale: 'de' } })
+
+    expect(withLoaded.i18n.t('hello')).toBe('Hallo')
+    expect(withLoaded.i18n.t('anything.else')).toBe('anything.else')
+    expect(without.i18n.t('anything')).toBe('anything')
+  })
+
   it('hands the security module its own config type', async () => {
     const stack = createStack({
       security: {

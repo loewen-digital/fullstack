@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vite-plus/test'
 import { createI18n } from '../index.js'
+import type { I18nInstance } from '../index.js'
 import { pluralize } from '../pluralization.js'
 import { formatNumber, formatDate } from '../formatting.js'
 
@@ -33,7 +34,7 @@ describe('createI18n — t()', () => {
   })
 
   it('returns key when translation is missing', () => {
-    const i18n = createI18n({ messages })
+    const i18n: I18nInstance = createI18n({ messages })
     expect(i18n.t('missing.key')).toBe('missing.key')
   })
 

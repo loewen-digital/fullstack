@@ -32,7 +32,7 @@ import type { QueueInstance } from '../queue/index.js'
 import type { SecurityInstance } from '../security/index.js'
 import type { LoggerInstance } from '../logging/index.js'
 import type { SessionManager } from '../session/index.js'
-import type { I18nInstance } from '../i18n/index.js'
+import type { I18nInstance, MessageKey, Messages } from '../i18n/index.js'
 import type { NotificationsInstance } from '../notifications/index.js'
 import type { PermissionsInstance } from '../permissions/index.js'
 import type { SearchInstance } from '../search/index.js'
@@ -62,6 +62,11 @@ import { ConfigError } from '../errors/index.js'
 
 type IfPresent<T, V> = undefined extends T ? Record<never, never> : V
 
+/** The keys `t` takes for the `i18n` part of a config: those of its messages where they are known */
+type I18nKeys<Config> = Config extends { messages: infer M extends Messages }
+  ? MessageKey<M[keyof M]>
+  : string
+
 export type StackModules<C extends FullstackConfig> = IfPresent<C['db'], { db: DbInstance }> &
   IfPresent<C['auth'], { auth: AuthInstance }> &
   IfPresent<C['mail'], { mail: MailInstance }> &
@@ -71,7 +76,7 @@ export type StackModules<C extends FullstackConfig> = IfPresent<C['db'], { db: D
   IfPresent<C['security'], { security: SecurityInstance }> &
   IfPresent<C['logging'], { logging: LoggerInstance }> &
   IfPresent<C['session'], { session: SessionManager }> &
-  IfPresent<C['i18n'], { i18n: I18nInstance }> &
+  IfPresent<C['i18n'], { i18n: I18nInstance<I18nKeys<C['i18n']>> }> &
   IfPresent<C['notifications'], { notifications: NotificationsInstance }> &
   IfPresent<C['permissions'], { permissions: PermissionsInstance }> &
   IfPresent<C['search'], { search: SearchInstance }> &

@@ -1,39 +1,31 @@
 // i18n module — Task 2.4
 
-import type { I18nConfig, I18nInstance } from './types.js'
+import type { I18nConfig, I18nInstance, MessageKey, Messages } from './types.js'
+import { textOf } from './catalog.js'
 import { pluralize } from './pluralization.js'
 import { formatNumber, formatDate } from './formatting.js'
 
-export type { I18nConfig, I18nInstance } from './types.js'
+export type { I18nConfig, I18nInstance, MessageKey, Messages, MissingKey } from './types.js'
+export { missingKeys } from './missing.js'
 export { negotiateLocale } from './negotiate.js'
 
-export function createI18n(config: I18nConfig = {}): I18nInstance {
+/**
+ * Translations for one active locale. With `messages` whose names are known when the code is
+ * checked (an object in the source, an imported JSON file), `t` and `tn` take only keys that have
+ * a text in one of the locales; with catalogs that were loaded at runtime they take any string.
+ */
+export function createI18n<M extends Messages = Messages>(
+  config: I18nConfig<M> = {},
+): I18nInstance<MessageKey<M[keyof M]>> {
   let activeLocale = config.locale ?? 'en'
   const fallback = config.fallback ?? 'en'
-  const messages: Record<string, Record<string, unknown>> = {
-    ...config.messages,
-  }
-
-  /** Dot-notation key lookup in a flat or nested messages object */
-  function lookup(locale: string, key: string): string | undefined {
-    const catalog = messages[locale]
-    if (!catalog) return undefined
-
-    // Direct key
-    if (typeof catalog[key] === 'string') return catalog[key] as string
-
-    // Dot-notation traversal
-    const parts = key.split('.')
-    let current: unknown = catalog
-    for (const part of parts) {
-      if (current === null || typeof current !== 'object') return undefined
-      current = (current as Record<string, unknown>)[part]
-    }
-    return typeof current === 'string' ? current : undefined
-  }
+  const messages: Messages = { ...config.messages }
 
   function resolve(key: string): string {
-    return lookup(activeLocale, key) ?? lookup(fallback, key) ?? key
+    const text = textOf(messages[activeLocale], key) ?? textOf(messages[fallback], key)
+    if (text !== undefined) return text
+    config.onMissing?.(key, activeLocale)
+    return key
   }
 
   function interpolate(template: string, params?: Record<string, string | number>): string {
