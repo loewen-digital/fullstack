@@ -143,7 +143,8 @@ The core **never** imports or depends on any framework-specific code. Every modu
 │   │   │   └── flatdb.ts        → on flatdb's StorageAdapter, compare-and-swap per user
 │   │   └── types.ts
 │   ├── i18n/
-│   │   ├── index.ts             → createI18n()
+│   │   ├── index.ts             → createI18n(), free of Node: it is imported into components too
+│   │   ├── node.ts              → loadTranslations(), the entry `/i18n/node`
 │   │   ├── pluralization.ts
 │   │   ├── formatting.ts
 │   │   └── types.ts
@@ -260,6 +261,7 @@ The core **never** imports or depends on any framework-specific code. Every modu
     "./notifications": "./dist/notifications/index.js",
     "./notifications/flatdb": "./dist/notifications/stores/flatdb.js",
     "./i18n": "./dist/i18n/index.js",
+    "./i18n/node": "./dist/i18n/node.js",
     "./search": "./dist/search/index.js",
     "./permissions": "./dist/permissions/index.js",
     "./webhooks": "./dist/webhooks/index.js",

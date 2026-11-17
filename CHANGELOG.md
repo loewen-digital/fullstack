@@ -7,6 +7,8 @@ is the topmost released one here.
 
 ## Unreleased
 
+- **Breaking:** `loadTranslations` moved from `@loewen-digital/fullstack/i18n` to `@loewen-digital/fullstack/i18n/node`; the package root exports it as before. What is left in `/i18n` needs nothing from Node, so a client build that imports `createI18n` into a component no longer prints `Module "node:fs/promises" has been externalized for browser compatibility`. Where you read catalogs from files, change the import. There is no re-export from the old place: with one, the bundler finds `node:fs` again and the warning stays ([decision 0037](docs/decisions/0037-i18n-node-entry.md)). (#48)
+
 ## v0.8.0 · 2026-11-17 · Push notifications, and purchases from the app stores
 
 - Billing: an app sells in several places and keeps one account per user. `drivers: { paddle: 'paddle', app: storeDriver }` puts providers side by side, each under a name of your choice, and a product says what it is called at each: `providerId: { paddle: 'pri_…', app: 'com.example.pro' }`. `checkout`, `handleWebhook` and `manageUrl` take `provider`, so a checkout names where to buy and each webhook route hands its request to the driver it belongs to. Every holding and every event says who sold it (`provider`), `billing.account(userId).holdings` has the purchases from all providers, and `entitlements()` answers from all of them. A product bought once on the web and once in a store is two holdings, and access lasts while either grants; the billing page says what that means for canceling. The ids of two providers never meet: purchases, customers and events count per provider. A config with one `driver` works as before; its provider is named after the driver. Decision: [0033](docs/decisions/0033-billing-providers.md). (#52)

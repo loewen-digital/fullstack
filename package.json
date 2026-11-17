@@ -95,6 +95,10 @@
       "import": "./dist/i18n/index.js",
       "types": "./dist/i18n/index.d.ts"
     },
+    "./i18n/node": {
+      "import": "./dist/i18n/node.js",
+      "types": "./dist/i18n/node.d.ts"
+    },
     "./search": {
       "import": "./dist/search/index.js",
       "types": "./dist/search/index.d.ts"

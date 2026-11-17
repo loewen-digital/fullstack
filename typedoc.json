@@ -8,6 +8,7 @@
     "src/logging/index.ts",
     "src/events/index.ts",
     "src/i18n/index.ts",
+    "src/i18n/node.ts",
     "src/db/index.ts",
     "src/auth/index.ts",
     "src/session/index.ts",

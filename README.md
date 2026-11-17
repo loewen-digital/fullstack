@@ -73,7 +73,7 @@ All subpaths sit below `@loewen-digital/fullstack`. Each module's page lists its
 | Errors | `/errors` | `FullstackError` and the HTTP errors, `errorToResponse`, `isFullstackError` |
 | Permissions | `/permissions` | `createPermissions`: roles with wildcards and inheritance, policies, `can` and `authorize` |
 | Notifications | `/notifications`, `/notifications/flatdb` | `createNotifications`: one `notify` call fans out to mail, in-app, SMS and push, and answers what happened on each. Push keeps a register of each user's devices in a memory or flatdb store and ships two drivers without a dependency: Web Push (RFC 8291 encryption and VAPID on Web Crypto) for browsers and installed web apps, and APNs for an iPhone or iPad app from the App Store |
-| i18n | `/i18n` | `createI18n`: `t`, `tn` for plurals, `number`, `date`, `loadTranslations` |
+| i18n | `/i18n` | `createI18n`: `t`, `tn` for plurals, `number`, `date`; `loadTranslations` from `/i18n/node` |
 | Search | `/search` | `createSearch`: SQLite FTS5 via `better-sqlite3`, Meilisearch, Typesense |
 | Webhooks | `/webhooks` | `createWebhooks`: verify signed incoming webhooks, send outgoing ones with retries and a delivery log |
 | Realtime | `/realtime` | `createRealtime`: channels with `broadcast`, `sse()` as a streaming `Response` |

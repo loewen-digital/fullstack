@@ -61,7 +61,8 @@ export type { EventMap, EventListener, EventBusInstance } from './events/index.j
 export { createEventBus, defineEvents } from './events/index.js'
 
 export type { I18nConfig, I18nInstance } from './i18n/index.js'
-export { createI18n, loadTranslations } from './i18n/index.js'
+export { createI18n } from './i18n/index.js'
+export { loadTranslations } from './i18n/node.js'
 
 // Phase 4: Infrastructure Modules
 

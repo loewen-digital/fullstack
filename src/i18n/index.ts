@@ -70,27 +70,3 @@ export function createI18n(config: I18nConfig = {}): I18nInstance {
     },
   }
 }
-
-/**
- * Load translations from a directory of JSON files.
- * Each file is named after the locale (e.g. en.json, fr.json).
- * Node.js only.
- */
-export async function loadTranslations(
-  directory: string,
-): Promise<Record<string, Record<string, unknown>>> {
-  const { readdir, readFile } = await import('node:fs/promises')
-  const { join } = await import('node:path')
-
-  const files = await readdir(directory)
-  const result: Record<string, Record<string, unknown>> = {}
-
-  for (const file of files) {
-    if (!file.endsWith('.json')) continue
-    const locale = file.slice(0, -5)
-    const content = await readFile(join(directory, file), 'utf8')
-    result[locale] = JSON.parse(content) as Record<string, unknown>
-  }
-
-  return result
-}

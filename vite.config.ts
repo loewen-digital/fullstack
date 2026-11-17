@@ -20,6 +20,7 @@ const entries: Record<string, string> = {
   'notifications/index': 'src/notifications/index.ts',
   'notifications/stores/flatdb': 'src/notifications/stores/flatdb.ts',
   'i18n/index': 'src/i18n/index.ts',
+  'i18n/node': 'src/i18n/node.ts',
   'search/index': 'src/search/index.ts',
   'permissions/index': 'src/permissions/index.ts',
   'webhooks/index': 'src/webhooks/index.ts',
