@@ -26,6 +26,8 @@ import type {
 } from './types.js'
 
 export type {
+  AppStoreDriverConfig,
+  AppStoreEnvironment,
   BillingAccount,
   BillingAccountRecord,
   BillingCheckout,
@@ -65,6 +67,7 @@ export type {
 } from './types.js'
 export type { BillingPurchaseReason } from './errors.js'
 export { BillingError, BillingPurchaseError, BillingWebhookError } from './errors.js'
+export { appStoreAccountToken, createAppStoreDriver } from './drivers/app-store.js'
 export { createConsoleDriver } from './drivers/console.js'
 export { createPaddleDriver } from './drivers/paddle.js'
 export { createMemoryBillingStore } from './stores/memory.js'

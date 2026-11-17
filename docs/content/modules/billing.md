@@ -1,6 +1,6 @@
 ---
 title: Billing
-description: Checkouts for one-time purchases and subscriptions through Paddle or a driver of your own, several providers in one account, purchases made in a store app, what each user holds from verified provider events, and what that lets them use
+description: Checkouts for one-time purchases and subscriptions through Paddle, purchases made in an iOS app through the App Store, or a driver of your own, several providers in one account, what each user holds from verified provider events, and what that lets them use
 ---
 
 # Billing
@@ -9,7 +9,7 @@ description: Checkouts for one-time purchases and subscriptions through Paddle o
 
 Nothing is ever granted because a browser came back from a checkout, or because a client says it bought something. State changes only through what a driver verified: a provider's webhook, or the proof of a purchase made on the device.
 
-Two drivers ship with the module. `console` takes no money; it is for building the flow before a provider account exists. `paddle` sells through Paddle Billing, see [The Paddle driver](#the-paddle-driver). Going from one to the other is a change of config and secrets, plus the page that opens Paddle's checkout. Any other provider is a [driver of your own](#your-own-driver).
+Three drivers ship with the module. `console` takes no money; it is for building the flow before a provider account exists. `paddle` sells through Paddle Billing, see [The Paddle driver](#the-paddle-driver). Going from one to the other is a change of config and secrets, plus the page that opens Paddle's checkout. `createAppStoreDriver` takes what a web app shipped as an iOS app sells through Apple's in-app purchase, see [The App Store driver](#the-app-store-driver). Any other provider is a [driver of your own](#your-own-driver).
 
 An app that sells in more than one place, on the web through Paddle and inside its store app through the store, puts the drivers side by side and keeps one account per user: see [Several providers](#several-providers) and [Purchases made on the device](#purchases-made-on-the-device).
 
@@ -52,7 +52,7 @@ export const billing = createBilling({
 | Option | | |
 |---|---|---|
 | `driver` | this or `drivers` | One provider: `'console'`, `'paddle'`, or a `BillingDriver` |
-| `drivers` | this or `driver` | Several providers, each under a name of your choice: `{ paddle: 'paddle', app: storeDriver }`. See [Several providers](#several-providers) |
+| `drivers` | this or `driver` | Several providers, each under a name of your choice: `{ paddle: 'paddle', app: createAppStoreDriver(…) }`. See [Several providers](#several-providers) |
 | `products` | required | What the app sells: `{ [key]: { type, providerId, features?, limits? } }`. With `drivers`, `providerId` is the id at each provider: `{ paddle: 'pri_…', app: 'com.example.pro' }`. Two products with the same id at one provider throw |
 | `store` | required | Where accounts are kept. There is no default: purchases in the memory of one process are lost with it |
 | `console` | optional | Options of the console driver: `webhookUrl` (default `/billing/webhook`), `periodDays` (default 30) |
@@ -298,13 +298,13 @@ A user id is whatever your app bills: billing never looks at it. A CMS with a pl
 One `driver` is one provider. An app that sells in several places names them in `drivers` instead, each under a name of your choice, and says for each product what it is called where:
 
 ```ts
-import { createBilling, createMemoryBillingStore } from '@loewen-digital/fullstack/billing'
-import type { BillingDriver } from '@loewen-digital/fullstack/billing'
-
-declare const storeDriver: BillingDriver // the driver of an app store: one of your own, for now
+import { createAppStoreDriver, createBilling, createMemoryBillingStore } from '@loewen-digital/fullstack/billing'
 
 const shop = createBilling({
-  drivers: { paddle: 'paddle', app: storeDriver },
+  drivers: {
+    paddle: 'paddle',
+    app: createAppStoreDriver({ bundleId: 'com.example.app', environment: 'production' }),
+  },
   paddle: {
     apiKey: process.env.PADDLE_API_KEY!,
     webhookSecret: process.env.PADDLE_WEBHOOK_SECRET!,
@@ -354,7 +354,7 @@ async function showsWhatAUserHolds(userId: string) {
 
 ## Purchases made on the device
 
-In an app from an app store the purchase does not start on your server. The store's code in the app takes the money and hands the app a proof: a signed transaction, a purchase token. Your server learns of the purchase when the app hands that proof over, together with the signed-in user:
+In an app from an app store the purchase does not start on your server. The store's code in the app takes the money and hands the app a proof: a signed transaction, a purchase token. Your server learns of the purchase when the app hands that proof over, together with the signed-in user. For Apple's App Store that is [the App Store driver](#the-app-store-driver); the route is the same for every store:
 
 ```ts
 // src/routes/billing/purchase/+server.ts
@@ -579,6 +579,190 @@ The tests of the driver run without a network, against Paddle's documented notif
 | `PADDLE_SANDBOX` | `true` everywhere but production | `paddle.sandbox` |
 | client-side token | public | `Paddle.Initialize` on the checkout page |
 
+## The App Store driver
+
+`createAppStoreDriver` takes what a web app shipped as an iOS app sells through Apple's in-app purchase. The purchase is made on the device, by StoreKit in the app's shell. The driver verifies what the App Store signed and reads it: the signed transaction the app hands over, and the notifications Apple posts to your webhook route. It asks Apple nothing and holds no secret, so it adds no dependency and runs on Node and on Cloudflare Workers, on Web Crypto alone.
+
+```ts
+import { appStoreAccountToken, createAppStoreDriver, createBilling, createMemoryBillingStore } from '@loewen-digital/fullstack/billing'
+
+const appStore = (environment: 'production' | 'sandbox') =>
+  createAppStoreDriver({ bundleId: 'com.example.app', environment })
+
+const appBilling = createBilling({
+  // The same driver twice: what Apple's sandbox signed never lands where paid purchases are.
+  drivers: { paddle: 'paddle', app: appStore('production'), 'app-sandbox': appStore('sandbox') },
+  paddle: {
+    apiKey: process.env.PADDLE_API_KEY!,
+    webhookSecret: process.env.PADDLE_WEBHOOK_SECRET!,
+  },
+  store: createMemoryBillingStore(), // your flatdb store, as in Setup
+  products: {
+    unlock: {
+      type: 'one-time',
+      providerId: { paddle: 'pri_01h…', app: 'unlock', 'app-sandbox': 'unlock' }, // Apple's product id
+      features: ['themes'],
+    },
+    pro: {
+      type: 'subscription',
+      providerId: { paddle: 'pri_01j…', app: 'pro.monthly', 'app-sandbox': 'pro.monthly' },
+      features: ['themes', 'export'],
+    },
+  },
+})
+```
+
+| Option | | |
+|---|---|---|
+| `bundleId` | required | The bundle id of the app. What Apple signed for another app is refused |
+| `environment` | required | `'production'` or `'sandbox'`. One driver takes one of them and refuses the other, see [Sandbox and production](#sandbox-and-production) |
+| `rootCertificates` | optional | The root certificates a signature may lead to, as DER bytes, base64 or PEM. Default: Apple Root CA - G3, which ships with the driver. For tests that sign with a chain of their own |
+
+The driver has no `checkout()`: it throws, because the purchase starts on the device. A product is `type: 'subscription'` for an auto-renewable subscription and `type: 'one-time'` for everything else Apple sells (non-consumable, consumable, non-renewing subscription); a purchase of the other kind than the config says is refused with a `BillingError` that names both.
+
+### The account token
+
+Apple does not know your users. The app says whose purchase it is: it buys with an account token, a UUID, and Apple signs that token into the transaction and into every notification about it. `appStoreAccountToken(userId)` is the token of a user:
+
+```ts
+// What the page asks your server for before it lets the app buy.
+async function answersTheAccountToken(userId: string) {
+  return { appAccountToken: await appStoreAccountToken(userId) } // for the user of the session
+}
+```
+
+The page hands the token to the app's shell together with the product, and the shell buys with it: `product.purchase(options: [.appAccountToken(token)])` in StoreKit 2.
+
+- **How it is derived.** A version 5 UUID of the user id in the namespace `1f6dc268-0ded-4a8f-85f4-e05e552c9048`. The same user id gives the same token every time, in any language that has UUID v5, and the token does not give the id away.
+- **A purchase is refused without it.** A transaction that carries no account token is `invalid`; one with the token of another user is `other-user`. So nobody gets a purchase by sending a transaction that is not theirs, also not one they got hold of before its owner handed it over.
+- **It is the customer.** The token is stored as the user's customer at this provider, `account.customers`. Once a user has handed one purchase over, a notification about any later purchase of theirs finds them through it.
+- **Purchases outside the app** carry no token: an offer code redeemed in the App Store, a purchase a family member shares. They are not taken.
+
+### Handing a purchase over
+
+After a purchase StoreKit gives the shell a transaction, and `jwsRepresentation` of it is the proof: one string, signed by the App Store. The shell hands it to the page, the page posts it:
+
+```ts
+// src/routes/billing/app-store/+server.ts
+import { error, json } from '@sveltejs/kit'
+import { BillingPurchaseError } from '@loewen-digital/fullstack/billing'
+import { billing } from '#lib/server/billing.js'
+import type { RequestHandler } from './$types'
+
+export const POST: RequestHandler = async ({ request, locals }) => {
+  if (!locals.authSession) error(401)
+  const body = (await request.json()) as { transaction?: unknown; sandbox?: unknown }
+
+  try {
+    const { events } = await billing.verifyPurchase({
+      // Which provider is a hint from the app, and nothing more: a transaction of the other
+      // environment is refused by the driver, whatever the body says.
+      provider: body.sandbox === true ? 'app-sandbox' : 'app',
+      userId: String(locals.authSession.userId),
+      proof: body.transaction,
+    })
+    return json({ done: true, changed: events.length }) // the shell may `finish()` the transaction
+  } catch (cause) {
+    if (cause instanceof BillingPurchaseError) {
+      error(cause.reason === 'other-user' ? 409 : 422, cause.message)
+    }
+    throw cause
+  }
+}
+```
+
+The driver checks, in this order: the signature and its certificate chain up to Apple's root, the bundle id, the environment, the account token. Then it reads the transaction:
+
+| The transaction | becomes |
+|---|---|
+| a non-consumable, a consumable, a non-renewing subscription | `purchase.completed`; the holding is the transaction |
+| an auto-renewable subscription the customer bought | `subscription.started`, paid until `expiresDate`; the holding is the first transaction of the subscription, for every renewal and every product of its group |
+| …that Apple renewed (`transactionReason: RENEWAL`) | `subscription.renewed` |
+| …with a `revocationDate` | the same, and `payment.refunded` after it |
+| a subscription period that is over, a transaction an upgrade replaced | nothing: `events` is empty |
+
+- **Hand it over when it is made, and again on every start.** `Transaction.unfinished` and `Transaction.currentEntitlements` are what to post. A purchase that is already in the account is skipped as `duplicate`.
+- **Finish after the answer.** Let the shell call `finish()` on the transaction once the route answered: StoreKit keeps an unfinished transaction and hands it out again, which is the retry when your server was not reachable.
+- **A period that is over starts nothing.** An old transaction would otherwise start a subscription that nothing ends. The subscription a user holds today is in the transaction of its current period.
+- **A consumable is a holding of its own** per purchase, and it stays `active`: sell consumables as products without features and credit them from the event, as in [usage](/modules/usage). The `quantity` of a purchase is not read; sell a pack as a product of its own.
+
+### Notifications
+
+What happens after the purchase (a renewal, a cancel, a failed payment, a refund) Apple tells your server, not the device. In App Store Connect, under App Information, App Store Server Notifications, set the Production Server URL and the Sandbox Server URL to two routes of your app, both as **Version 2**:
+
+```ts
+// The route behind the Production Server URL; the one of the sandbox names 'app-sandbox'.
+async function takesAppStoreNotifications(request: Request) {
+  const { response, events } = await appBilling.handleWebhook(request, { provider: 'app' })
+  for (const event of events) {
+    console.log(`${event.type} for user ${event.userId}: ${event.product}`)
+  }
+  return response
+}
+```
+
+The driver verifies the notification like a transaction, and the transaction inside it once more on its own: signature, chain, bundle id, environment. What does not verify is answered with `401`, a notification for another app or from the other environment with `400`; nothing is changed.
+
+| Apple | becomes |
+|---|---|
+| any notification below, for a transaction billing has not seen | first what the transaction says, as in the table above |
+| `ONE_TIME_CHARGE`, `SUBSCRIBED`, `DID_RENEW` | that alone |
+| `DID_CHANGE_RENEWAL_PREF` or `OFFER_REDEEMED` with `UPGRADE` | `subscription.changed` to the new product; a downgrade changes nothing until it renews |
+| `DID_CHANGE_RENEWAL_STATUS` with `AUTO_RENEW_DISABLED` | `subscription.canceled`, access until `expiresDate` |
+| …with `AUTO_RENEW_ENABLED`, while the subscription runs | `subscription.changed`: the cancel is taken back |
+| `DID_FAIL_TO_RENEW` with `GRACE_PERIOD` | `payment.failed`: `past_due`, access stays while Apple tries |
+| `DID_FAIL_TO_RENEW` without | `payment.failed`, then `subscription.canceled` with access until `expiresDate` |
+| `GRACE_PERIOD_EXPIRED` | `subscription.canceled`, access ended |
+| `EXPIRED` | `subscription.canceled`, access ended at `expiresDate` |
+| `REFUND`, `REVOKE` | `payment.refunded`, from the `revocationDate` of the transaction |
+| `REFUND_REVERSED` | `purchase.completed`, or `subscription.renewed` for a period that still runs |
+| everything else (`TEST`, `PRICE_INCREASE`, `CONSUMPTION_REQUEST`, …) | nothing, answered with `200` |
+
+What to know:
+
+- **Without notifications nothing ever ends.** A purchase is in the account as soon as the app hands it over, with or without notifications. A subscription ends only when Apple says so, here. An app that takes purchases and never set the two URLs gives every subscription away for good, and nothing looks broken. See a `subscription.renewed` arrive in the sandbox before you sell.
+- **A proof and a notification are one event.** Both tell a purchase under the id of its transaction, so it reaches your side effects once, whichever arrives first. What only a notification tells (a cancel, an expiry) has the id of the notification, which Apple keeps when it delivers again.
+- **A notification before the proof.** One that names a purchase nobody handed over, by a user who has handed none over yet, is answered with `409`. Apple delivers again after 1, 12, 24, 48 and 72 hours, in production; the sandbox tries once.
+- **A purchase that is handed over very late can be stale.** When Apple has stopped trying, what it told is lost. A transaction the app hands over after that still starts its purchase, also one Apple has refunded in the meantime. The driver does not ask Apple; an app that needs to be sure asks the App Store Server API with a key of its own before it calls `verifyPurchase`.
+- **The grace period is Apple's.** Set a Billing Grace Period in App Store Connect and a failed renewal keeps its access while Apple tries, as `past_due`; `entitlements.pastDueGraceDays` can shorten that, not extend it. Without one Apple's word is to stop, and the subscription is `canceled` with the period it was paid for. A renewal that comes after all makes it `active` again.
+- **An upgrade** is `subscription.changed` when the notification brings it, and `subscription.started` when the app hands the new transaction over first: a transaction does not say that it replaced another. The state is the same.
+- **A refund** counts when it takes the purchase away, however large it is. For a subscription that is a refund of the period that was running; one of a period that had ended leaves the subscription as it is.
+- **The manage link** is `https://apps.apple.com/account/subscriptions`, Apple's page for subscriptions, for a user who holds one; `null` otherwise. A one-time purchase has nothing to manage.
+- **What is checked on a signature.** The algorithm is ES256 and nothing else; the header carries three certificates; the second is issued by a root of the config and may issue certificates; the first is issued by the second; both carry the extensions Apple marks its App Store certificates with; all three were valid when the data was signed. That is what Apple's own server library checks. The driver asks no revocation service, and the root that ships with it runs out in 2039.
+- **Not taken:** purchases made in Xcode with a StoreKit configuration file, which Xcode signs, not Apple; receipts of the original StoreKit; version 1 notifications; Family Sharing; a renewal date you extend through Apple's API.
+
+### Sandbox and production
+
+Apple runs two environments, and everything it signs says which one it is from. A purchase in the sandbox costs nothing, so a driver takes one environment and refuses the other: configure the driver twice, as above, and paid and free purchases are two providers that never mix. Every holding says which one sold it, in `holding.provider`.
+
+- **Production has to take sandbox purchases from someone.** While an app is in review, Apple buys in the sandbox, with the build you submitted, which talks to your production server. A server that refuses every sandbox purchase fails the review.
+- **Not from everyone.** Whoever has a TestFlight build of the app buys in the sandbox, for free. In production, let the sandbox provider in for the accounts you name, your testers and the account you give the review, and answer everyone else with `403` before `verifyPurchase` is called.
+- **Two webhook URLs.** Apple posts sandbox notifications to the Sandbox Server URL. A notification that reaches the route of the other environment is answered with `400`.
+
+### Trying it in the sandbox
+
+The tests of the driver run without a network: on payloads in the shape of Apple's reference, signed by a certificate chain the test makes for the run, and on Apple's real certificates for the check of the chain. Nothing was recorded from a sandbox account yet. To see it work against Apple yourself:
+
+1. In App Store Connect, create a non-consumable and an auto-renewable subscription for the app, and put their product ids into `products`, under the sandbox provider.
+2. Set `bundleId` to the app's bundle id and deploy a preview of your app: Apple has to reach it.
+3. Under App Information, App Store Server Notifications, set the Sandbox Server URL to the notification route of the preview, as Version 2.
+4. Create a Sandbox Apple Account under Users and Access, Sandbox.
+5. Install a development-signed build or a TestFlight build of the app, and sign in with the sandbox account when the purchase sheet asks (or under Settings, Developer, Sandbox Apple Account). A purchase made with a StoreKit configuration file in Xcode is signed by Xcode and refused.
+6. Buy both products. The purchase route answers, and `billing.account(userId)` shows an `active` holding for each, sold by `app-sandbox`. Post the same transaction again: nothing changes.
+7. Wait. The sandbox renews a subscription within minutes instead of months, up to twelve times, and then lets it expire: every renewal arrives as `subscription.renewed`, and the end as `subscription.canceled`. When nothing arrives, the URL of step 3 is wrong.
+8. Buy the subscription again and cancel it in the sandbox account's settings: the holding becomes `canceled` with `accessEndsAt` at the end of the period.
+9. Sign in as a second user of your app and post the transaction of the first: the answer is `409`.
+10. Post a transaction with one character changed, and a notification body with one character changed: `422` and `401`, and nothing changes.
+
+| Value | | Goes to |
+|---|---|---|
+| bundle id | public | `bundleId` |
+| the environment | `'production'` or `'sandbox'` | `environment`, one driver each |
+| product ids | public | `providerId` of each product, per provider |
+| Production Server URL, Sandbox Server URL | set in App Store Connect, Version 2 | the two notification routes |
+
+There is no secret among them: the driver verifies with Apple's public root and signs nothing.
+
 ## Your own driver
 
 A driver is three methods, and a fourth when purchases start on the device:
@@ -746,4 +930,4 @@ async function assertsPurchasesFromTheDevice() {
 
 ## What it does not do
 
-Tax, invoices, coupons and seats are the provider's. No driver for an app store ships with the module: `verifyPurchase` is where one plugs in, and until then a store is a [driver of your own](#your-own-driver). The code that buys on the device is the app's. The module counts no usage: a limit is a number the app reads, not a balance that is spent. It has no paywall and no pricing UI, and it is not `permissions`: that module answers what a role may do, this one what a user has paid for. Partial refunds have no event of their own: a driver reports `payment.refunded` when the purchase is gone, and nothing for a partial one.
+Tax, invoices, coupons and seats are the provider's. Of the app stores the module knows Apple's; Google Play is a [driver of your own](#your-own-driver), with `verifyPurchase` as the place where it plugs in. The code that buys on the device is the app's. The module counts no usage: a limit is a number the app reads, not a balance that is spent. It has no paywall and no pricing UI, and it is not `permissions`: that module answers what a role may do, this one what a user has paid for. Partial refunds have no event of their own: a driver reports `payment.refunded` when the purchase is gone, and nothing for a partial one.

@@ -275,6 +275,24 @@ export interface PaddleDriverConfig {
   toleranceSeconds?: number
 }
 
+/** The App Store runs two environments; what one signed is unknown to the other */
+export type AppStoreEnvironment = 'production' | 'sandbox'
+
+export interface AppStoreDriverConfig {
+  /** The bundle id of the app that sells. What the App Store signed for another app is refused */
+  bundleId: string
+  /**
+   * The environment this provider takes; what comes from the other one is refused. A purchase in
+   * the sandbox costs nothing: give the sandbox a provider of its own, under its own name.
+   */
+  environment: AppStoreEnvironment
+  /**
+   * The root certificates a signature's chain may end in, as DER bytes, base64 or PEM (default:
+   * Apple Root CA - G3). For tests that sign with a chain of their own.
+   */
+  rootCertificates?: readonly (Uint8Array | string)[]
+}
+
 export interface BillingEntitlementsConfig<
   D extends BillingEntitlementSet = BillingEntitlementSet,
 > {

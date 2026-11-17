@@ -1,0 +1,50 @@
+{
+  "notificationType": "SUBSCRIBED",
+  "subtype": "INITIAL_BUY",
+  "notificationUUID": "0a8e5a4c-5f0b-4c57-9d6b-3f1f6c1e7a01",
+  "data": {
+    "bundleId": "com.example.app",
+    "bundleVersion": "42",
+    "environment": "Sandbox",
+    "transaction": {
+      "transactionId": "2000000812345601",
+      "originalTransactionId": "2000000812345601",
+      "webOrderLineItemId": "2000000071234501",
+      "bundleId": "com.example.app",
+      "productId": "com.example.app.pro.monthly",
+      "subscriptionGroupIdentifier": "21500001",
+      "purchaseDate": 1794304800000,
+      "originalPurchaseDate": 1794304800000,
+      "expiresDate": 1796896800000,
+      "quantity": 1,
+      "type": "Auto-Renewable Subscription",
+      "appAccountToken": "cbc7db3e-63e2-5b9b-86a6-caf3a40e1481",
+      "inAppOwnershipType": "PURCHASED",
+      "signedDate": 1794304805000,
+      "environment": "Sandbox",
+      "transactionReason": "PURCHASE",
+      "storefront": "DEU",
+      "storefrontId": "143443",
+      "price": 4990,
+      "currency": "EUR",
+      "appTransactionId": "704500000000000001"
+    },
+    "renewalInfo": {
+      "originalTransactionId": "2000000812345601",
+      "autoRenewProductId": "com.example.app.pro.monthly",
+      "productId": "com.example.app.pro.monthly",
+      "autoRenewStatus": 1,
+      "renewalPrice": 4990,
+      "currency": "EUR",
+      "signedDate": 1794304805000,
+      "environment": "Sandbox",
+      "recentSubscriptionStartDate": 1794304800000,
+      "renewalDate": 1796896800000,
+      "appAccountToken": "cbc7db3e-63e2-5b9b-86a6-caf3a40e1481",
+      "appTransactionId": "704500000000000001"
+    },
+    "status": 1
+  },
+  "version": "2.0",
+  "signedDate": 1794304805000
+}

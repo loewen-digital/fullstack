@@ -59,7 +59,7 @@ src/
 ├── webhooks/             → createWebhooks(), incoming/outgoing
 ├── realtime/             → createRealtime(), websocket, SSE
 ├── feedback/             → createFeedbackHandler(), sinks (GitHub issue, KV)
-├── billing/              → createBilling(), entitlements, drivers/ (console, paddle), stores/ (memory, flatdb)
+├── billing/              → createBilling(), entitlements, drivers/ (console, paddle, app-store), stores/ (memory, flatdb)
 ├── usage/                → createUsage(), counted balances, stores/ (memory, flatdb)
 ├── testing/              → createTestStack(), fakes, factories, DB helpers
 ├── adapters/
