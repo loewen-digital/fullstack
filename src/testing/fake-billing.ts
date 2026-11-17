@@ -55,6 +55,8 @@ export interface FakeBillingEvent {
   id?: string
   occurredAt?: Date
   holdingId?: string
+  /** The holding this one takes the place of, as a provider that books a change as a new purchase says it */
+  replacesHoldingId?: string
   /** `subscription.started`, `renewed`, `changed` (default: `null`) */
   currentPeriodEnd?: Date | null
   /** `subscription.canceled` (default: the time of the event) */
@@ -111,6 +113,7 @@ export function createFakeBillingDriver(): FakeBillingDriver {
       holdingId:
         event.holdingId ??
         `fake_${event.userId ?? owner ?? event.customerId ?? 'nobody'}_${event.providerId}`,
+      ...(event.replacesHoldingId ? { replacesHoldingId: event.replacesHoldingId } : {}),
     }
     switch (event.type) {
       case 'subscription.started':

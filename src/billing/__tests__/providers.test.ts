@@ -12,6 +12,7 @@ import {
 import type { BillingDriver, BillingStore } from '../index.js'
 import { createFlatdbBillingStore } from '../stores/flatdb.js'
 import { createFakeBillingDriver } from '../../testing/index.js'
+import type { FakeBillingEvent } from '../../testing/index.js'
 
 // Sold on the web and in the app of a store; one thing only in the app, one only given by hand.
 const products = {
@@ -759,6 +760,198 @@ describe('telling the provider that a purchase was delivered', () => {
     })
     expect(unknown.skipped.map((entry) => entry.reason)).toEqual(['unknown-product'])
     expect(settled).toEqual([])
+  })
+})
+
+describe('a provider that books a change of plan as a new purchase', () => {
+  const plans = {
+    pro: { type: 'subscription', providerId: 'sku_pro', features: ['export'] },
+    team: { type: 'subscription', providerId: 'sku_team', features: ['export', 'seats'] },
+  } as const
+
+  function setup(options: { acceptUnmatched?: boolean } = {}) {
+    const fake = createFakeBillingDriver()
+    const settled: string[] = []
+    const driver: BillingDriver = {
+      ...fake,
+      async parseWebhook(request) {
+        return {
+          ...(await fake.parseWebhook(request)),
+          settle: async () => void settled.push('settled'),
+          ...(options.acceptUnmatched ? { acceptUnmatched: true } : {}),
+        }
+      },
+    }
+    const billing = createBilling({
+      driver,
+      store: createMemoryBillingStore(),
+      products: plans,
+      onError: (error) => {
+        throw error
+      },
+    })
+    const started = {
+      type: 'subscription.started',
+      id: 'evt_1',
+      providerId: 'sku_pro',
+      holdingId: 'tok_1',
+      occurredAt: at(0),
+      currentPeriodEnd: at(30),
+    } as const
+    const changed = {
+      type: 'subscription.changed',
+      id: 'evt_2',
+      providerId: 'sku_team',
+      holdingId: 'tok_2',
+      replacesHoldingId: 'tok_1',
+      occurredAt: at(10),
+      currentPeriodEnd: at(40),
+    } as const
+    return { billing, fake, settled, started, changed }
+  }
+
+  it('finds the user through the purchase that was replaced, and ends that purchase', async () => {
+    const { billing, fake, started, changed } = setup()
+    await billing.verifyPurchase({ userId: 'u1', proof: fake.proof(started) })
+
+    // The webhook names no user: the new purchase is the one of the old purchase's user.
+    const result = await billing.handleWebhook(fake.webhook(changed))
+
+    expect(result.response.status).toBe(200)
+    expect(result.events).toMatchObject([
+      {
+        type: 'subscription.changed',
+        userId: 'u1',
+        holdingId: 'tok_2',
+        replacesHoldingId: 'tok_1',
+      },
+    ])
+    expect((await billing.account('u1')).holdings).toMatchObject([
+      { id: 'tok_1', product: 'pro', status: 'canceled', accessEndsAt: at(10), updatedAt: at(10) },
+      { id: 'tok_2', product: 'team', status: 'active', accessEndsAt: null },
+    ])
+    expect((await billing.entitlements('u1', { now: at(11) })).products).toEqual(['team'])
+
+    // Later events of the new purchase find their user by themselves and end nothing again.
+    const renewed = await billing.handleWebhook(
+      fake.webhook({
+        ...changed,
+        type: 'subscription.renewed',
+        id: 'evt_3',
+        occurredAt: at(20),
+        currentPeriodEnd: at(50),
+      }),
+    )
+    expect(renewed.events).toHaveLength(1)
+    expect((await billing.account('u1')).holdings[0]).toMatchObject({ accessEndsAt: at(10) })
+  })
+
+  it('counts an event as applied when all it changes is the purchase it replaces', async () => {
+    const { billing, fake, started, changed } = setup()
+    await billing.verifyPurchase({ userId: 'u1', proof: fake.proof(started) })
+    // The new purchase is known already, from an event that did not say what it replaces.
+    await billing.verifyPurchase({
+      userId: 'u1',
+      proof: fake.proof({ ...changed, id: 'evt_0', replacesHoldingId: undefined }),
+    })
+    expect((await billing.account('u1')).holdings[0]?.status).toBe('active')
+
+    const result = await billing.handleWebhook(fake.webhook(changed))
+
+    expect(result.events).toHaveLength(1)
+    expect((await billing.account('u1')).holdings[0]).toMatchObject({
+      status: 'canceled',
+      accessEndsAt: at(10),
+    })
+  })
+
+  it('leaves a replaced purchase that is over, refunded or newer than the event', async () => {
+    const { billing, fake, started, changed } = setup()
+    const previous = (holdingId: string, last: FakeBillingEvent) =>
+      billing.verifyPurchase({
+        userId: 'u1',
+        proof: fake.proof([{ ...started, id: `${holdingId}_start`, holdingId }, last]),
+      })
+    await previous('over', {
+      type: 'subscription.canceled',
+      id: 'over_end',
+      providerId: 'sku_pro',
+      holdingId: 'over',
+      occurredAt: at(1),
+      accessEndsAt: at(5),
+    })
+    await previous('refunded', {
+      type: 'payment.refunded',
+      id: 'refunded_end',
+      providerId: 'sku_pro',
+      holdingId: 'refunded',
+      occurredAt: at(2),
+    })
+    await previous('newer', {
+      type: 'subscription.renewed',
+      id: 'newer_renewal',
+      providerId: 'sku_pro',
+      holdingId: 'newer',
+      occurredAt: at(15),
+      currentPeriodEnd: at(45),
+    })
+
+    for (const replacesHoldingId of ['over', 'refunded', 'newer', 'unknown', 'tok_2']) {
+      await billing.handleWebhook(
+        fake.webhook({
+          ...changed,
+          id: `evt_${replacesHoldingId}`,
+          userId: 'u1',
+          replacesHoldingId,
+        }),
+      )
+    }
+
+    expect((await billing.account('u1')).holdings).toMatchObject([
+      { id: 'over', status: 'canceled', accessEndsAt: at(5) },
+      { id: 'refunded', status: 'refunded', accessEndsAt: at(2) },
+      { id: 'newer', status: 'active', accessEndsAt: null },
+      { id: 'tok_2', status: 'active' },
+    ])
+  })
+
+  it('refuses a proof whose purchase replaces the purchase of another user', async () => {
+    const { billing, fake, started, changed } = setup()
+    await billing.verifyPurchase({ userId: 'u1', proof: fake.proof(started) })
+
+    const refused = await billing
+      .verifyPurchase({ userId: 'u2', proof: fake.proof(changed) })
+      .catch((error) => error)
+
+    expect(refused).toBeInstanceOf(BillingPurchaseError)
+    expect(refused.reason).toBe('other-user')
+    expect((await billing.account('u2')).holdings).toEqual([])
+    expect((await billing.account('u1')).holdings).toMatchObject([
+      { id: 'tok_1', status: 'active' },
+    ])
+  })
+
+  it('answers an event without a user with 409, unless the driver says a second delivery brings nothing', async () => {
+    const retried = setup()
+    const waiting = await retried.billing.handleWebhook(retried.fake.webhook(retried.started))
+    expect(waiting.response.status).toBe(409)
+    expect(retried.settled).toEqual([])
+
+    const accepted = setup({ acceptUnmatched: true })
+    const left = await accepted.billing.handleWebhook(accepted.fake.webhook(accepted.started))
+    expect(left.response.status).toBe(200)
+    expect(left.events).toEqual([])
+    expect(left.skipped.map((entry) => entry.reason)).toEqual(['unmatched'])
+    // Left, not delivered: the provider is not told that the purchase arrived.
+    expect(accepted.settled).toEqual([])
+
+    await accepted.billing.verifyPurchase({
+      userId: 'u1',
+      proof: accepted.fake.proof(accepted.started),
+    })
+    const known = await accepted.billing.handleWebhook(accepted.fake.webhook(accepted.started))
+    expect(known.skipped.map((entry) => entry.reason)).toEqual(['duplicate'])
+    expect(accepted.settled).toEqual(['settled'])
   })
 })
 

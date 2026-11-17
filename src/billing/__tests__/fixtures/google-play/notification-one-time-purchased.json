@@ -1,0 +1,11 @@
+{
+  "version": "1.0",
+  "packageName": "com.example.app",
+  "eventTimeMillis": "1794304801000",
+  "oneTimeProductNotification": {
+    "version": "1.0",
+    "notificationType": 1,
+    "purchaseToken": "fixture-one-time.AO-J1Oz-made-up-purchase-token-0002",
+    "sku": "unlock"
+  }
+}

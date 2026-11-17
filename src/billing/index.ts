@@ -61,6 +61,7 @@ export type {
   DriverPurchaseInput,
   DriverPurchaseResult,
   DriverWebhookResult,
+  GooglePlayDriverConfig,
   PaddleDriverConfig,
   ProviderEvent,
   PurchaseInput,
@@ -69,6 +70,7 @@ export type { BillingPurchaseReason } from './errors.js'
 export { BillingError, BillingPurchaseError, BillingWebhookError } from './errors.js'
 export { appStoreAccountToken, createAppStoreDriver } from './drivers/app-store.js'
 export { createConsoleDriver } from './drivers/console.js'
+export { createGooglePlayDriver } from './drivers/google-play.js'
 export { createPaddleDriver } from './drivers/paddle.js'
 export { createMemoryBillingStore } from './stores/memory.js'
 
@@ -165,18 +167,25 @@ export function createBilling<
       : null
 
   /** The ids of an event that are linked to its user */
-  const refsOf = (event: ProviderEvent): [BillingRefKind, string][] =>
-    event.customerId
-      ? [
-          ['holding', event.holdingId],
-          ['customer', event.customerId],
-        ]
-      : [['holding', event.holdingId]]
+  const refsOf = (event: ProviderEvent): [BillingRefKind, string][] => {
+    const refs: [BillingRefKind, string][] = [['holding', event.holdingId]]
+    // The purchase an event takes the place of was the same user's.
+    if (event.replacesHoldingId) refs.push(['holding', event.replacesHoldingId])
+    if (event.customerId) refs.push(['customer', event.customerId])
+    return refs
+  }
 
   async function userIdOf(provider: Provider, event: ProviderEvent): Promise<string | null> {
     if (event.userId) return event.userId
     const byHolding = await store.findUserId('holding', scopedId(provider.name, event.holdingId))
     if (byHolding !== null) return byHolding
+    if (event.replacesHoldingId) {
+      const byReplaced = await store.findUserId(
+        'holding',
+        scopedId(provider.name, event.replacesHoldingId),
+      )
+      if (byReplaced !== null) return byReplaced
+    }
     return event.customerId
       ? store.findUserId('customer', scopedId(provider.name, event.customerId))
       : null
@@ -302,7 +311,7 @@ export function createBilling<
 
       try {
         const applied = await applyEvents(provider, delivery.events, result)
-        if (applied.unmatched) {
+        if (applied.unmatched && !delivery.acceptUnmatched) {
           // The event that names the user or the purchase may still be on its way; the provider
           // tries again.
           result.response = json(409, { error: 'nothing to match this event to yet' })

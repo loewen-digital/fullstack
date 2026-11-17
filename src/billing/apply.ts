@@ -31,6 +31,8 @@ export function scopedId(provider: string, id: string): string {
  *   change with two events, or a failed payment for something the user never held. Its id is
  *   remembered like that of an applied one.
  * - Every other event is `applied`.
+ * - An event that names the holding its own takes the place of ends that holding, in the same
+ *   step.
  */
 export function applyEvent(
   account: BillingAccountRecord,
@@ -55,15 +57,23 @@ export function applyEvent(
     pastDueSince:
       changed.status === 'past_due' ? (current?.pastDueSince ?? event.occurredAt) : null,
   }
-  const holdings =
+  const kept =
     next === undefined
       ? account.holdings
       : current
         ? account.holdings.map((holding) => (holding === current ? next : holding))
         : [...account.holdings, next]
+  // The purchase this one takes the place of is over with it.
+  const replaced = next === undefined ? undefined : replacedBy(kept, event)
+  const holdings = replaced
+    ? kept.map((holding) => (holding === replaced.holding ? replaced.ended : holding))
+    : kept
 
   return {
-    outcome: next === undefined || (current && sameState(current, next)) ? 'unchanged' : 'applied',
+    outcome:
+      !replaced && (next === undefined || (current && sameState(current, next)))
+        ? 'unchanged'
+        : 'applied',
     // Everything else on the account stays, above all what was granted by hand.
     account: {
       ...account,
@@ -79,6 +89,41 @@ export function applyEvent(
 }
 
 const time = (date: Date | null): number | null => date?.getTime() ?? null
+
+/**
+ * The holding an event takes the place of, and what becomes of it: the provider booked a change
+ * of plan as a new purchase, so the old one ends at the moment of the event. `undefined` when
+ * there is nothing to end: the event names none, the account has no such holding, or that
+ * holding is over already or newer than the event.
+ */
+function replacedBy(
+  holdings: BillingHolding[],
+  event: BillingEvent,
+): { holding: BillingHolding; ended: BillingHolding } | undefined {
+  if (event.replacesHoldingId === undefined || event.replacesHoldingId === event.holdingId) {
+    return undefined
+  }
+  const at = event.occurredAt.getTime()
+  const holding = holdings.find(
+    (entry) => entry.provider === event.provider && entry.id === event.replacesHoldingId,
+  )
+  if (!holding || at < holding.updatedAt.getTime()) return undefined
+  const runs =
+    holding.status === 'active' ||
+    holding.status === 'past_due' ||
+    (holding.status === 'canceled' && (time(holding.accessEndsAt) ?? 0) > at)
+  if (!runs) return undefined
+  return {
+    holding,
+    ended: {
+      ...holding,
+      status: 'canceled',
+      accessEndsAt: event.occurredAt,
+      pastDueSince: null,
+      updatedAt: event.occurredAt,
+    },
+  }
+}
 
 /** Whether two versions of a holding differ in nothing but `updatedAt` */
 function sameState(a: BillingHolding, b: BillingHolding): boolean {

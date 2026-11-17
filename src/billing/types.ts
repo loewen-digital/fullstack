@@ -64,6 +64,12 @@ export type ProviderEvent = BillingEventDetail & {
   providerId?: string
   /** The provider's id of the purchase (one-time) or the subscription the event is about */
   holdingId: string
+  /**
+   * The holding this one takes the place of, for a provider that books a change of plan as a new
+   * purchase (Google Play): the event ends that holding in the same step, and an event without
+   * a user belongs to the user of that holding.
+   */
+  replacesHoldingId?: string
 }
 
 /** A provider event matched to a user id and a product of the config */
@@ -77,6 +83,8 @@ export type BillingEvent = BillingEventDetail & {
   /** The key of the product in the config */
   product: string
   holdingId: string
+  /** The holding this one took the place of, when the provider booked a change as a new purchase */
+  replacesHoldingId?: string
 }
 
 export type BillingHoldingStatus = 'active' | 'past_due' | 'canceled' | 'refunded'
@@ -205,6 +213,13 @@ export interface DriverWebhookResult {
    * config does not have. When it throws, the delivery is answered with 500 and comes again.
    */
   settle?(): Promise<void>
+  /**
+   * Answer the delivery as received when an event has no user to belong to, instead of the 409
+   * that makes the provider deliver again. For a provider whose deliveries only say that a
+   * purchase changed, so the driver reads the purchase as it is now (Google Play): a second
+   * delivery reads the same, and so does the hand-over of the purchase.
+   */
+  acceptUnmatched?: boolean
 }
 
 /** What a driver gets to verify a purchase that was made on the device */
@@ -291,6 +306,35 @@ export interface AppStoreDriverConfig {
    * Apple Root CA - G3). For tests that sign with a chain of their own.
    */
   rootCertificates?: readonly (Uint8Array | string)[]
+}
+
+export interface GooglePlayDriverConfig {
+  /** The package name of the Android app that sells. A purchase of another app is refused */
+  packageName: string
+  /** Who the driver is to Google: `client_email` of the service account's key file */
+  clientEmail: string
+  /** `private_key` of the service account's key file. A secret: read it from the environment */
+  privateKey: string
+  /**
+   * The audience of the push subscription that delivers the notifications, as set there. A
+   * request whose token names another one is refused.
+   */
+  pushAudience: string
+  /**
+   * The service account the push subscription signs its requests as, when it is not
+   * `clientEmail`. A request whose token names another one is refused.
+   */
+  pushServiceAccount?: string
+  /**
+   * The product ids at Google Play that are used up once they are applied (credits, coins): the
+   * driver consumes such a purchase, so the product can be bought again. Every other one-time
+   * product is acknowledged and kept.
+   */
+  consumables?: readonly string[]
+  /** Milliseconds to wait for an answer of Google (default: 15000) */
+  timeoutMs?: number
+  /** Replaces the global `fetch`: for tests */
+  fetch?: typeof fetch
 }
 
 export interface BillingEntitlementsConfig<

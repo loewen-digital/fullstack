@@ -1,0 +1,22 @@
+{
+  "kind": "androidpublisher#subscriptionPurchaseV2",
+  "startTime": "2026-11-10T10:00:00.000Z",
+  "regionCode": "DE",
+  "subscriptionState": "SUBSCRIPTION_STATE_ACTIVE",
+  "acknowledgementState": "ACKNOWLEDGEMENT_STATE_PENDING",
+  "testPurchase": {},
+  "etag": "CAESEAoOCgwI4JrOywYQgNHNpQE=",
+  "lineItems": [
+    {
+      "productId": "pro",
+      "expiryTime": "2026-12-10T10:00:00.000Z",
+      "latestSuccessfulOrderId": "GPA.3345-0000-0000-00001",
+      "autoRenewingPlan": {
+        "autoRenewEnabled": true,
+        "recurringPrice": { "currencyCode": "EUR", "units": "4", "nanos": 990000000 }
+      },
+      "offerDetails": { "basePlanId": "monthly" },
+      "offerPhase": { "basePrice": {} }
+    }
+  ]
+}

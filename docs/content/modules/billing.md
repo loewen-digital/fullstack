@@ -1,6 +1,6 @@
 ---
 title: Billing
-description: Checkouts for one-time purchases and subscriptions through Paddle, purchases made in an iOS app through the App Store, or a driver of your own, several providers in one account, what each user holds from verified provider events, and what that lets them use
+description: Checkouts for one-time purchases and subscriptions through Paddle, purchases made in an iOS app through the App Store and in an Android app through Google Play, or a driver of your own, several providers in one account, what each user holds from verified provider events, and what that lets them use
 ---
 
 # Billing
@@ -9,7 +9,7 @@ description: Checkouts for one-time purchases and subscriptions through Paddle, 
 
 Nothing is ever granted because a browser came back from a checkout, or because a client says it bought something. State changes only through what a driver verified: a provider's webhook, or the proof of a purchase made on the device.
 
-Three drivers ship with the module. `console` takes no money; it is for building the flow before a provider account exists. `paddle` sells through Paddle Billing, see [The Paddle driver](#the-paddle-driver). Going from one to the other is a change of config and secrets, plus the page that opens Paddle's checkout. `createAppStoreDriver` takes what a web app shipped as an iOS app sells through Apple's in-app purchase, see [The App Store driver](#the-app-store-driver). Any other provider is a [driver of your own](#your-own-driver).
+Four drivers ship with the module. `console` takes no money; it is for building the flow before a provider account exists. `paddle` sells through Paddle Billing, see [The Paddle driver](#the-paddle-driver). Going from one to the other is a change of config and secrets, plus the page that opens Paddle's checkout. `createAppStoreDriver` takes what a web app shipped as an iOS app sells through Apple's in-app purchase, see [The App Store driver](#the-app-store-driver); `createGooglePlayDriver` takes what one shipped as an Android app sells through Google Play Billing, see [The Google Play driver](#the-google-play-driver). Any other provider is a [driver of your own](#your-own-driver).
 
 An app that sells in more than one place, on the web through Paddle and inside its store app through the store, puts the drivers side by side and keeps one account per user: see [Several providers](#several-providers) and [Purchases made on the device](#purchases-made-on-the-device).
 
@@ -354,7 +354,7 @@ async function showsWhatAUserHolds(userId: string) {
 
 ## Purchases made on the device
 
-In an app from an app store the purchase does not start on your server. The store's code in the app takes the money and hands the app a proof: a signed transaction, a purchase token. Your server learns of the purchase when the app hands that proof over, together with the signed-in user. For Apple's App Store that is [the App Store driver](#the-app-store-driver); the route is the same for every store:
+In an app from an app store the purchase does not start on your server. The store's code in the app takes the money and hands the app a proof: a signed transaction, a purchase token. Your server learns of the purchase when the app hands that proof over, together with the signed-in user. For Apple's App Store that is [the App Store driver](#the-app-store-driver), for Google Play [the Google Play driver](#the-google-play-driver); the route is the same for every store:
 
 ```ts
 // src/routes/billing/purchase/+server.ts
@@ -398,7 +398,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 - **Whose purchase it is.** The user is the one of the session. The first user who hands a purchase over keeps it; anyone who hands the same purchase over later is refused with `other-user`, also when two do it in the same instant. A driver that finds an account in the proof (the token the app set when buying) compares it with the user and refuses a proof that names someone else.
 - **All of a proof or none of it.** A proof can tell several things, an upgrade ends one subscription and starts another. When one of them belongs to another user, none is applied.
 - **The same path as a webhook.** The events of a proof go where the events of a webhook go: applied once per id, an older one never overwrites a newer state, and a proof and a notification that tell the same thing reach your side effects once, whichever comes first. The device can hand a proof over as often as it likes, on every start of the app.
-- **The webhook route stays.** What happens later (a renewal, a cancel, a refund) the provider tells your webhook route, not the device. A notification that arrives before the proof and names no user is answered with `409` until the proof is there.
+- **The webhook route stays.** What happens later (a renewal, a cancel, a refund) the provider tells your webhook route, not the device. A notification that arrives before the proof and names no user is answered with `409` until the proof is there; the Google Play driver answers it and leaves it, because its hand-over reads the same purchase.
 - **Delivered.** A store may want to hear that a purchase was delivered, and refund one that nobody acknowledged. A driver does that after the events are in the account, and again when the same proof or notification comes in again, see [Your own driver](#your-own-driver).
 
 The console driver plays the device, so the whole flow can be built before a store account exists. Where the app would ask the store, it posts what the store would have answered, `{ providerId, id? }`:
@@ -763,6 +763,196 @@ The tests of the driver run without a network: on payloads in the shape of Apple
 
 There is no secret among them: the driver verifies with Apple's public root and signs nothing.
 
+## The Google Play driver
+
+`createGooglePlayDriver` takes what a web app shipped as an Android app sells through Google Play Billing. The app is a Trusted Web Activity; the purchase is made on the device, through the Digital Goods API and the Payment Request API, and gives the page a purchase token. A token proves nothing by itself, so the driver asks Google what it stands for, as a service account, and tells Google that the purchase was delivered. Web Crypto and `fetch` only: no dependency, on Node and on Cloudflare Workers.
+
+```ts
+import { createBilling, createGooglePlayDriver, createMemoryBillingStore } from '@loewen-digital/fullstack/billing'
+
+const playBilling = createBilling({
+  drivers: {
+    paddle: 'paddle',
+    play: createGooglePlayDriver({
+      packageName: 'com.example.app',
+      clientEmail: process.env.GOOGLE_PLAY_CLIENT_EMAIL!, // `client_email` of the key file
+      privateKey: process.env.GOOGLE_PLAY_PRIVATE_KEY!, // `private_key` of the key file: a secret
+      pushAudience: 'https://example.com/billing/webhook/play',
+      consumables: ['credits_100'],
+    }),
+  },
+  paddle: {
+    apiKey: process.env.PADDLE_API_KEY!,
+    webhookSecret: process.env.PADDLE_WEBHOOK_SECRET!,
+  },
+  store: createMemoryBillingStore(), // your flatdb store, as in Setup
+  products: {
+    pro: {
+      type: 'subscription',
+      providerId: { paddle: 'pri_01j…', play: 'pro' }, // the product id in the Play Console
+      features: ['themes', 'export'],
+    },
+    credits: { type: 'one-time', providerId: { play: 'credits_100' } },
+  },
+})
+```
+
+| Option | | |
+|---|---|---|
+| `packageName` | required | The package name of the Android app. A purchase of another app is refused, a notification for another app is left |
+| `clientEmail` | required | `client_email` of the service account's key file: who the driver is to Google |
+| `privateKey` | required | `private_key` of the key file, with its `BEGIN` and `END` lines; line breaks may arrive as `\n`. A secret |
+| `pushAudience` | required | The audience of the push subscription that delivers the notifications, as set there. A request whose token names another one is refused |
+| `pushServiceAccount` | optional | The service account the push subscription signs its requests as (default: `clientEmail`) |
+| `consumables` | optional | The product ids that are used up once they are applied: the driver consumes such a purchase, so it can be bought again. Every other one-time product is acknowledged and kept |
+| `timeoutMs` | optional | Milliseconds to wait for an answer of Google (default: `15000`) |
+| `fetch` | optional | Replaces the global `fetch`, for tests |
+
+The driver has no `checkout()`: it throws, because the purchase starts on the device. A product is `type: 'subscription'` for a subscription of Google Play and `type: 'one-time'` for a one-time product; `providerId` is the product id, for a subscription the id of the subscription and not of a base plan. A purchase of the other kind than the config says is refused with a `BillingError` that names both.
+
+### Whose purchase it is
+
+Google Play does not know your users, and a Trusted Web Activity cannot tell it: the bridge between the page and Play Billing passes the product and nothing about an account. So nothing in a purchase names its user, and the rules of [Purchases made on the device](#purchases-made-on-the-device) decide alone:
+
+- **The first user who hands a purchase over keeps it.** The same purchase token from another user is refused with `other-user`. A token is in the hands of the device that bought and of Google, and the page posts it within a moment of the purchase.
+- **A purchase that follows another one stays with its user.** A change of plan and a new sign-up are a new purchase with a new token at Google, which names the purchase it follows. The driver gives it to the user of that purchase, also when it was made in the Play Store and no page ever hands it over, and refuses it from anyone else.
+- **One Play account buys for one user of your app.** Google Play sells a product once per Play account. Two users of your app who share a device and a Play account cannot both hold it; the second one is refused.
+- **Nothing is known before the hand-over.** A purchase the page never posted (the app closed after the payment) is in no account, and Google refunds it after three days. Post what the device holds on every start, see below.
+
+An account id that a native app can set when buying (`obfuscatedExternalAccountId`) is not read.
+
+### Handing a purchase over
+
+The Payment Request resolves with a purchase token, and `listPurchases()` of the Digital Goods API answers `{ itemId, purchaseToken }` for everything the device holds. That pair is the proof. The page posts it, for a new purchase as `{ itemId: sku, purchaseToken: response.details.purchaseToken }`:
+
+```ts
+// src/routes/billing/play/+server.ts
+import { error, json } from '@sveltejs/kit'
+import { BillingPurchaseError } from '@loewen-digital/fullstack/billing'
+import { billing } from '#lib/server/billing.js'
+import type { RequestHandler } from './$types'
+
+export const POST: RequestHandler = async ({ request, locals }) => {
+  if (!locals.authSession) error(401)
+  const body = (await request.json()) as { itemId?: unknown; purchaseToken?: unknown }
+
+  try {
+    const { events } = await billing.verifyPurchase({
+      provider: 'play',
+      userId: String(locals.authSession.userId),
+      proof: { itemId: body.itemId, purchaseToken: body.purchaseToken },
+    })
+    return json({ done: true, changed: events.length }) // the page may complete the payment now
+  } catch (cause) {
+    if (cause instanceof BillingPurchaseError) {
+      error(cause.reason === 'other-user' ? 409 : 422, cause.message)
+    }
+    throw cause // Google could not be asked or did not take the acknowledgement: post it again
+  }
+}
+```
+
+The driver reads the purchase with Google's API (`purchases.subscriptionsv2.get`, `purchases.productsv2.getproductpurchasev2`) for the package of the config. What Google answers is what counts:
+
+| Google holds | becomes |
+|---|---|
+| a one-time product, paid | `purchase.completed`; then acknowledged, or consumed when its product is in `consumables` |
+| a subscription that runs | `subscription.started`, paid until `expiryTime`; then acknowledged |
+| …in the order of a renewal | `subscription.renewed` |
+| …that follows another purchase | `subscription.changed`, and the purchase it follows ends |
+| a subscription that is canceled, on hold, paused or over | what the [table of the notifications](#real-time-notifications) says for that state |
+| a purchase that is not paid yet, or was given up before it was | refused as `invalid`: post it again once it is paid |
+| no purchase of this app under the token | refused as `invalid` |
+
+- **`itemId` only says where to look.** It tells the driver whether to ask for a subscription or a one-time product, and it has to be a product the config sells through this provider. What was bought, and whether it is paid, is Google's answer, never the page's. Every hand-over is a request to Google: limit the route like any other that costs you a call.
+- **Acknowledged once it is applied.** Google refunds a purchase nobody acknowledged within three days, a licence tester's after three minutes. The driver acknowledges after the purchase is in the user's account, and not before: a purchase of a product the config does not have is left unacknowledged, and Google gives the money back. When Google does not take the acknowledgement, `verifyPurchase` throws although the purchase is in the account; the next hand-over and the next notification acknowledge.
+- **Hand it over when it is made, and again on every start.** Post every entry of `listPurchases()` when the app starts. A purchase that is already in the account is skipped as `duplicate`, and one whose first hand-over failed is made up for.
+- **Consumables.** A product in `consumables` is consumed by the driver once its purchase is applied, which also acknowledges it and lets the customer buy it again. Do not call `consume()` in the page: the server does it, after the credit. Each purchase is a holding of its own that stays `active`; sell consumables as products without features and credit them from the event, as in [usage](/modules/usage). The `quantity` of a purchase is not read: leave multi-quantity off in the Play Console and sell a pack as a product of its own.
+- **The id of a holding is the hash of its token.** `holding.id` is the SHA-256 of the purchase token in hexadecimal digits. The token is long, and it stays with Google and the device: billing does not store it, and no error message carries it. Keep it yourself if you want to ask Google's API about a purchase later.
+- **A test purchase is a purchase.** What a licence tester buys costs nothing and is taken like everything else; the driver does not tell it apart. Only the Google accounts you name in the Play Console can buy that way.
+
+### Real-time notifications
+
+What happens after the purchase (a renewal, a cancel, a failed payment, a refund) Google tells your server through real-time developer notifications. They travel through Cloud Pub/Sub: Google Play publishes to a topic of your Google Cloud project, and a push subscription of that topic posts to your webhook route, with a token Google signed.
+
+```ts
+// The route the push subscription posts to.
+async function takesPlayNotifications(request: Request) {
+  const { response, events } = await playBilling.handleWebhook(request, { provider: 'play' })
+  for (const event of events) {
+    console.log(`${event.type} for user ${event.userId}: ${event.product}`)
+  }
+  return response
+}
+```
+
+Every push request carries an `Authorization` header with a JWT. The driver checks that Google signed it (RS256, with one of the keys Google publishes, which it fetches once and keeps for as long as Google says), that Google issued it, that its audience is `pushAudience`, that it is signed for `pushServiceAccount` with a verified address, and that it has not expired. A request without such a token is answered with `401` and changes nothing; Google is not even asked about the purchase.
+
+A notification only says that a purchase changed, not how. So the driver reads the purchase from Google whenever one arrives, and what it finds decides:
+
+| Google holds the purchase as | becomes |
+|---|---|
+| a subscription, `ACTIVE` | the paid period, once per order: `subscription.started`, `subscription.renewed` or `subscription.changed`, as above |
+| …after `SUBSCRIPTION_RESTARTED` | `subscription.changed` too: the cancel is taken back |
+| …after `SUBSCRIPTION_DEFERRED` | `subscription.changed` with the new end of the period |
+| `CANCELED` | `subscription.canceled`, access until `expiryTime` |
+| `IN_GRACE_PERIOD` | `payment.failed`: `past_due`, access stays while Google tries |
+| `ON_HOLD` | `payment.failed`, then `subscription.canceled`: access is over until Google is paid |
+| `PAUSED` | `subscription.canceled`, access ended with the paid period |
+| `EXPIRED` | `subscription.canceled`, access ended |
+| …after `SUBSCRIPTION_REVOKED`, or when the period that ran was voided | `payment.refunded` |
+| replaced by another purchase | `subscription.canceled`, at once |
+| `PENDING`, `PENDING_PURCHASE_CANCELED` | nothing |
+| a one-time product, `PURCHASED` | `purchase.completed` |
+| a one-time product that was paid and is `CANCELLED`, or voided in full | `payment.refunded` |
+| a test from the Play Console, a notification for another app, a refund waiting for review, a refund of some pieces of a purchase | nothing, answered with `200` |
+
+What to know:
+
+- **Without notifications nothing ever ends.** A purchase is in the account as soon as the page hands it over. A subscription renews and ends only when a notification makes the driver look. An app that takes purchases and never set the topic up gives every subscription away for good, and nothing looks broken. See a `subscription.renewed` arrive from a licence tester before you sell.
+- **An event is as old as its read.** Every event describes the purchase as Google holds it at the moment the driver asks, and `occurredAt` is that moment, not the time of the notification. A notification that arrives late, twice or out of order reads the state of now: it can tell nothing old. The same state is one event however often it is read; what the state cannot tell apart (a cancel that was taken back) has the time of its notification in its id.
+- **A purchase nobody handed over is answered and left.** The notification about a new purchase usually arrives before the page posts the token. The driver answers it with `200`, lists it in `skipped` as `unmatched`, and neither grants nor acknowledges anything. It does not answer `409`: Cloud Pub/Sub would push the same notification again and again, for as long as it keeps the message, and slow every other one down, and the hand-over reads the same purchase anyway. It is also why a staging server and a production server can listen to one topic.
+- **A failure comes again.** When Google's API cannot be asked or does not take the acknowledgement, the answer is `500` and Cloud Pub/Sub pushes again. Give the push subscription a retry policy with a backoff, as in the command below.
+- **A change of plan is two holdings.** Google ends the old purchase and starts a new one, so the account shows the old holding `canceled` at that moment and a new one, whose event is `subscription.changed` and names the old one in `replacesHoldingId`.
+- **Grace period and account hold are Google's.** In the grace period the subscription is `past_due` and keeps its access; `entitlements.pastDueGraceDays` can shorten that, not extend it. On hold Google's word is to block access, so the subscription is `canceled` with the period it was paid for, and `active` again when the payment comes through.
+- **A refund** counts when Google takes the purchase away. A subscription is refunded when Google revoked it or voided the period that was running; a voided earlier period leaves it as it is. Some pieces of a purchase of several leave it as it is, too.
+- **A purchase Google no longer knows** (a token it dropped, sixty days after a subscription ended) is answered with `200` and left.
+- **The manage link** is the subscription's page in the Play Store, `https://play.google.com/store/account/subscriptions?sku=…&package=…`, for a user who holds a subscription; `null` otherwise.
+- **Not read:** the `quantity` of a purchase, the account id of a native app, add-ons of a subscription beyond its first paid item, price changes, pre-orders and rentals.
+
+### Trying it with a licence tester
+
+The tests of the driver run without a network: a fake stands in for Google and answers in the shape of Google's reference. Nothing was recorded from a real purchase yet. To see it work against Google yourself:
+
+1. In the Google Cloud Console, enable the Google Play Developer API for a project and create a service account with a JSON key. `client_email` and `private_key` of the key file go into the config.
+2. In the Play Console, under Users and permissions, invite the service account's address and give it "View financial data, orders, and cancellation survey responses" and "Manage orders and subscriptions" for the app.
+3. Publish the app to the internal testing track, and create a one-time product and a subscription with a base plan. Put their product ids into `products`.
+4. Create a Pub/Sub topic and give `google-play-developer-notifications@system.gserviceaccount.com` the role Pub/Sub Publisher on it. In the Play Console, under Monetize, Monetization setup, enter the topic and choose all notifications for subscriptions and one-time products.
+5. Deploy a preview of your app, and create the push subscription that posts to its webhook route:
+
+   ```bash
+   gcloud pubsub subscriptions create play-billing --topic=play-billing --push-endpoint=https://example.com/billing/webhook/play --push-auth-service-account=billing@your-project.iam.gserviceaccount.com --push-auth-token-audience=https://example.com/billing/webhook/play --min-retry-delay=10s --max-retry-delay=600s
+   ```
+
+   The audience is `pushAudience`; the service account is `pushServiceAccount`, or the one of `clientEmail`. Send a test notification from the Play Console: the route answers `200`.
+6. Add a Google account as a licence tester in the Play Console (License testing), and install the app from the testing track on an Android emulator with a Google Play system image, signed in with that account.
+7. Buy both products with the test card that always approves. The purchase route answers, and `billing.account(userId)` shows an `active` holding for each. In the Play Console, the orders are not refunded after three minutes: they were acknowledged. Post the same proof again: nothing changes.
+8. Wait. A test subscription renews every five minutes instead of every month, up to six times, and then ends: every renewal arrives as `subscription.renewed`, the end as `subscription.canceled`. When nothing arrives, the topic or the push subscription of steps 4 and 5 is wrong.
+9. Buy the subscription again and cancel it in the Play Store: the holding becomes `canceled` with `accessEndsAt` at the end of the period.
+10. Sign in as a second user of your app and post the proof of the first: the answer is `409`.
+11. Post a proof with one character of the token changed, and call the webhook route without the `Authorization` header: `422` and `401`, and nothing changes.
+
+| Value | | Goes to |
+|---|---|---|
+| package name | public | `packageName` |
+| `client_email` of the key file | not a secret | `clientEmail` |
+| `private_key` of the key file | **secret** | `privateKey`, from the environment |
+| the audience of the push subscription | your choice, the URL of the route by default | `pushAudience` |
+| the service account of the push subscription | when it is another one | `pushServiceAccount` |
+| product ids | public | `providerId` of each product, `consumables` |
+
+The private key is the one secret. It reads and acknowledges the purchases of every app the service account has access to: keep it out of the repository, out of logs and out of fixtures.
+
 ## Your own driver
 
 A driver is three methods, and a fourth when purchases start on the device:
@@ -851,10 +1041,12 @@ async function verifyPurchase({ userId, proof }: DriverPurchaseInput): Promise<D
 - `providerId` is optional too, for an event that does not say what was sold. Billing takes the product of the holding then, and answers `409` while the holding is not there.
 - Report `subscription.changed` only for a subscription the provider considers running: it clears a cancel and a failed payment.
 - `holdingId` is the provider's id of the purchase or the subscription and has to be the same on every event about it.
+- `replacesHoldingId` is for a provider that books a change of plan as a new purchase with a new id, as Google Play does. An event that carries it ends the holding it names at the moment of the event, in the same step, and when the event has no user it belongs to the user of that holding. A proof whose purchase replaces the purchase of another user is refused with `other-user`.
 - `createManageUrl` gets the user's customer and holdings at this provider only, and this provider's ids of the products.
 - `verifyPurchase` gets the proof as the app received it, the signed-in user, and `products`: what the config sells through this provider, by the provider's id. Throw `BillingPurchaseError(message, 'invalid')` for a proof that is not a valid one of the provider, and `'other-user'` when it names another user; anything else a driver throws reaches the caller of `billing.verifyPurchase` as it is. Leave `userId` off the events: they are applied for the user who handed the proof over, and billing refuses a purchase that is linked to someone else.
 - **An event has one id, however the driver learned of it.** Build the id from what happened (the transaction, the subscription and its period, the refund), not from the delivery, so a proof and a notification that tell the same thing are one event. Where that is not possible the second one still changes nothing, but it is skipped as `unchanged` instead of `duplicate`.
 - `settle`, on the result of `verifyPurchase` and of `parseWebhook`, is called once every event of it is in its user's account, applied now or before: the place to acknowledge or consume a purchase at the store. It is not called while an event waits for its user (`unmatched`) or names a product the config does not have. It is called again when the same proof or delivery comes in again, so it has to bear being repeated; when it throws, the delivery is answered with `500` and `billing.verifyPurchase` throws, and the next attempt settles.
+- `acceptUnmatched: true` on the result of `parseWebhook` answers a delivery as received when an event has no user to belong to, instead of the `409` that makes the provider deliver again. It is for a provider whose deliveries only say that a purchase changed, so that your driver reads the purchase as it is now: a second delivery reads the same, and so does the hand-over of the purchase. The event is listed in `skipped` as `unmatched`, and `settle` is not called.
 - Keep ids short and plain: stores use them as keys, and the flatdb store as file names of at most 200 bytes, where every character outside `a-z`, `0-9`, `_` and `-` counts three. Hash an id that is long, as a store's purchase token is.
 - Never log the request, its headers, a proof or the provider's secrets.
 
@@ -930,4 +1122,4 @@ async function assertsPurchasesFromTheDevice() {
 
 ## What it does not do
 
-Tax, invoices, coupons and seats are the provider's. Of the app stores the module knows Apple's; Google Play is a [driver of your own](#your-own-driver), with `verifyPurchase` as the place where it plugs in. The code that buys on the device is the app's. The module counts no usage: a limit is a number the app reads, not a balance that is spent. It has no paywall and no pricing UI, and it is not `permissions`: that module answers what a role may do, this one what a user has paid for. Partial refunds have no event of their own: a driver reports `payment.refunded` when the purchase is gone, and nothing for a partial one.
+Tax, invoices, coupons and seats are the provider's. Of the app stores the module knows Apple's and Google's; any other is a [driver of your own](#your-own-driver), with `verifyPurchase` as the place where it plugs in. The code that buys on the device is the app's. The module counts no usage: a limit is a number the app reads, not a balance that is spent. It has no paywall and no pricing UI, and it is not `permissions`: that module answers what a role may do, this one what a user has paid for. Partial refunds have no event of their own: a driver reports `payment.refunded` when the purchase is gone, and nothing for a partial one.

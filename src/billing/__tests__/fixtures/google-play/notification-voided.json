@@ -1,0 +1,11 @@
+{
+  "version": "1.0",
+  "packageName": "com.example.app",
+  "eventTimeMillis": "1794391200000",
+  "voidedPurchaseNotification": {
+    "purchaseToken": "fixture-one-time.AO-J1Oz-made-up-purchase-token-0002",
+    "orderId": "GPA.3345-0000-0000-00002",
+    "productType": 2,
+    "refundType": 1
+  }
+}
