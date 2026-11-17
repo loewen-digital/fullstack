@@ -280,11 +280,36 @@ export type BillingDriverChoice = 'console' | 'paddle' | BillingDriver
 export interface ConsoleDriverConfig {
   /**
    * The URL of the route that hands requests to `billing.handleWebhook` (default:
-   * `/billing/webhook`). The console driver sends the browser there to complete a checkout.
+   * `/billing/webhook`). The console driver sends the browser there to complete a checkout, and
+   * serves the page behind its manage link from it.
    */
   webhookUrl?: string
   /** Length of a subscription period in days (default: 30), for a checkout and for a purchase from the device */
   periodDays?: number
+}
+
+/**
+ * What the console driver plays for a holding after its purchase: `cancel` ends a subscription
+ * with the period that is paid for, `cancel-now` ends it at once, `refund` pays back a
+ * subscription or a purchase paid once.
+ */
+export type ConsoleAction = 'cancel' | 'cancel-now' | 'refund'
+
+/** What `createConsoleDriver` returns: a driver, and the link of one action for a test */
+export interface ConsoleDriver extends BillingDriver {
+  /**
+   * The link that plays one action for a holding, as the page behind the manage link has them:
+   * hand it to `billing.handleWebhook` as a GET, or open it. The event names the holding only,
+   * so billing finds the user through the purchase; the time of the event is the time of this
+   * call. Each call is an event of its own, and opening one link twice delivers the same event
+   * again. Throws a `BillingError` for an action that does not fit: a purchase paid once is not
+   * canceled.
+   */
+  actionUrl(
+    holding: Pick<BillingHolding, 'id' | 'type' | 'currentPeriodEnd'>,
+    action: ConsoleAction,
+    options?: { returnUrl?: string },
+  ): string
 }
 
 export interface PaddleDriverConfig {

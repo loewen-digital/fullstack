@@ -55,7 +55,7 @@ export const billing = createBilling({
 | `drivers` | this or `driver` | Several providers, each under a name of your choice: `{ paddle: 'paddle', app: createAppStoreDriver(…) }`. See [Several providers](#several-providers) |
 | `products` | required | What the app sells: `{ [key]: { type, providerId, features?, limits? } }`. With `drivers`, `providerId` is the id at each provider: `{ paddle: 'pri_…', app: 'com.example.pro' }`. Two products with the same id at one provider throw |
 | `store` | required | Where accounts are kept. There is no default: purchases in the memory of one process are lost with it |
-| `console` | optional | Options of the console driver: `webhookUrl` (default `/billing/webhook`), `periodDays` (default 30) |
+| `console` | optional | Options of the [console driver](#the-console-driver): `webhookUrl` (default `/billing/webhook`), `periodDays` (the length of a subscription period, default 30) |
 | `paddle` | with `driver: 'paddle'` | Options of the Paddle driver: `apiKey`, `webhookSecret`, `sandbox`, `checkoutUrl`, `toleranceSeconds` |
 | `entitlements` | optional | `default`: the features and limits every user has; `pastDueGraceDays`: how long a failed payment keeps granting. See [Entitlements](#entitlements) |
 | `onError` | optional | Called with what the store or the driver threw inside `handleWebhook` (default: `console.error`) |
@@ -522,13 +522,54 @@ A store that only ever held test purchases is easier left behind: give the store
 
 ## The console driver
 
-`driver: 'console'` completes a checkout without a provider. The checkout URL points at your own webhook route (`console.webhookUrl`); opening it is the payment. The driver reads the checkout from the query string, the module applies `purchase.completed` or `subscription.started` exactly like a provider's event, and the browser goes on to `successUrl`. The manage link cancels the user's subscriptions at the end of their period the same way. Reloading either URL delivers the same event id again, which is what a duplicate delivery looks like.
+`driver: 'console'` plays a provider without one. Its links point at your own webhook route (`console.webhookUrl`), and opening a link is the provider's event: the driver reads it from the query string and the module applies it exactly like a provider's. Reloading a link delivers the same event id again, which is what a duplicate delivery looks like.
 
 Because the browser arrives with a GET, the webhook route exports `GET` next to `POST`, as above. A redirect only goes to the app's own origin.
 
+- **The checkout link** is the payment: `purchase.completed` or `subscription.started`, and the browser goes on to `successUrl`.
+- **The manage link** opens a page the driver serves from the webhook route. It lists what the user held when `manageUrl()` was called, each with a link for everything its state allows. Opening the page changes nothing. A link on it is one event, and the browser goes on to `returnUrl`. `manageUrl()` answers `null` for a user who holds nothing, or only what was refunded.
+
+How to reach each state of a holding:
+
+| To see | Do |
+|---|---|
+| `active` | Open the checkout link |
+| `canceled`, with access until the period ends | On the manage page, "Cancel at the end of the period": `subscription.canceled` with `accessEndsAt` at `currentPeriodEnd` |
+| `canceled`, with access over | "End now": `subscription.canceled` with `accessEndsAt` at the time of the event. Also there for a subscription that is canceled and still runs |
+| `refunded` | "Refund", for a subscription and for a purchase paid once: `payment.refunded` |
+| `past_due` | Not played. In a test, [`createFakeBillingDriver()`](/testing/fakes) delivers `payment.failed` |
+
+The time of an event is the moment the app asked for its link, `checkout()` or `manageUrl()`, not the moment it is opened. "End now" therefore ends at a moment that has passed when the link is clicked.
+
+A test needs no page. `createConsoleDriver()` returns the driver with one more method, `actionUrl(holding, action, { returnUrl? })`, which makes the link of one action, `'cancel'`, `'cancel-now'` or `'refund'`:
+
+```ts
+import { createBilling, createConsoleDriver, createMemoryBillingStore } from '@loewen-digital/fullstack/billing'
+
+const consoleDriver = createConsoleDriver({ webhookUrl: '/billing/webhook' })
+const played = createBilling({
+  driver: consoleDriver, // the driver itself instead of 'console', to have it at hand
+  store: createMemoryBillingStore(),
+  products: { pro: { type: 'subscription', providerId: 'pri_pro', features: ['export'] } },
+})
+
+async function losesAccessInATest(userId: string) {
+  const [subscription] = (await played.account(userId)).holdings
+  if (!subscription) return
+
+  const url = consoleDriver.actionUrl(subscription, 'cancel-now')
+  await played.handleWebhook(new Request(new URL(url, 'http://localhost')))
+
+  const entitlements = await played.entitlements(userId)
+  console.log(entitlements.has('export')) // false
+}
+```
+
+Each call is an event of its own, with the time of the call. An action names its holding and nothing else, as a provider's refund does: billing finds the user through the purchase, and answers `409` for a holding nobody bought. A purchase paid once is refunded, not canceled: `actionUrl` throws a `BillingError` for it.
+
 It also plays a [purchase made on the device](#purchases-made-on-the-device): `billing.verifyPurchase({ userId, proof: { providerId, id? } })` applies `purchase.completed` or `subscription.started` for the product with that `providerId`. `id` is what the device would call the purchase, 1 to 64 letters, digits, `_` or `-`: the same id again is the same purchase, and one a second user hands over is refused. Without an id every proof is a new purchase.
 
-The driver signs nothing and charges nothing: whoever can open the URL or post a proof has "bought". It is a development tool, never a way to sell.
+The driver signs nothing and charges nothing: whoever can open a link or post a proof has "bought", canceled or refunded. It is a development tool, never a way to sell.
 
 ## The Paddle driver
 

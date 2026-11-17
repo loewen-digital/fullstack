@@ -360,7 +360,12 @@ describe('entitlements', () => {
     await billing.handleWebhook(open(checkout.url))
     expect((await billing.entitlements('u1')).has('export')).toBe(true)
 
-    await billing.handleWebhook(open(await billing.manageUrl('u1')))
+    // The manage link leads to a page; its first link cancels at the end of the period.
+    const page = await billing.handleWebhook(open(await billing.manageUrl('u1')))
+    const [, cancel] = /<a href="([^"]+)">Cancel at the end of the period</.exec(
+      await page.response.text(),
+    )!
+    await billing.handleWebhook(open(cancel!))
     const [holding] = (await billing.account('u1')).holdings
     expect(holding).toMatchObject({ status: 'canceled' })
     const end = holding!.accessEndsAt!

@@ -56,6 +56,8 @@ export type {
   BillingStore,
   BillingWebhookResult,
   CheckoutInput,
+  ConsoleAction,
+  ConsoleDriver,
   ConsoleDriverConfig,
   DriverCheckoutInput,
   DriverManageInput,

@@ -180,7 +180,7 @@ The core **never** imports or depends on any framework-specific code. Every modu
 │   │   ├── entitlements.ts      → features and limits of a user from holdings and grants by hand
 │   │   ├── errors.ts            → BillingError, BillingWebhookError, BillingPurchaseError
 │   │   ├── drivers/
-│   │   │   ├── console.ts       → checkouts and device purchases completed locally, no provider
+│   │   │   ├── console.ts       → checkouts, device purchases, cancels and refunds played locally, no provider
 │   │   │   ├── paddle.ts        → Paddle Billing: transactions, signed webhooks, customer portal
 │   │   │   ├── app-store.ts     → Apple's in-app purchase: signed transactions from the device, Server Notifications V2
 │   │   │   ├── app-store-jws.ts → what the App Store signs: ES256 and the certificate chain up to Apple's root, on Web Crypto
