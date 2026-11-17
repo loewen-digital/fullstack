@@ -1,4 +1,4 @@
-import { BillingWebhookError } from '../errors.js'
+import { BillingPurchaseError, BillingWebhookError } from '../errors.js'
 import type {
   BillingDriver,
   BillingProductType,
@@ -8,6 +8,7 @@ import type {
 
 const PARAM = 'console'
 const DAY = 86_400_000
+const PURCHASE_ID = /^[\w-]{1,64}$/
 
 type ConsolePayload =
   | {
@@ -38,8 +39,13 @@ type ConsolePayload =
  * period. Reloading either URL delivers the same event id again, which is how a duplicate
  * delivery looks.
  *
- * Nothing is signed and nothing is charged: anyone who can open the URL "buys". Never run it
- * where purchases are worth something.
+ * It also plays a purchase made on the device, for an app that sells through a store: the proof
+ * is `{ providerId, id? }`, what the app's client would get from the store, and
+ * `billing.verifyPurchase` applies it like a store's. The same `id` handed over again is the
+ * same purchase.
+ *
+ * Nothing is signed and nothing is charged: anyone who can open the URL or post a proof "buys".
+ * Never run it where purchases are worth something.
  */
 export function createConsoleDriver(config: ConsoleDriverConfig = {}): BillingDriver {
   const webhookUrl = config.webhookUrl ?? '/billing/webhook'
@@ -114,6 +120,55 @@ export function createConsoleDriver(config: ConsoleDriverConfig = {}): BillingDr
         `[billing:console] ${payload.action} ${payload.id}: ${events.map((event) => event.type).join(', ') || 'nothing to do'}`,
       )
       return { events, response: redirect(payload.next, url) }
+    },
+
+    async verifyPurchase(input) {
+      const proof = input.proof
+      if (
+        typeof proof !== 'object' ||
+        proof === null ||
+        !('providerId' in proof) ||
+        typeof proof.providerId !== 'string' ||
+        proof.providerId === ''
+      ) {
+        throw new BillingPurchaseError(
+          'the proof is not a console purchase: it needs the `providerId` of what was bought',
+        )
+      }
+      const given = 'id' in proof ? proof.id : undefined
+      if (given !== undefined && (typeof given !== 'string' || !PURCHASE_ID.test(given))) {
+        throw new BillingPurchaseError(
+          'the `id` of a console purchase is 1 to 64 letters, digits, "_" or "-"',
+        )
+      }
+      // What the device would call the purchase: the same id again is the same purchase.
+      const id = given ?? crypto.randomUUID()
+      const { providerId } = proof
+      const type = Object.hasOwn(input.products, providerId)
+        ? input.products[providerId]!.type
+        : 'one-time'
+      const occurredAt = new Date()
+      const base = {
+        id: `evt_${id}`,
+        occurredAt,
+        userId: input.userId,
+        customerId: `con_cus_${input.userId}`,
+        providerId,
+      }
+      const event: ProviderEvent =
+        type === 'subscription'
+          ? {
+              ...base,
+              type: 'subscription.started',
+              holdingId: `con_sub_${id}`,
+              currentPeriodEnd: new Date(occurredAt.getTime() + periodDays * DAY),
+            }
+          : { ...base, type: 'purchase.completed', holdingId: `con_pur_${id}` }
+
+      console.log(
+        `[billing:console] purchase ${id} from the device: ${event.type} for user ${input.userId}`,
+      )
+      return { events: [event] }
     },
 
     async createManageUrl(input) {

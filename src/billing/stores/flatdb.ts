@@ -38,6 +38,9 @@ const ATTEMPTS = 20
  * `BillingStore` on the storage adapter of `@loewen-digital/flatdb`: one JSON file per user
  * under `<prefix>/accounts/` and one per linked provider id under `<prefix>/refs/`.
  *
+ * Every holding names its provider. A file of fullstack 0.7 or earlier does not, and is
+ * refused: nobody can tell from the file who sold what is in it.
+ *
  * `transact` is a compare-and-swap on the account file (`readVersioned`, then `writeIf` with
  * the version read): a writer that lost the race reads again and re-applies its change, so two
  * events for one user that arrive in the same instant are both kept, and the same event
@@ -125,7 +128,7 @@ function fileName(id: string): string {
 function serializeAccount(account: BillingAccountRecord): Record<string, unknown> {
   return {
     userId: account.userId,
-    customerId: account.customerId,
+    customers: account.customers,
     holdings: account.holdings.map((holding) => ({
       ...holding,
       startedAt: holding.startedAt.toISOString(),
@@ -150,9 +153,15 @@ function parseAccount(data: string, userId: string): BillingAccountRecord {
       `flatdb billing store: the account file of user ${JSON.stringify(userId)} is not an account.`,
     )
   }
+  const customers: Record<string, string> = {}
+  if (isRecord(doc.customers)) {
+    for (const [provider, id] of Object.entries(doc.customers)) {
+      if (typeof id === 'string') customers[provider] = id
+    }
+  }
   return {
     userId,
-    customerId: typeof doc.customerId === 'string' ? doc.customerId : null,
+    customers,
     holdings: doc.holdings.map((holding: unknown) => parseHolding(holding, userId)),
     // A file written before grants existed has none.
     grants: Array.isArray(doc.grants)
@@ -168,7 +177,14 @@ function parseHolding(value: unknown, userId: string): BillingHolding {
       `flatdb billing store: a holding of user ${JSON.stringify(userId)} is not an object.`,
     )
   }
+  if (typeof value.provider !== 'string' || value.provider === '') {
+    throw new BillingError(
+      `flatdb billing store: a holding of user ${JSON.stringify(userId)} names no provider. The file ` +
+        'was written by fullstack 0.7 or earlier; the billing docs say what to change under "Coming from 0.7".',
+    )
+  }
   return {
+    provider: value.provider,
     id: String(value.id),
     product: String(value.product),
     type: value.type === 'subscription' ? 'subscription' : 'one-time',

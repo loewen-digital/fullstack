@@ -170,12 +170,12 @@ The core **never** imports or depends on any framework-specific code. Every modu
 │   │   ├── kv.ts                → kvSink()
 │   │   └── types.ts
 │   ├── billing/
-│   │   ├── index.ts             → createBilling()
+│   │   ├── index.ts             → createBilling(): one driver or several by name, webhooks and device purchases on one path
 │   │   ├── apply.ts             → one event onto one account: applied, unchanged, duplicate or stale
 │   │   ├── entitlements.ts      → features and limits of a user from holdings and grants by hand
-│   │   ├── errors.ts            → BillingError, BillingWebhookError
+│   │   ├── errors.ts            → BillingError, BillingWebhookError, BillingPurchaseError
 │   │   ├── drivers/
-│   │   │   ├── console.ts       → checkouts completed locally, no provider
+│   │   │   ├── console.ts       → checkouts and device purchases completed locally, no provider
 │   │   │   └── paddle.ts        → Paddle Billing: transactions, signed webhooks, customer portal
 │   │   ├── stores/
 │   │   │   ├── memory.ts
@@ -416,7 +416,7 @@ config (standalone)
 ├── webhooks (depends on: config)
 ├── realtime (depends on: config)
 ├── feedback (depends on: security, for CORS headers and the RateLimiter type)
-├── billing (standalone: a user is a string id, the provider a driver, the state a store)
+├── billing (standalone: a user is a string id, each provider a driver, the state a store)
 ├── usage (standalone: a subject is a string id, the state a store)
 │
 └── testing (can mock any of the above)

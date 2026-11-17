@@ -9,14 +9,23 @@ export type ApplyOutcome = 'applied' | 'unchanged' | 'duplicate' | 'stale'
 
 /** The account of a user no event was applied for yet */
 export function emptyAccount(userId: string): BillingAccountRecord {
-  return { userId, customerId: null, holdings: [], grants: [], appliedEvents: [] }
+  return { userId, customers: {}, holdings: [], grants: [], appliedEvents: [] }
+}
+
+/**
+ * A provider's id behind the name of its provider. Provider names have no `:`, so the ids of two
+ * providers never meet: in the links of a store and in the applied events of an account.
+ */
+export function scopedId(provider: string, id: string): string {
+  return `${provider}:${id}`
 }
 
 /**
  * Applies one event to an account and says what came of it. Pure: the account handed in is not
  * touched, so a store can call it again after a lost race.
  *
- * - An event id that was applied before is a `duplicate`.
+ * - An event id that was applied before is a `duplicate`. Ids count per provider, like holdings:
+ *   the same id from two providers is two events, and two holdings.
  * - An event older than the newest one applied to its holding is `stale`: the state stays.
  * - An event that leaves its holding as it was is `unchanged`: a provider that reports one
  *   change with two events, or a failed payment for something the user never held. Its id is
@@ -29,9 +38,12 @@ export function applyEvent(
   productType: BillingProductType,
   customerId: string | undefined,
 ): { outcome: ApplyOutcome; account?: BillingAccountRecord } {
-  if (account.appliedEvents.includes(event.id)) return { outcome: 'duplicate' }
+  const eventKey = scopedId(event.provider, event.id)
+  if (account.appliedEvents.includes(eventKey)) return { outcome: 'duplicate' }
 
-  const current = account.holdings.find((holding) => holding.id === event.holdingId)
+  const current = account.holdings.find(
+    (holding) => holding.provider === event.provider && holding.id === event.holdingId,
+  )
   if (current && event.occurredAt.getTime() < current.updatedAt.getTime()) {
     return { outcome: 'stale' }
   }
@@ -55,9 +67,13 @@ export function applyEvent(
     // Everything else on the account stays, above all what was granted by hand.
     account: {
       ...account,
-      customerId: account.customerId ?? customerId ?? null,
+      // The first customer a provider names for the user stays.
+      customers:
+        customerId === undefined || Object.hasOwn(account.customers, event.provider)
+          ? account.customers
+          : { ...account.customers, [event.provider]: customerId },
       holdings,
-      appliedEvents: [...account.appliedEvents, event.id],
+      appliedEvents: [...account.appliedEvents, eventKey],
     },
   }
 }
@@ -67,6 +83,7 @@ const time = (date: Date | null): number | null => date?.getTime() ?? null
 /** Whether two versions of a holding differ in nothing but `updatedAt` */
 function sameState(a: BillingHolding, b: BillingHolding): boolean {
   return (
+    a.provider === b.provider &&
     a.product === b.product &&
     a.type === b.type &&
     a.status === b.status &&
@@ -87,6 +104,7 @@ function nextHolding(
   // An event for an unknown holding creates it: deliveries arrive in any order, and a refund
   // that comes before its purchase has to be there when the purchase arrives late.
   const base: BillingHolding = current ?? {
+    provider: event.provider,
     id: event.holdingId,
     product: event.product,
     type: productType,

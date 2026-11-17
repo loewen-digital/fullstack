@@ -19,6 +19,7 @@ type Fields = Record<string, unknown>
  * - A webhook is verified on its raw body: HMAC-SHA256 over `<ts>:<body>` with the secret of the
  *   notification destination, and a timestamp within the tolerance.
  * - The manage link is a session of Paddle's customer portal.
+ * - A purchase starts on the server, with a checkout: there is no `verifyPurchase`.
  *
  * `successUrl`, `cancelUrl` and `email` of a checkout and `returnUrl` of the manage link have no
  * server-side counterpart in Paddle; the page that opens the checkout sets them in Paddle.js.
@@ -126,7 +127,7 @@ export function createPaddleDriver(config: PaddleDriverConfig): BillingDriver {
     },
 
     async createManageUrl(input) {
-      // No customer before the first event; an id of another driver (console) is not Paddle's.
+      // No customer before the first event of the user.
       if (!isPaddleId(input.customerId, 'ctm')) return null
       const session = await api(
         `/customers/${encodeURIComponent(input.customerId)}/portal-sessions`,

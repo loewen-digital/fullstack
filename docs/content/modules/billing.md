@@ -1,15 +1,17 @@
 ---
 title: Billing
-description: Checkouts for one-time purchases and subscriptions through Paddle or a driver of your own, what each user holds from verified provider events, and what that lets them use
+description: Checkouts for one-time purchases and subscriptions through Paddle or a driver of your own, several providers in one account, purchases made in a store app, what each user holds from verified provider events, and what that lets them use
 ---
 
 # Billing
 
 `createBilling` takes money through a payment provider and keeps what each user has paid for. The app starts a checkout for a user id and a product, hands the provider's webhooks to the module, and asks what a user holds without calling the provider. The provider sits behind a driver, the state behind a store, and a user is a plain string id: the module needs no other fullstack module, so it works next to `auth` as well as next to an auth of your own.
 
-Nothing is ever granted because a browser came back from a checkout. State changes only through an event the driver verified.
+Nothing is ever granted because a browser came back from a checkout, or because a client says it bought something. State changes only through what a driver verified: a provider's webhook, or the proof of a purchase made on the device.
 
 Two drivers ship with the module. `console` takes no money; it is for building the flow before a provider account exists. `paddle` sells through Paddle Billing, see [The Paddle driver](#the-paddle-driver). Going from one to the other is a change of config and secrets, plus the page that opens Paddle's checkout. Any other provider is a [driver of your own](#your-own-driver).
+
+An app that sells in more than one place, on the web through Paddle and inside its store app through the store, puts the drivers side by side and keeps one account per user: see [Several providers](#several-providers) and [Purchases made on the device](#purchases-made-on-the-device).
 
 ## Import
 
@@ -49,8 +51,9 @@ export const billing = createBilling({
 
 | Option | | |
 |---|---|---|
-| `driver` | required | `'console'`, `'paddle'`, or a `BillingDriver` |
-| `products` | required | What the app sells: `{ [key]: { type, providerId, features?, limits? } }`. Two products with the same `providerId` throw |
+| `driver` | this or `drivers` | One provider: `'console'`, `'paddle'`, or a `BillingDriver` |
+| `drivers` | this or `driver` | Several providers, each under a name of your choice: `{ paddle: 'paddle', app: storeDriver }`. See [Several providers](#several-providers) |
+| `products` | required | What the app sells: `{ [key]: { type, providerId, features?, limits? } }`. With `drivers`, `providerId` is the id at each provider: `{ paddle: 'pri_…', app: 'com.example.pro' }`. Two products with the same id at one provider throw |
 | `store` | required | Where accounts are kept. There is no default: purchases in the memory of one process are lost with it |
 | `console` | optional | Options of the console driver: `webhookUrl` (default `/billing/webhook`), `periodDays` (default 30) |
 | `paddle` | with `driver: 'paddle'` | Options of the Paddle driver: `apiKey`, `webhookSecret`, `sandbox`, `checkoutUrl`, `toleranceSeconds` |
@@ -91,7 +94,7 @@ export const POST: RequestHandler = async ({ locals }) => {
 }
 ```
 
-`checkout({ userId, product, email?, successUrl?, cancelUrl? })` returns `{ id, url }`: the provider's id of the checkout and the page to send the browser to. `url` is `null` when the provider has no page to send the browser to; its client script takes `id` then. The user's provider customer goes along when billing already knows it, so a returning buyer is not created twice.
+`checkout({ userId, product, provider?, email?, successUrl?, cancelUrl? })` returns `{ id, url }`: the provider's id of the checkout and the page to send the browser to. `url` is `null` when the provider has no page to send the browser to; its client script takes `id` then. The user's provider customer goes along when billing already knows it, so a returning buyer is not created twice.
 
 Arriving on `successUrl` proves nothing. Show "thank you, your purchase is on its way" there and read the state as below.
 
@@ -149,13 +152,13 @@ A non-2xx answer makes the provider deliver again later, which is what `409` and
 | `payment.failed` | | An `active` subscription becomes `past_due`. Nothing else changes |
 | `payment.refunded` | | `refunded`, with `accessEndsAt` set to the time of the first report of the refund |
 
-Every event carries `id` (the provider's), `occurredAt`, `userId`, `product` and `holdingId`.
+Every event carries `id` (the provider's), `provider` (the name of the provider it came from), `occurredAt`, `userId`, `product` and `holdingId`.
 
-**Exactly once.** An event is applied once per `id`, also when the provider delivers it twice in the same instant. The ids of the applied events are kept in the same record as the user's holdings and written with them in one step, so there is no moment in which an event counts as handled while its purchase is missing.
+**Exactly once.** An event is applied once per provider and `id`, also when the provider delivers it twice in the same instant. The ids of the applied events are kept in the same record as the user's holdings and written with them in one step, so there is no moment in which an event counts as handled while its purchase is missing.
 
 **Order.** Deliveries arrive in any order. An event older than the newest one applied to its holding is `stale` and changes nothing: a renewal that arrives after the cancel that followed it does not bring the subscription back. An event for a holding nobody has seen creates it, so a refund that overtakes its purchase is there when the purchase arrives late. The exception is an event without a product (Paddle's refunds name only their transaction): it waits for its purchase and is answered with `409` until then.
 
-**Your own side effects.** `events` is the place for them (a mail, a credit to a balance), but the module cannot make your code exactly-once: if your handler fails after the state was stored and you answer with an error, the redelivery reports the event under `skipped` as `duplicate`. Make a side effect that must not be lost idempotent on `event.id` and run it for `duplicate` entries too.
+**Your own side effects.** `events` is the place for them (a mail, a credit to a balance), but the module cannot make your code exactly-once: if your handler fails after the state was stored and you answer with an error, the redelivery reports the event under `skipped` as `duplicate`. Make a side effect that must not be lost idempotent on `event.provider` and `event.id` together (two providers may use the same id) and run it for `duplicate` entries too.
 
 ## What a user holds
 
@@ -177,11 +180,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 }
 ```
 
-`billing.account(userId)` is one read from the store and no call to the provider. It answers `{ userId, customerId, holdings, grants }`; a user billing has never seen has no holdings, no grants and `customerId: null`.
+`billing.account(userId)` is one read from the store and no call to the provider. It answers `{ userId, customers, holdings, grants }`; `customers` is the customer the user is at each provider, by provider. A user billing has never seen has no holdings, no grants and no customers.
 
 | Field of a holding | |
 |---|---|
-| `id` | The provider's id of the purchase or subscription |
+| `provider` | Who sold it: the name of the provider. With one `driver` that is the driver's name (`console`, `paddle`), with `drivers` the name you gave it |
+| `id` | The provider's id of the purchase or subscription; unique per provider |
 | `product` | The key in `products` |
 | `type` | `'one-time'` or `'subscription'` |
 | `status` | `active`, `past_due` (the last payment failed and the provider has not given up), `canceled`, `refunded` |
@@ -193,7 +197,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 Holdings are never removed; a canceled or refunded one stays with its status. Holdings are the record of what happened. What they let the user do (that `canceled` still counts until `accessEndsAt`, how long `past_due` does) is answered by [entitlements](#entitlements), so no route has to work it out.
 
-`billing.manageUrl(userId, { returnUrl? })` returns the link where the user manages or cancels what they bought, or `null` when the provider has nothing to manage for them yet.
+`billing.manageUrl(userId, { returnUrl?, provider? })` returns the link where the user manages or cancels what they bought, or `null` when the provider has nothing to manage for them yet. With several providers it is the link of one of them: pass the `provider` of the holding.
 
 ## Entitlements
 
@@ -289,6 +293,128 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 A user id is whatever your app bills: billing never looks at it. A CMS with a plan per site starts checkouts with the site's id and asks `billing.entitlements(siteId)`.
 
+## Several providers
+
+One `driver` is one provider. An app that sells in several places names them in `drivers` instead, each under a name of your choice, and says for each product what it is called where:
+
+```ts
+import { createBilling, createMemoryBillingStore } from '@loewen-digital/fullstack/billing'
+import type { BillingDriver } from '@loewen-digital/fullstack/billing'
+
+declare const storeDriver: BillingDriver // the driver of an app store: one of your own, for now
+
+const shop = createBilling({
+  drivers: { paddle: 'paddle', app: storeDriver },
+  paddle: {
+    apiKey: process.env.PADDLE_API_KEY!,
+    webhookSecret: process.env.PADDLE_WEBHOOK_SECRET!,
+  },
+  store: createMemoryBillingStore(), // your flatdb store, as in Setup
+  products: {
+    pro: {
+      type: 'subscription',
+      providerId: { paddle: 'pri_01j…', app: 'com.example.pro' },
+      features: ['export'],
+    },
+    credits: { type: 'one-time', providerId: { app: 'com.example.credits' } }, // only in the app
+  },
+})
+
+async function sellsOnTheWeb(userId: string) {
+  return shop.checkout({ provider: 'paddle', userId, product: 'pro' })
+}
+
+// One webhook route per provider; each says whose request it got.
+async function takesPaddleWebhooks(request: Request) {
+  const { response } = await shop.handleWebhook(request, { provider: 'paddle' })
+  return response
+}
+
+async function showsWhatAUserHolds(userId: string) {
+  const { holdings } = await shop.account(userId)
+  return Promise.all(
+    holdings.map(async (holding) => ({
+      product: holding.product,
+      soldBy: holding.provider, // 'paddle' or 'app'
+      status: holding.status,
+      manageUrl: await shop.manageUrl(userId, { provider: holding.provider }),
+    })),
+  )
+}
+```
+
+- **Every call names its provider**: `checkout`, `handleWebhook`, `verifyPurchase` and `manageUrl` take `provider`. With several drivers a call without one throws a `BillingError`; `handleWebhook`, which never throws, answers `500` and reports it to `onError`. With one `driver` nobody has to name it. A name that is not in `drivers` is a type error.
+- **A product has an id at each provider that sells it.** `checkout` for a product at a provider that has no id for it throws. `providerId: {}` is a product nobody sells, one that is only [given by hand](#giving-a-product-by-hand).
+- **One account.** The holdings of every provider are in `billing.account(userId).holdings`, each with the `provider` that sold it, and `billing.entitlements(userId)` answers from all of them: no route has to know where a user paid.
+- **Bought twice is two holdings.** A product bought once on the web and once in a store is two holdings, and access lasts while either of them grants. Canceling one cancels that one: the other keeps charging, and only its own provider can end it. When a user who holds a product starts a second purchase of it, tell them before they pay.
+- **The manage link belongs to a provider.** Paddle's portal knows nothing of a subscription from a store. Show one link per holding, as above, or one per provider the user holds something from.
+- **Ids of two providers never meet.** A purchase id, a customer id and an event id count per provider, in the account and in the store's links.
+- **A name is kept with the data.** Holdings and links are stored under the provider's name: lower-case letters, digits, `_` and `-`, starting with a letter. Do not rename a provider that has sold something. Going from `driver: 'paddle'` to `drivers: { paddle: 'paddle', … }` keeps the name, and with it everything stored.
+- **The same driver twice** is two providers: a store's sandbox next to its production, each under its own name, never mixed.
+
+## Purchases made on the device
+
+In an app from an app store the purchase does not start on your server. The store's code in the app takes the money and hands the app a proof: a signed transaction, a purchase token. Your server learns of the purchase when the app hands that proof over, together with the signed-in user:
+
+```ts
+// src/routes/billing/purchase/+server.ts
+import { error, json } from '@sveltejs/kit'
+import { BillingPurchaseError } from '@loewen-digital/fullstack/billing'
+import { billing } from '#lib/server/billing.js'
+import type { RequestHandler } from './$types'
+
+export const POST: RequestHandler = async ({ request, locals }) => {
+  if (!locals.authSession) error(401)
+
+  try {
+    const { events } = await billing.verifyPurchase({
+      userId: String(locals.authSession.userId), // from the session, never from the body
+      proof: await request.json(), // what the device got from the store, as it came
+    })
+    for (const event of events) {
+      // The same side effects as in the webhook route: a mail, a credit to a balance.
+      console.log(`user ${event.userId} bought ${event.product} from ${event.provider}`)
+    }
+  } catch (cause) {
+    if (cause instanceof BillingPurchaseError) {
+      error(cause.reason === 'other-user' ? 409 : 422, cause.message)
+    }
+    throw cause // the provider or the store failed: the device tries again
+  }
+  return json({ done: true }) // the device may close the purchase now
+}
+```
+
+`verifyPurchase({ userId, proof, provider? })` hands the proof to the driver, which verifies it with the provider, and applies what the proof says:
+
+| | |
+|---|---|
+| `events` | The events that changed state, as from `handleWebhook` |
+| `skipped` | The events that changed nothing, as `{ reason, event }`. `duplicate` is the same proof handed over again; `unknown-product` is a purchase of something `products` does not have at this provider |
+| throws `BillingPurchaseError` | `reason: 'invalid'`: the proof is not a valid one of the provider. `reason: 'other-user'`: the purchase belongs to another user. Nothing was changed, and the message never carries the proof |
+| throws anything else | The provider could not be asked or the store failed. Nothing is lost: the device hands the proof over again |
+
+- **Only what is verified counts.** The body of the request is a claim. Access comes from a proof the driver verified with the provider, never from what the client says it bought; a body like `{ product: 'pro', paid: true }` is refused as `invalid`.
+- **Whose purchase it is.** The user is the one of the session. The first user who hands a purchase over keeps it; anyone who hands the same purchase over later is refused with `other-user`, also when two do it in the same instant. A driver that finds an account in the proof (the token the app set when buying) compares it with the user and refuses a proof that names someone else.
+- **All of a proof or none of it.** A proof can tell several things, an upgrade ends one subscription and starts another. When one of them belongs to another user, none is applied.
+- **The same path as a webhook.** The events of a proof go where the events of a webhook go: applied once per id, an older one never overwrites a newer state, and a proof and a notification that tell the same thing reach your side effects once, whichever comes first. The device can hand a proof over as often as it likes, on every start of the app.
+- **The webhook route stays.** What happens later (a renewal, a cancel, a refund) the provider tells your webhook route, not the device. A notification that arrives before the proof and names no user is answered with `409` until the proof is there.
+- **Delivered.** A store may want to hear that a purchase was delivered, and refund one that nobody acknowledged. A driver does that after the events are in the account, and again when the same proof or notification comes in again, see [Your own driver](#your-own-driver).
+
+The console driver plays the device, so the whole flow can be built before a store account exists. Where the app would ask the store, it posts what the store would have answered, `{ providerId, id? }`:
+
+```ts
+// in the app's page, in development
+async function buysWithoutAStore(providerId: string) {
+  await fetch('/billing/purchase', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    // The id is what the device would call the purchase: the same id again is the same purchase.
+    body: JSON.stringify({ providerId, id: crypto.randomUUID() }),
+  })
+}
+```
+
 ## Stores
 
 A store keeps one account per user and the links from provider ids back to users.
@@ -298,7 +424,7 @@ A store keeps one account per user and the links from provider ids back to users
 | `createMemoryBillingStore()` | Development and tests. Gone with the process | One process |
 | `createFlatdbBillingStore({ adapter, prefix? })` | JSON files on the storage adapter your `flatdb()` runs on | What the adapter coordinates, see below |
 
-The flatdb store takes the adapter, not collections: it writes `billing/accounts/<user>.json` and `billing/refs/<kind>/<id>.json` with the adapter's compare-and-swap (`readVersioned` and `writeIf`), which a collection's `update` does not offer. Two events for one user that arrive together are both kept; a writer that lost the race reads again and re-applies its change, twenty times at most, then `handleWebhook` answers `500`. An adapter without the pair is refused when the store is created. It needs `@loewen-digital/flatdb` 0.3 or later.
+The flatdb store takes the adapter, not collections: it writes `billing/accounts/<user>.json` and `billing/refs/<kind>/<provider>:<id>.json` (as a file name: `<provider>~3a<id>.json`) with the adapter's compare-and-swap (`readVersioned` and `writeIf`), which a collection's `update` does not offer. Two events for one user that arrive together are both kept; a writer that lost the race reads again and re-applies its change, twenty times at most, then `handleWebhook` answers `500`. An adapter without the pair is refused when the store is created. It needs `@loewen-digital/flatdb` 0.3 or later.
 
 - **`R2Adapter`**: the swap is on the object's etag and holds across every Worker request and isolate. Build adapter, store and billing per request from `platform.env`, like the database in the [flatdb guide](/guides/auth-on-flatdb).
 - **`FsAdapter`**: holds within one process. Two processes on one folder (two dev servers) are not coordinated.
@@ -318,7 +444,7 @@ const store: BillingStore = {
     return accounts.get(userId) ?? null
   },
   async transact(userId, change) {
-    const current = accounts.get(userId) ?? { userId, customerId: null, holdings: [], grants: [], appliedEvents: [] }
+    const current = accounts.get(userId) ?? { userId, customers: {}, holdings: [], grants: [], appliedEvents: [] }
     const { account, result } = change(current)
     if (account) accounts.set(userId, account)
     return result
@@ -332,7 +458,16 @@ const store: BillingStore = {
 }
 ```
 
-`transact` carries the guarantee: read the account, call `change`, store what it returns, and let no concurrent `transact` for the same user slip in between. On SQL that is a transaction with a row lock or a version column. `change` is free of side effects, so call it again on the fresh account after a lost race; when it returns no `account`, write nothing. `link` keeps the first user an id was linked to.
+`transact` carries the guarantee: read the account, call `change`, store what it returns, and let no concurrent `transact` for the same user slip in between. On SQL that is a transaction with a row lock or a version column. `change` is free of side effects, so call it again on the fresh account after a lost race; when it returns no `account`, write nothing. `link` keeps the first user an id was linked to; that is also what decides whose purchase a proof is, so it must hold when two requests link the same id at once. The ids `link` and `findUserId` get are a provider's id behind the provider's name, `paddle:ctm_01h…`.
+
+### Coming from 0.7
+
+Up to 0.7 an account did not say who sold what is in it, and ids were stored without a provider. The flatdb store refuses such a file as soon as it holds a purchase (`a holding … names no provider`) rather than guess. To take a store along, rewrite it once. `<provider>` is the name the provider has now, `paddle` for `driver: 'paddle'`:
+
+- In each `accounts/<user>.json`: add `"provider": "<provider>"` to every holding, replace `"customerId": "ctm_…"` by `"customers": { "<provider>": "ctm_…" }`, and put `<provider>:` in front of every entry of `appliedEvents`.
+- Under `refs/holding/` and `refs/customer/`: put `<provider>~3a` in front of every file name (`sub_01h….json` becomes `paddle~3asub_01h….json`).
+
+A store that only ever held test purchases is easier left behind: give the store another `prefix`.
 
 ## The console driver
 
@@ -340,7 +475,9 @@ const store: BillingStore = {
 
 Because the browser arrives with a GET, the webhook route exports `GET` next to `POST`, as above. A redirect only goes to the app's own origin.
 
-The driver signs nothing and charges nothing: whoever can open the URL has "bought". It is a development tool, never a way to sell.
+It also plays a [purchase made on the device](#purchases-made-on-the-device): `billing.verifyPurchase({ userId, proof: { providerId, id? } })` applies `purchase.completed` or `subscription.started` for the product with that `providerId`. `id` is what the device would call the purchase, 1 to 64 letters, digits, `_` or `-`: the same id again is the same purchase, and one a second user hands over is refused. Without an id every proof is a new purchase.
+
+The driver signs nothing and charges nothing: whoever can open the URL or post a proof has "bought". It is a development tool, never a way to sell.
 
 ## The Paddle driver
 
@@ -420,7 +557,7 @@ What to know:
 - **A pause** has no status of its own: the subscription is `canceled` with `accessEndsAt` at the pause, and `active` again when it resumes.
 - **Retries.** Paddle delivers again on anything but a `200`: 60 times within three days live, 3 times within 15 minutes in the sandbox. It expects the answer within five seconds; `handleWebhook` makes a handful of store calls and none to Paddle.
 - **The manage link** is a session of Paddle's customer portal for the user's customer. It is temporary, so ask for it per request and do not store it. It is `null` before the first event of a user; `returnUrl` has no counterpart in Paddle.
-- **Coming from the console driver.** Holdings the console driver wrote stay in the store. Start Paddle on a store or `prefix` of its own.
+- **Coming from the console driver.** Holdings the console driver wrote stay in the store under the provider `console`, and keep granting. Start Paddle on a store or `prefix` of its own.
 
 ### Trying it in the sandbox
 
@@ -444,7 +581,7 @@ The tests of the driver run without a network, against Paddle's documented notif
 
 ## Your own driver
 
-A driver is three methods:
+A driver is three methods, and a fourth when purchases start on the device:
 
 ```ts
 import { BillingWebhookError } from '@loewen-digital/fullstack/billing'
@@ -487,12 +624,55 @@ const driver: BillingDriver = {
 }
 ```
 
+A provider whose purchases start on the device adds `verifyPurchase`:
+
+```ts
+import { BillingPurchaseError } from '@loewen-digital/fullstack/billing'
+import type { DriverPurchaseInput, DriverPurchaseResult } from '@loewen-digital/fullstack/billing'
+
+interface StorePurchase {
+  id: string
+  productId: string
+  purchasedAt: string
+  accountToken?: string
+}
+declare function verifyWithTheStore(proof: unknown): Promise<StorePurchase | null>
+declare function acknowledge(purchaseId: string): Promise<void>
+declare function accountTokenOf(userId: string): string
+
+async function verifyPurchase({ userId, proof }: DriverPurchaseInput): Promise<DriverPurchaseResult> {
+  const purchase = await verifyWithTheStore(proof) // the signature, the app, the environment
+  if (!purchase) throw new BillingPurchaseError('the proof does not verify', 'invalid')
+  if (purchase.accountToken && purchase.accountToken !== accountTokenOf(userId)) {
+    throw new BillingPurchaseError('this purchase belongs to another user', 'other-user')
+  }
+  return {
+    events: [
+      {
+        type: 'purchase.completed',
+        id: `purchase:${purchase.id}`, // from the purchase, so a notification of it has the same id
+        occurredAt: new Date(purchase.purchasedAt),
+        providerId: purchase.productId,
+        holdingId: purchase.id,
+      },
+    ],
+    // Once the events are in the account: tell the store the purchase was delivered.
+    settle: () => acknowledge(purchase.id),
+  }
+}
+```
+
 - Throw `BillingWebhookError(message, status)` for a request that is not a valid delivery; nothing is changed and the status is the answer. Anything else a driver throws is answered with `500`.
 - `userId` and `customerId` are optional on an event. An event without `userId` is matched through its `holdingId`, then through its `customerId`, which is how a refund that only names its transaction finds its user.
 - `providerId` is optional too, for an event that does not say what was sold. Billing takes the product of the holding then, and answers `409` while the holding is not there.
 - Report `subscription.changed` only for a subscription the provider considers running: it clears a cancel and a failed payment.
 - `holdingId` is the provider's id of the purchase or the subscription and has to be the same on every event about it.
-- Never log the request, its headers or the provider's secrets.
+- `createManageUrl` gets the user's customer and holdings at this provider only, and this provider's ids of the products.
+- `verifyPurchase` gets the proof as the app received it, the signed-in user, and `products`: what the config sells through this provider, by the provider's id. Throw `BillingPurchaseError(message, 'invalid')` for a proof that is not a valid one of the provider, and `'other-user'` when it names another user; anything else a driver throws reaches the caller of `billing.verifyPurchase` as it is. Leave `userId` off the events: they are applied for the user who handed the proof over, and billing refuses a purchase that is linked to someone else.
+- **An event has one id, however the driver learned of it.** Build the id from what happened (the transaction, the subscription and its period, the refund), not from the delivery, so a proof and a notification that tell the same thing are one event. Where that is not possible the second one still changes nothing, but it is skipped as `unchanged` instead of `duplicate`.
+- `settle`, on the result of `verifyPurchase` and of `parseWebhook`, is called once every event of it is in its user's account, applied now or before: the place to acknowledge or consume a purchase at the store. It is not called while an event waits for its user (`unmatched`) or names a product the config does not have. It is called again when the same proof or delivery comes in again, so it has to bear being repeated; when it throws, the delivery is answered with `500` and `billing.verifyPurchase` throws, and the next attempt settles.
+- Keep ids short and plain: stores use them as keys, and the flatdb store as file names of at most 200 bytes, where every character outside `a-z`, `0-9`, `_` and `-` counts three. Hash an id that is long, as a store's purchase token is.
+- Never log the request, its headers, a proof or the provider's secrets.
 
 ## Testing
 
@@ -535,6 +715,35 @@ async function assertsBilling() {
 }
 ```
 
+A purchase made on the device is a proof instead of a webhook: `fakeBilling.proof(event)` builds one that `billing.verifyPurchase` takes, for the user who hands it over.
+
+```ts
+import { expect } from 'vitest'
+import { createBilling, createMemoryBillingStore } from '@loewen-digital/fullstack/billing'
+import { createFakeBillingDriver } from '@loewen-digital/fullstack/testing'
+
+async function assertsPurchasesFromTheDevice() {
+  const fakeBilling = createFakeBillingDriver()
+  const billing = createBilling({
+    driver: fakeBilling,
+    store: createMemoryBillingStore(),
+    products: { unlock: { type: 'one-time', providerId: 'com.example.unlock', features: ['themes'] } },
+  })
+  const proof = fakeBilling.proof({ type: 'purchase.completed', providerId: 'com.example.unlock', holdingId: 'txn_1' })
+
+  const { events } = await billing.verifyPurchase({ userId: 'u1', proof })
+  expect(events).toHaveLength(1)
+  expect((await billing.entitlements('u1')).has('themes')).toBe(true)
+
+  // Handed over again: nothing new. Handed over by someone else: refused.
+  expect((await billing.verifyPurchase({ userId: 'u1', proof })).events).toEqual([])
+  await expect(billing.verifyPurchase({ userId: 'u2', proof })).rejects.toMatchObject({ reason: 'other-user' })
+  await expect(
+    billing.verifyPurchase({ userId: 'u1', proof: fakeBilling.invalidProof() }),
+  ).rejects.toMatchObject({ reason: 'invalid' })
+}
+```
+
 ## What it does not do
 
-Tax, invoices, coupons and seats are the provider's. The module counts no usage: a limit is a number the app reads, not a balance that is spent. It has no paywall and no pricing UI, and it is not `permissions`: that module answers what a role may do, this one what a user has paid for. Partial refunds have no event of their own: a driver reports `payment.refunded` when the purchase is gone, and nothing for a partial one.
+Tax, invoices, coupons and seats are the provider's. No driver for an app store ships with the module: `verifyPurchase` is where one plugs in, and until then a store is a [driver of your own](#your-own-driver). The code that buys on the device is the app's. The module counts no usage: a limit is a number the app reads, not a balance that is spent. It has no paywall and no pricing UI, and it is not `permissions`: that module answers what a role may do, this one what a user has paid for. Partial refunds have no event of their own: a driver reports `payment.refunded` when the purchase is gone, and nothing for a partial one.

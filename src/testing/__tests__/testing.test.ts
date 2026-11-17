@@ -3,6 +3,8 @@ import { createTestStack } from '../index.js'
 import { createFakeMailDriver } from '../fake-mail.js'
 import { createFakeQueueDriver } from '../fake-queue.js'
 import { createFakeStorageDriver } from '../fake-storage.js'
+import { createFakeBillingDriver } from '../fake-billing.js'
+import { createBilling, createMemoryBillingStore } from '../../billing/index.js'
 import { defineFactory, sequence, pick } from '../factories.js'
 import { createMailInstance } from '../../mail/index.js'
 import { createQueueInstance } from '../../queue/index.js'
@@ -254,6 +256,74 @@ describe('FakeStorageDriver', () => {
   it('getUrl() returns a URL', async () => {
     const url = await storage.getUrl('avatar.png')
     expect(url).toContain('avatar.png')
+  })
+})
+
+// ── FakeBillingDriver ───────────────────────────────────────────────────────
+
+describe('FakeBillingDriver', () => {
+  function setup() {
+    const fakeBilling = createFakeBillingDriver()
+    const billing = createBilling({
+      driver: fakeBilling,
+      store: createMemoryBillingStore(),
+      products: {
+        unlock: { type: 'one-time', providerId: 'pri_unlock' },
+        pro: { type: 'subscription', providerId: 'pri_pro' },
+      },
+    })
+    return { fakeBilling, billing }
+  }
+
+  it('builds the proof of a purchase from the device, for whoever hands it over', async () => {
+    const { fakeBilling, billing } = setup()
+    const bought = { type: 'purchase.completed', providerId: 'pri_unlock' } as const
+
+    // Two users buy the same thing: without a holding id each proof is the user's own purchase.
+    const first = await billing.verifyPurchase({ userId: 'u1', proof: fakeBilling.proof(bought) })
+    const second = await billing.verifyPurchase({ userId: 'u2', proof: fakeBilling.proof(bought) })
+
+    expect(first.events).toHaveLength(1)
+    expect(second.events).toHaveLength(1)
+    expect((await billing.account('u1')).holdings[0]?.id).toBe('fake_u1_pri_unlock')
+    expect(fakeBilling.purchases.map((purchase) => purchase.userId)).toEqual(['u1', 'u2'])
+  })
+
+  it('keeps a proof whole through the JSON of a request', async () => {
+    const { fakeBilling, billing } = setup()
+    const paidUntil = new Date('2026-12-17T00:00:00Z')
+    const proof = fakeBilling.proof({
+      type: 'subscription.started',
+      providerId: 'pri_pro',
+      occurredAt: new Date('2026-11-17T00:00:00Z'),
+      currentPeriodEnd: paidUntil,
+    })
+    // What a route under test gets from `request.json()`.
+    const posted: unknown = JSON.parse(JSON.stringify(proof))
+
+    const { events } = await billing.verifyPurchase({ userId: 'u1', proof: posted })
+    const again = await billing.verifyPurchase({ userId: 'u1', proof: posted })
+
+    expect(events[0]).toMatchObject({
+      type: 'subscription.started',
+      occurredAt: new Date('2026-11-17T00:00:00Z'),
+      currentPeriodEnd: paidUntil,
+    })
+    expect(again.skipped.map((entry) => entry.reason)).toEqual(['duplicate'])
+  })
+
+  it('refuses a forged proof, and forgets what it recorded on clear()', async () => {
+    const { fakeBilling, billing } = setup()
+
+    await expect(
+      billing.verifyPurchase({ userId: 'u1', proof: fakeBilling.invalidProof() }),
+    ).rejects.toMatchObject({ name: 'BillingPurchaseError', reason: 'invalid' })
+    await billing.checkout({ userId: 'u1', product: 'pro' })
+    expect(fakeBilling.purchases).toHaveLength(1)
+
+    fakeBilling.clear()
+    expect(fakeBilling.purchases).toEqual([])
+    expect(fakeBilling.checkouts).toEqual([])
   })
 })
 

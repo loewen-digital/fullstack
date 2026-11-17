@@ -11,8 +11,13 @@ export interface BillingEntitlementSet {
 
 export interface BillingProduct extends BillingEntitlementSet {
   type: BillingProductType
-  /** The provider's id of what is sold (a price or product id); events are matched through it */
-  providerId: string
+  /**
+   * The provider's id of what is sold (a price or product id); events are matched through it.
+   * With several `drivers`, the id at each provider that sells the product, by the name of the
+   * provider: `{ paddle: 'pri_…', apple: 'com.example.pro' }`. `{}` for a product nobody sells,
+   * one that is only given by hand.
+   */
+  providerId: string | Readonly<Record<string, string>>
 }
 
 export type BillingProducts = Record<string, BillingProduct>
@@ -36,11 +41,14 @@ export type BillingEventDetail =
 export type BillingEventType = BillingEventDetail['type']
 
 /**
- * An event as a driver hands it over after verifying the webhook: the provider's ids, not yet
- * matched to a user of the app or a product of the config.
+ * An event as a driver hands it over after verifying a webhook or the proof of a purchase: the
+ * provider's ids, not yet matched to a user of the app or a product of the config.
  */
 export type ProviderEvent = BillingEventDetail & {
-  /** The provider's id of the event; an event is applied once per id */
+  /**
+   * The id of the event; an event is applied once per id. It has to be the same however the
+   * driver learned of the event, from a webhook or from a proof
+   */
   id: string
   /** The provider's timestamp of the event; an older event never overwrites a newer state */
   occurredAt: Date
@@ -60,7 +68,10 @@ export type ProviderEvent = BillingEventDetail & {
 
 /** A provider event matched to a user id and a product of the config */
 export type BillingEvent = BillingEventDetail & {
+  /** The provider's id of the event; unique per provider */
   id: string
+  /** The name of the provider the event came from */
+  provider: string
   occurredAt: Date
   userId: string
   /** The key of the product in the config */
@@ -72,7 +83,9 @@ export type BillingHoldingStatus = 'active' | 'past_due' | 'canceled' | 'refunde
 
 /** One thing a user bought: a one-time purchase or a subscription, in its current state */
 export interface BillingHolding {
-  /** The provider's id of the purchase or subscription */
+  /** Who sold it: the name of the provider, as in `drivers`, or the name of the one `driver` */
+  provider: string
+  /** The provider's id of the purchase or subscription; unique per provider */
   id: string
   /** The key of the product in the config */
   product: string
@@ -106,8 +119,9 @@ export interface BillingGrant {
 /** What billing knows about one user */
 export interface BillingAccount {
   userId: string
-  /** The provider's customer for this user; `null` until an event names one */
-  customerId: string | null
+  /** The customer this user is at each provider, by provider; empty until an event names one */
+  customers: Record<string, string>
+  /** What the user bought, at every provider */
   holdings: BillingHolding[]
   /** What was given by hand with `billing.grant()`, one entry per product at most */
   grants: BillingGrant[]
@@ -124,6 +138,9 @@ export type BillingRefKind = 'customer' | 'holding'
 /**
  * Where billing keeps its state. Four methods; `transact` carries the guarantee: no update of
  * an account is lost, however many requests write it at the same time.
+ *
+ * The ids `link` and `findUserId` get are a provider's id behind the name of its provider
+ * (`paddle:ctm_01h…`), so the ids of two providers never meet.
  */
 export interface BillingStore {
   /** The account of a user, or `null` when no event for the user was ever applied */
@@ -168,9 +185,11 @@ export interface DriverCheckoutInput {
 /** What a driver gets to build the link where a user manages what they bought */
 export interface DriverManageInput {
   userId: string
+  /** The user's customer at this provider, when billing already knows one */
   customerId: string | null
+  /** What the user holds from this provider; holdings of other providers are left out */
   holdings: BillingHolding[]
-  /** The provider's id of each product in the config, by product key */
+  /** This provider's id of each product it sells, by product key */
   providerIds: Record<string, string>
   returnUrl?: string
 }
@@ -179,6 +198,32 @@ export interface DriverWebhookResult {
   events: ProviderEvent[]
   /** The answer the provider expects, when it is not a plain 200 */
   response?: Response
+  /**
+   * Called once every event of the delivery is in its user's account, applied now or before: the
+   * place to tell the provider that the purchase was delivered (Google Play refunds a purchase
+   * nobody acknowledged). Not called while an event waits for its user or names a product the
+   * config does not have. When it throws, the delivery is answered with 500 and comes again.
+   */
+  settle?(): Promise<void>
+}
+
+/** What a driver gets to verify a purchase that was made on the device */
+export interface DriverPurchaseInput {
+  /** The signed-in user who hands the proof over */
+  userId: string
+  /** What the app got from the device, as it came. Untrusted until the driver verified it */
+  proof: unknown
+  /** The user's customer at this provider, when billing already knows one */
+  customerId: string | null
+  /** What the config sells through this provider, by the provider's id */
+  products: Record<string, { product: string; type: BillingProductType }>
+}
+
+export interface DriverPurchaseResult {
+  /** What the verified proof says, as events. Billing applies them for the user who handed it over */
+  events: ProviderEvent[]
+  /** As `settle` of a webhook delivery. When it throws, `verifyPurchase` of billing throws */
+  settle?(): Promise<void>
 }
 
 /** A payment provider behind the module */
@@ -192,7 +237,17 @@ export interface BillingDriver {
   parseWebhook(request: Request): Promise<DriverWebhookResult>
   /** The link where the user manages or cancels; `null` when the provider has nothing to manage yet */
   createManageUrl(input: DriverManageInput): Promise<string | null>
+  /**
+   * Verifies the proof of a purchase made on the device with the provider and returns what it
+   * says. Throws `BillingPurchaseError` when the proof is not a valid one of the provider, or
+   * when it names another user than `userId`. A provider whose purchases start on the server
+   * (Paddle) leaves it out.
+   */
+  verifyPurchase?(input: DriverPurchaseInput): Promise<DriverPurchaseResult>
 }
+
+/** A driver in the config: the name of a built-in one, or a driver */
+export type BillingDriverChoice = 'console' | 'paddle' | BillingDriver
 
 export interface ConsoleDriverConfig {
   /**
@@ -200,7 +255,7 @@ export interface ConsoleDriverConfig {
    * `/billing/webhook`). The console driver sends the browser there to complete a checkout.
    */
   webhookUrl?: string
-  /** Length of a subscription period in days (default: 30) */
+  /** Length of a subscription period in days (default: 30), for a checkout and for a purchase from the device */
   periodDays?: number
 }
 
@@ -262,12 +317,19 @@ export interface BillingEntitlements<
 export interface BillingConfig<
   P extends BillingProducts = BillingProducts,
   D extends BillingEntitlementSet = BillingEntitlementSet,
+  V extends string = string,
 > {
   /**
-   * `'console'` completes checkouts locally without a provider; `'paddle'` sells through Paddle
-   * Billing and needs the `paddle` options; or a driver of your own
+   * One provider. `'console'` completes checkouts locally without a provider; `'paddle'` sells
+   * through Paddle Billing and needs the `paddle` options; or a driver of your own. The provider
+   * is named after the driver (`'console'`, `'paddle'`, the `name` of yours).
    */
-  driver: 'console' | 'paddle' | BillingDriver
+  driver?: BillingDriverChoice
+  /**
+   * Several providers side by side, instead of `driver`: each under a name of your choice, which
+   * is what holdings, events and calls name it by. `{ paddle: 'paddle', apple: appleDriver }`
+   */
+  drivers?: Record<V, BillingDriverChoice>
   /** What the app sells, by a key of your choice, each with the features and limits it gives */
   products: P
   /** What `entitlements()` answers beyond the products: the default for everyone, the grace period */
@@ -282,9 +344,11 @@ export interface BillingConfig<
   onError?: (error: unknown) => void
 }
 
-export interface CheckoutInput<K extends string = string> {
+export interface CheckoutInput<K extends string = string, V extends string = string> {
   userId: string
   product: K
+  /** The provider to buy from. Required with several `drivers` */
+  provider?: V
   /** Prefills the provider's checkout */
   email?: string
   /** Where the provider sends the browser after the payment */
@@ -318,22 +382,54 @@ export interface BillingWebhookResult {
   skipped: { reason: BillingSkipReason; event: ProviderEvent }[]
 }
 
+export interface PurchaseInput<V extends string = string> {
+  /** The provider the purchase was made at. Required with several `drivers` */
+  provider?: V
+  /** The signed-in user who hands the proof over */
+  userId: string
+  /** What the device got from the provider for the purchase, as the app received it */
+  proof: unknown
+}
+
+export interface BillingPurchaseResult {
+  /** The events of the proof that changed state, each exactly once across proofs and webhooks */
+  events: BillingEvent[]
+  /** The events of the proof that changed nothing, and why */
+  skipped: { reason: BillingSkipReason; event: ProviderEvent }[]
+}
+
 export interface BillingInstance<
   K extends string = string,
   F extends string = string,
   L extends string = string,
+  V extends string = string,
 > {
   /** Starts a checkout of a product for a user and returns what the client needs to continue */
-  checkout(input: CheckoutInput<K>): Promise<BillingCheckout>
+  checkout(input: CheckoutInput<K, V>): Promise<BillingCheckout>
   /**
-   * Takes a webhook request of the provider: the driver verifies it, every event in it is
-   * applied to the account of its user, and the answer for the provider comes back.
+   * Takes a webhook request of a provider: the driver verifies it, every event in it is
+   * applied to the account of its user, and the answer for the provider comes back. With
+   * several `drivers`, `provider` says whose request it is.
    */
-  handleWebhook(request: Request): Promise<BillingWebhookResult>
+  handleWebhook(request: Request, options?: { provider?: V }): Promise<BillingWebhookResult>
+  /**
+   * Takes the proof of a purchase that was made on the device, from the signed-in user: the
+   * driver verifies it with the provider, and what it says is applied through the same path as
+   * a webhook's events, each exactly once. Throws `BillingPurchaseError` and changes nothing
+   * when the proof does not verify or the purchase belongs to another user.
+   */
+  verifyPurchase(input: PurchaseInput<V>): Promise<BillingPurchaseResult>
   /** What the user holds, from the store, without a call to the provider */
   account(userId: string): Promise<BillingAccount>
-  /** The link where the user manages or cancels what they bought */
-  manageUrl(userId: string, options?: { returnUrl?: string }): Promise<string | null>
+  /**
+   * The link where the user manages or cancels what they bought from a provider. With several
+   * `drivers`, `provider` says which: hand it the `provider` of the holding, which is why it
+   * takes any string. A name the config does not have throws.
+   */
+  manageUrl(
+    userId: string,
+    options?: { provider?: V | (string & {}); returnUrl?: string },
+  ): Promise<string | null>
   /**
    * What the user may use right now: the features and limits of the default, of every product
    * they hold in a granting state and of every product given by hand. One read from the store,

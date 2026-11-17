@@ -121,7 +121,7 @@ async function assertsFiles() {
 
 ## Billing
 
-`createFakeBillingDriver` records checkouts and builds the webhook request for any event; `billing.handleWebhook` takes it like a provider's delivery. Only `type` is required on an event; leave out `providerId` and set `holdingId` for an event that names only its purchase, as Paddle's refunds do. It is not part of `createTestStack`, because billing needs your products.
+`createFakeBillingDriver` records checkouts and builds the webhook request for any event; `billing.handleWebhook` takes it like a provider's delivery. `proof(event)` builds the proof of a purchase made on the device, which `billing.verifyPurchase` takes for the user who hands it over. Only `type` is required on an event; leave out `providerId` and set `holdingId` for an event that names only its purchase, as Paddle's refunds do. It is not part of `createTestStack`, because billing needs your products.
 
 ```ts
 import { expect } from 'vitest'
@@ -152,9 +152,12 @@ async function assertsPurchases() {
 |---|---|
 | `webhook(event \| events)` | A `Request` that delivers the events. `type` and `providerId` are required; `id`, `occurredAt` and `holdingId` get defaults, and two events for the same user and product concern the same holding |
 | `invalidWebhook()` | A `Request` that fails verification, answered with 401 |
+| `proof(event \| events)` | The proof of a purchase from the device that says these events, as plain JSON. Without `userId` on an event the purchase is the one of whoever hands the proof over; with another user's id the proof is refused as `other-user` |
+| `invalidProof()` | A proof that fails verification: `billing.verifyPurchase` throws a `BillingPurchaseError` with `reason: 'invalid'` |
 | `checkouts` | What every `billing.checkout` handed to the driver |
 | `manageRequests` | What every `billing.manageUrl` handed to the driver |
-| `clear()` | Forget checkouts and manage requests |
+| `purchases` | What every `billing.verifyPurchase` handed to the driver: the user, the proof, the products |
+| `clear()` | Forget checkouts, manage requests and purchases |
 
 ## Push
 

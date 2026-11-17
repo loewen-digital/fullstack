@@ -223,6 +223,7 @@ describe('paddle driver: events', () => {
     expect(events).toEqual([
       {
         id: 'evt_created',
+        provider: 'paddle',
         type: 'subscription.started',
         occurredAt: new Date('2024-04-12T10:18:49Z'),
         userId: 'u1',
@@ -231,7 +232,7 @@ describe('paddle driver: events', () => {
         currentPeriodEnd: new Date('2024-05-12T10:18:47.635628Z'),
       },
     ])
-    expect(await billing.account('u1')).toMatchObject({ customerId: CUSTOMER })
+    expect(await billing.account('u1')).toMatchObject({ customers: { paddle: CUSTOMER } })
     expect(await holding(SUBSCRIPTION)).toMatchObject({
       type: 'subscription',
       status: 'active',
@@ -525,6 +526,7 @@ describe('paddle driver: events', () => {
     expect(events).toEqual([
       {
         id: 'evt_refund',
+        provider: 'paddle',
         type: 'payment.refunded',
         occurredAt: new Date('2024-04-15T08:54:10Z'),
         userId: 'u1',
@@ -865,6 +867,7 @@ describe('paddle driver: a recorded sandbox run', () => {
     expect(refunded.events).toEqual([
       {
         id: refundApproved.event_id,
+        provider: 'paddle',
         type: 'payment.refunded',
         occurredAt: refundedAt,
         userId: 'tester',
@@ -878,7 +881,7 @@ describe('paddle driver: a recorded sandbox run', () => {
     })
     expect(await holding(transactionId)).toMatchObject({ status: 'active' })
     expect(await billing.account('tester')).toMatchObject({
-      customerId: 'ctm_01sandboxcustomer000000000',
+      customers: { paddle: 'ctm_01sandboxcustomer000000000' },
     })
   })
 

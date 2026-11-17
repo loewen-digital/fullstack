@@ -503,9 +503,9 @@ describe('entitlements on account files of the flatdb store', () => {
       'billing/accounts/u1.json',
       JSON.stringify({
         userId: 'u1',
-        customerId: null,
         holdings: [
           {
+            provider: 'fake',
             id: 'sub_pro',
             product: 'pro',
             type: 'subscription',

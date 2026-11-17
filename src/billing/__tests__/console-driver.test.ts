@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vite-plus/test'
-import { createBilling, createMemoryBillingStore } from '../index.js'
+import { BillingPurchaseError, createBilling, createMemoryBillingStore } from '../index.js'
 
 const ORIGIN = 'https://app.example'
 const DAY = 86_400_000
@@ -45,8 +45,8 @@ describe('console billing driver', () => {
     expect(events).toHaveLength(1)
     expect(events[0]).toMatchObject({ type: 'purchase.completed', userId: 'u1', product: 'unlock' })
     expect(await billing.account('u1')).toMatchObject({
-      customerId: 'con_cus_u1',
-      holdings: [{ product: 'unlock', type: 'one-time', status: 'active' }],
+      customers: { console: 'con_cus_u1' },
+      holdings: [{ provider: 'console', product: 'unlock', type: 'one-time', status: 'active' }],
     })
   })
 
@@ -121,6 +121,104 @@ describe('console billing driver', () => {
       (await billing.handleWebhook(open(`/api/billing/webhook?console=${btoa('{"id":1}')}`)))
         .response.status,
     ).toBe(400)
+    expect((await billing.account('u1')).holdings).toEqual([])
+  })
+
+  it('plays a purchase made on the device', async () => {
+    const billing = setup()
+
+    const { events } = await billing.verifyPurchase({
+      userId: 'u1',
+      proof: { providerId: 'pri_unlock', id: 'purchase-1' },
+    })
+
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({
+      type: 'purchase.completed',
+      provider: 'console',
+      userId: 'u1',
+      product: 'unlock',
+      holdingId: 'con_pur_purchase-1',
+    })
+    expect(await billing.account('u1')).toMatchObject({
+      customers: { console: 'con_cus_u1' },
+      holdings: [{ provider: 'console', product: 'unlock', type: 'one-time', status: 'active' }],
+    })
+
+    // The device hands the same purchase over again: nothing new.
+    const again = await billing.verifyPurchase({
+      userId: 'u1',
+      proof: { providerId: 'pri_unlock', id: 'purchase-1' },
+    })
+    expect(again.events).toEqual([])
+    expect(again.skipped.map((entry) => entry.reason)).toEqual(['duplicate'])
+
+    // Without an id every proof is a purchase of its own.
+    await billing.verifyPurchase({ userId: 'u1', proof: { providerId: 'pri_unlock' } })
+    await billing.verifyPurchase({ userId: 'u1', proof: { providerId: 'pri_unlock' } })
+    expect((await billing.account('u1')).holdings).toHaveLength(3)
+  })
+
+  it('starts a subscription from the device, which the manage link cancels', async () => {
+    const billing = setup()
+
+    await billing.verifyPurchase({ userId: 'u1', proof: { providerId: 'pri_pro', id: 's1' } })
+
+    const [subscription] = (await billing.account('u1')).holdings
+    expect(subscription).toMatchObject({
+      id: 'con_sub_s1',
+      product: 'pro',
+      type: 'subscription',
+      status: 'active',
+    })
+    expect(subscription!.currentPeriodEnd!.getTime() - subscription!.startedAt.getTime()).toBe(
+      30 * DAY,
+    )
+
+    await billing.handleWebhook(open(await billing.manageUrl('u1')))
+    expect((await billing.account('u1')).holdings[0]).toMatchObject({
+      status: 'canceled',
+      accessEndsAt: subscription!.currentPeriodEnd,
+    })
+  })
+
+  it('refuses a purchase another user handed over first, and a proof that is none', async () => {
+    const billing = setup()
+    await billing.verifyPurchase({ userId: 'u1', proof: { providerId: 'pri_unlock', id: 'p1' } })
+
+    await expect(
+      billing.verifyPurchase({ userId: 'u2', proof: { providerId: 'pri_unlock', id: 'p1' } }),
+    ).rejects.toMatchObject({ reason: 'other-user' })
+
+    const none: unknown[] = [
+      null,
+      'pri_unlock',
+      {},
+      { providerId: 7 },
+      { providerId: '' },
+      { providerId: 'pri_unlock', id: 'a b' },
+      { providerId: 'pri_unlock', id: 'x'.repeat(65) },
+      { providerId: 'pri_unlock', id: 1 },
+    ]
+    for (const proof of none) {
+      const refused = billing.verifyPurchase({ userId: 'u2', proof })
+      await expect(refused).rejects.toThrow(BillingPurchaseError)
+      await expect(refused).rejects.toMatchObject({ reason: 'invalid' })
+    }
+    expect((await billing.account('u2')).holdings).toEqual([])
+  })
+
+  it('skips a purchase of something the config does not sell', async () => {
+    const billing = setup()
+
+    const { events, skipped } = await billing.verifyPurchase({
+      userId: 'u1',
+      // Also the name of something every object has: it is no product.
+      proof: { providerId: 'constructor' },
+    })
+
+    expect(events).toEqual([])
+    expect(skipped.map((entry) => entry.reason)).toEqual(['unknown-product'])
     expect((await billing.account('u1')).holdings).toEqual([])
   })
 

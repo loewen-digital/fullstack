@@ -50,7 +50,7 @@ describe.each(stores)('billing on the %s', (_name, createStore) => {
     const { billing } = await setup()
     expect(await billing.account('u1')).toEqual({
       userId: 'u1',
-      customerId: null,
+      customers: {},
       holdings: [],
       grants: [],
     })
@@ -77,6 +77,7 @@ describe.each(stores)('billing on the %s', (_name, createStore) => {
       {
         type: 'purchase.completed',
         id: 'evt_1',
+        provider: 'fake',
         occurredAt: at(0),
         userId: 'u1',
         product: 'unlock',
@@ -85,9 +86,10 @@ describe.each(stores)('billing on the %s', (_name, createStore) => {
     ])
     expect(await billing.account('u1')).toEqual({
       userId: 'u1',
-      customerId: 'cus_1',
+      customers: { fake: 'cus_1' },
       holdings: [
         {
+          provider: 'fake',
           id: 'txn_1',
           product: 'unlock',
           type: 'one-time',
@@ -797,9 +799,10 @@ describe('createFlatdbBillingStore', () => {
 
     expect(JSON.parse((await adapter.read('pay/accounts/~55ser~201.json'))!)).toEqual({
       userId: 'User 1',
-      customerId: 'cus_1',
+      customers: { fake: 'cus_1' },
       holdings: [
         {
+          provider: 'fake',
           id: 'sub_1',
           product: 'pro',
           type: 'subscription',
@@ -812,14 +815,152 @@ describe('createFlatdbBillingStore', () => {
         },
       ],
       grants: [],
-      appliedEvents: ['evt_1'],
+      appliedEvents: ['fake:evt_1'],
     })
-    expect(JSON.parse((await adapter.read('pay/refs/holding/sub_1.json'))!)).toEqual({
+    // Every id a store links carries the name of its provider in front.
+    expect(JSON.parse((await adapter.read('pay/refs/holding/fake~3asub_1.json'))!)).toEqual({
       userId: 'User 1',
     })
-    expect(JSON.parse((await adapter.read('pay/refs/customer/cus_1.json'))!)).toEqual({
+    expect(JSON.parse((await adapter.read('pay/refs/customer/fake~3acus_1.json'))!)).toEqual({
       userId: 'User 1',
     })
+  })
+
+  it('refuses an account whose holdings name no provider, as fullstack 0.7 wrote them', async () => {
+    const adapter = new MemoryAdapter()
+    const holding = {
+      id: 'sub_1',
+      product: 'pro',
+      type: 'subscription',
+      status: 'active',
+      startedAt: at(0).toISOString(),
+      currentPeriodEnd: null,
+      accessEndsAt: null,
+      pastDueSince: null,
+      updatedAt: at(0).toISOString(),
+    }
+    const written = { customerId: 'cus_1', grants: [], appliedEvents: ['evt_1'] }
+    await adapter.write(
+      'billing/accounts/paid.json',
+      JSON.stringify({ ...written, userId: 'paid', holdings: [holding] }),
+    )
+    await adapter.write(
+      'billing/accounts/gifted.json',
+      JSON.stringify({
+        ...written,
+        userId: 'gifted',
+        customerId: null,
+        holdings: [],
+        grants: [{ product: 'pro', grantedAt: at(0).toISOString(), until: null }],
+      }),
+    )
+    const store = createFlatdbBillingStore({ adapter })
+    const billing = createBilling({ driver: createFakeBillingDriver(), store, products })
+
+    // Nobody can tell from the file who sold the subscription: no guess, no access by mistake.
+    await expect(billing.entitlements('paid')).rejects.toThrow(/names no provider/)
+    await expect(store.getAccount('paid')).rejects.toThrow(/Coming from 0\.7/)
+    await expect(store.transact('paid', (account) => ({ account, result: 1 }))).rejects.toThrow(
+      BillingError,
+    )
+    // An account without purchases has nothing to tell apart: what was given by hand stays.
+    expect(await billing.account('gifted')).toMatchObject({
+      customers: {},
+      holdings: [],
+      grants: [{ product: 'pro' }],
+    })
+  })
+
+  it('reads a store of fullstack 0.7 once it is rewritten as the docs say', async () => {
+    const adapter = new MemoryAdapter()
+    // What 0.7 wrote for one subscription of one user, with `driver: 'paddle'`.
+    const old = {
+      'billing/accounts/u1.json': {
+        userId: 'u1',
+        customerId: 'ctm_1',
+        holdings: [
+          {
+            id: 'sub_1',
+            product: 'pro',
+            type: 'subscription',
+            status: 'active',
+            startedAt: at(0).toISOString(),
+            currentPeriodEnd: at(30).toISOString(),
+            accessEndsAt: null,
+            pastDueSince: null,
+            updatedAt: at(0).toISOString(),
+          },
+        ],
+        grants: [],
+        appliedEvents: ['evt_1'],
+      },
+      'billing/refs/holding/sub_1.json': { userId: 'u1' },
+      'billing/refs/customer/ctm_1.json': { userId: 'u1' },
+    }
+
+    // The rewrite of "Coming from 0.7", for the provider `paddle`.
+    const provider = 'paddle'
+    for (const [path, doc] of Object.entries(old)) {
+      if ('holdings' in doc) {
+        const { customerId, ...account } = doc
+        await adapter.write(
+          path,
+          JSON.stringify({
+            ...account,
+            customers: { [provider]: customerId },
+            holdings: account.holdings.map((holding) => ({ ...holding, provider })),
+            appliedEvents: account.appliedEvents.map((id) => `${provider}:${id}`),
+          }),
+        )
+      } else {
+        const file = path.slice(path.lastIndexOf('/') + 1)
+        await adapter.write(
+          `${path.slice(0, -file.length)}${provider}~3a${file}`,
+          JSON.stringify(doc),
+        )
+      }
+    }
+
+    const driver = createFakeBillingDriver()
+    const billing = createBilling({
+      driver: { ...driver, name: 'paddle' },
+      store: createFlatdbBillingStore({ adapter }),
+      products,
+    })
+
+    expect(await billing.account('u1')).toMatchObject({
+      customers: { paddle: 'ctm_1' },
+      holdings: [{ provider: 'paddle', id: 'sub_1', status: 'active' }],
+    })
+    // The event 0.7 applied is known, and a refund that names only the subscription finds it.
+    const again = await billing.handleWebhook(
+      driver.webhook({
+        type: 'subscription.started',
+        id: 'evt_1',
+        userId: 'u1',
+        providerId: 'pri_pro',
+        holdingId: 'sub_1',
+        occurredAt: at(0),
+      }),
+    )
+    expect(again.skipped.map((entry) => entry.reason)).toEqual(['duplicate'])
+    const refund = await billing.handleWebhook(
+      driver.webhook({ type: 'payment.refunded', holdingId: 'sub_1', occurredAt: at(5) }),
+    )
+    expect(refund.events).toEqual([
+      expect.objectContaining({ provider: 'paddle', userId: 'u1', product: 'pro' }),
+    ])
+    // A new subscription of the customer 0.7 knew.
+    const next = await billing.handleWebhook(
+      driver.webhook({
+        type: 'subscription.started',
+        customerId: 'ctm_1',
+        providerId: 'pri_team',
+        holdingId: 'sub_2',
+        occurredAt: at(6),
+      }),
+    )
+    expect(next.events).toEqual([expect.objectContaining({ userId: 'u1', product: 'team' })])
   })
 
   it('gives up with an error when it keeps losing against other writers', async () => {

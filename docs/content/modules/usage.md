@@ -124,7 +124,7 @@ async function fromThePlan(userId: string, limitOfThePlan: number) {
 
 ## Prepaid balances
 
-A prepaid balance starts at 0 and never renews. `usage.credit(subject, balance, amount, { key })` adds to it **once per key**: with the id of the purchase event as key, an event the provider delivers twice credits once. It answers `{ applied, left }`, with `applied: false` for a key that was credited before.
+A prepaid balance starts at 0 and never renews. `usage.credit(subject, balance, amount, { key })` adds to it **once per key**: with the provider and the id of the purchase event as key, an event the provider delivers twice credits once, and so does a purchase from a store app that reaches you as a proof and as a notification. It answers `{ applied, left }`, with `applied: false` for a key that was credited before.
 
 ```ts
 import type { BillingEvent } from '@loewen-digital/fullstack/billing'
@@ -134,11 +134,12 @@ const game = createUsage({
   balances: { hints: { kind: 'prepaid' } },
 })
 
-// With `events` of `billing.handleWebhook(request)`:
+// With `events` of `billing.handleWebhook(request)` or `billing.verifyPurchase(…)`:
 async function creditPurchases(events: BillingEvent[]) {
   for (const event of events) {
     if (event.type === 'purchase.completed' && event.product === 'hints100') {
-      await game.credit(event.userId, 'hints', 100, { key: event.id })
+      // Event ids count per provider, so the key names both.
+      await game.credit(event.userId, 'hints', 100, { key: `${event.provider}:${event.id}` })
     }
   }
 }
