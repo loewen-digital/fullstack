@@ -179,6 +179,7 @@ The core **never** imports or depends on any framework-specific code. Every modu
 │   │   │   ├── paddle.ts        → Paddle Billing: transactions, signed webhooks, customer portal
 │   │   │   ├── app-store.ts     → Apple's in-app purchase: signed transactions from the device, Server Notifications V2
 │   │   │   ├── app-store-jws.ts → what the App Store signs: ES256 and the certificate chain up to Apple's root, on Web Crypto
+│   │   │   ├── app-store-api.ts → the one question to Apple, with a key: what a transaction is today (App Store Server API)
 │   │   │   ├── google-play.ts   → Google Play Billing: purchase tokens read with Google's API, acknowledged or consumed, real-time notifications
 │   │   │   └── google-play-auth.ts → the access token of a service account, and the token Cloud Pub/Sub signs its pushes with
 │   │   ├── stores/

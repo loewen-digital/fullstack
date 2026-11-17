@@ -9,7 +9,7 @@ import {
   createBilling,
   createMemoryBillingStore,
 } from '../index.js'
-import type { BillingDriver, BillingStore } from '../index.js'
+import type { BillingDriver, BillingStore, ProviderEvent } from '../index.js'
 import { createFlatdbBillingStore } from '../stores/flatdb.js'
 import { createFakeBillingDriver } from '../../testing/index.js'
 import type { FakeBillingEvent } from '../../testing/index.js'
@@ -760,6 +760,169 @@ describe('telling the provider that a purchase was delivered', () => {
     })
     expect(unknown.skipped.map((entry) => entry.reason)).toEqual(['unknown-product'])
     expect(settled).toEqual([])
+  })
+})
+
+describe('a driver that asks its provider about a proof that may be out of date', () => {
+  const purchase = {
+    type: 'purchase.completed',
+    id: 'evt_1',
+    providerId: 'sku_unlock',
+    holdingId: 'tok_1',
+    occurredAt: at(0),
+  } as const
+  const refund = {
+    type: 'payment.refunded',
+    id: 'evt_1:refund',
+    providerId: 'sku_unlock',
+    holdingId: 'tok_1',
+    occurredAt: at(5),
+  } as const
+
+  /** A driver whose every proof may be out of date; `answer` is what the provider says today */
+  function setup(answer: (told: ProviderEvent[]) => ProviderEvent[] | Promise<ProviderEvent[]>) {
+    const fake = createFakeBillingDriver()
+    const store = createMemoryBillingStore()
+    const asked: ProviderEvent[][] = []
+    const driver: BillingDriver = {
+      ...fake,
+      async verifyPurchase(input) {
+        const verified = await fake.verifyPurchase(input)
+        return {
+          ...verified,
+          async refresh() {
+            asked.push(verified.events)
+            return answer(verified.events)
+          },
+        }
+      },
+    }
+    const billing = createBilling({
+      driver,
+      store,
+      products: {
+        unlock: { type: 'one-time', providerId: 'sku_unlock', features: ['themes'] },
+        pro: { type: 'subscription', providerId: 'sku_pro', features: ['export'] },
+      },
+    })
+    return { billing, fake, store, asked }
+  }
+
+  it('applies what the provider answers in place of what the proof says', async () => {
+    const { billing, fake, asked } = setup((told) => [...told, { ...refund }])
+    const { events } = await billing.verifyPurchase({ userId: 'u1', proof: fake.proof(purchase) })
+
+    expect(asked).toHaveLength(1)
+    expect(events.map((event) => event.type)).toEqual(['purchase.completed', 'payment.refunded'])
+    expect((await billing.account('u1')).holdings).toMatchObject([{ status: 'refunded' }])
+    expect((await billing.entitlements('u1')).has('themes')).toBe(false)
+  })
+
+  it('applies nothing when the provider answers nothing', async () => {
+    const { billing, fake, store } = setup(() => [])
+    const result = await billing.verifyPurchase({ userId: 'u1', proof: fake.proof(purchase) })
+
+    expect(result).toEqual({ events: [], skipped: [] })
+    expect(await store.getAccount('u1')).toBeNull()
+    // Nothing of the proof was linked: its purchase is still nobody's.
+    expect(await store.findUserId('holding', 'fake:tok_1')).toBeNull()
+  })
+
+  it('does not ask about a proof the account has, or one that is older than the account', async () => {
+    const { billing, fake, asked } = setup((told) => told)
+    await billing.verifyPurchase({ userId: 'u1', proof: fake.proof(purchase) })
+    expect(asked).toHaveLength(1)
+
+    const again = await billing.verifyPurchase({ userId: 'u1', proof: fake.proof(purchase) })
+    expect(again.skipped.map((entry) => entry.reason)).toEqual(['duplicate'])
+    // Told before the purchase the account knows: it could not change it.
+    const older = await billing.verifyPurchase({
+      userId: 'u1',
+      proof: fake.proof({ ...purchase, id: 'evt_0', occurredAt: at(-5) }),
+    })
+    expect(older.skipped.map((entry) => entry.reason)).toEqual(['stale'])
+    expect(asked).toHaveLength(1)
+  })
+
+  it('does not ask about a proof that says nothing the config sells', async () => {
+    const { billing, fake, asked } = setup((told) => told)
+    const unknown = await billing.verifyPurchase({
+      userId: 'u1',
+      proof: fake.proof({ ...purchase, providerId: 'sku_other' }),
+    })
+    // A refund that names only its purchase, which is not in the account.
+    const waiting = await billing.verifyPurchase({
+      userId: 'u1',
+      proof: fake.proof({ ...refund, providerId: undefined }),
+    })
+
+    expect(unknown.skipped.map((entry) => entry.reason)).toEqual(['unknown-product'])
+    expect(waiting.skipped.map((entry) => entry.reason)).toEqual(['unmatched'])
+    expect(asked).toEqual([])
+  })
+
+  it('asks about a proof that tells an event the account does not have', async () => {
+    const { billing, fake, asked } = setup((told) => told)
+    await billing.verifyPurchase({ userId: 'u1', proof: fake.proof(purchase) })
+    // The same purchase, told once more under another id: it leaves the holding as it is.
+    const same = await billing.verifyPurchase({
+      userId: 'u1',
+      proof: fake.proof({ ...purchase, id: 'evt_2', occurredAt: at(1) }),
+    })
+    expect(same.skipped.map((entry) => entry.reason)).toEqual(['unchanged'])
+    await billing.verifyPurchase({ userId: 'u1', proof: fake.proof(refund) })
+
+    expect(asked.map((told) => told.map((event) => event.id))).toEqual([
+      ['evt_1'],
+      ['evt_2'],
+      ['evt_1:refund'],
+    ])
+  })
+
+  it('changes nothing when the provider cannot be asked', async () => {
+    let down = true
+    const { billing, fake, store } = setup((told) => {
+      if (down) throw new Error('the provider is down')
+      return told
+    })
+    await expect(
+      billing.verifyPurchase({ userId: 'u1', proof: fake.proof(purchase) }),
+    ).rejects.toThrow('the provider is down')
+    expect(await store.getAccount('u1')).toBeNull()
+    expect(await store.findUserId('holding', 'fake:tok_1')).toBeNull()
+
+    down = false
+    const { events } = await billing.verifyPurchase({ userId: 'u1', proof: fake.proof(purchase) })
+    expect(events).toMatchObject([{ type: 'purchase.completed', userId: 'u1' }])
+  })
+
+  it('checks whose purchase it is on what the provider answers', async () => {
+    const { billing, fake, store } = setup((told) =>
+      told.map((event) => ({ ...event, userId: 'u2' })),
+    )
+    const refused = billing.verifyPurchase({ userId: 'u1', proof: fake.proof(purchase) })
+
+    await expect(refused).rejects.toBeInstanceOf(BillingPurchaseError)
+    await expect(refused).rejects.toMatchObject({ reason: 'other-user' })
+    expect(await store.getAccount('u1')).toBeNull()
+  })
+
+  it('settles as before, on what was applied', async () => {
+    const fake = createFakeBillingDriver()
+    const settle = vi.fn(async () => {})
+    const billing = createBilling({
+      driver: {
+        ...fake,
+        async verifyPurchase(input) {
+          const verified = await fake.verifyPurchase(input)
+          return { ...verified, settle, refresh: async () => verified.events }
+        },
+      },
+      store: createMemoryBillingStore(),
+      products: { unlock: { type: 'one-time', providerId: 'sku_unlock' } },
+    })
+    await billing.verifyPurchase({ userId: 'u1', proof: fake.proof(purchase) })
+    expect(settle).toHaveBeenCalledTimes(1)
   })
 })
 

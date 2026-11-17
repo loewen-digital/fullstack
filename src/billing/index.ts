@@ -1,4 +1,4 @@
-import { applyEvent, scopedId } from './apply.js'
+import { applyEvent, emptyAccount, scopedId } from './apply.js'
 import { createConsoleDriver } from './drivers/console.js'
 import { createPaddleDriver } from './drivers/paddle.js'
 import { checkEntitlementsConfig, resolveEntitlements } from './entitlements.js'
@@ -26,6 +26,7 @@ import type {
 } from './types.js'
 
 export type {
+  AppStoreApiKey,
   AppStoreDriverConfig,
   AppStoreEnvironment,
   BillingAccount,
@@ -201,15 +202,45 @@ export function createBilling<
     event: ProviderEvent,
     userId: string,
   ): Promise<{ product: string; type: BillingProductType } | null> {
+    return soldIn(
+      provider,
+      event,
+      event.providerId === undefined ? await store.getAccount(userId) : null,
+    )
+  }
+
+  /** As `soldBy`, in an account that is read already */
+  function soldIn(
+    provider: Provider,
+    event: ProviderEvent,
+    account: BillingAccountRecord | null,
+  ): { product: string; type: BillingProductType } | null {
     if (event.providerId !== undefined) {
       const product = provider.productOf.get(event.providerId)
       return product === undefined ? null : { product, type: products[product]!.type }
     }
-    const account = await store.getAccount(userId)
     const held = account?.holdings.find(
       (holding) => holding.provider === provider.name && holding.id === event.holdingId,
     )
     return held ? { product: held.product, type: held.type } : null
+  }
+
+  /**
+   * Whether a proof tells the account something it does not have: one of its events would be
+   * applied, and is neither a duplicate nor older than what the account knows. Nothing is written.
+   */
+  function addsTo(
+    account: BillingAccountRecord,
+    provider: Provider,
+    providerEvents: ProviderEvent[],
+  ): boolean {
+    return providerEvents.some((providerEvent) => {
+      const sold = soldIn(provider, providerEvent, account)
+      if (sold === null) return false
+      const event = matchedEvent(provider.name, providerEvent, account.userId, sold.product)
+      const { outcome } = applyEvent(account, event, sold.type, providerEvent.customerId)
+      return outcome === 'applied' || outcome === 'unchanged'
+    })
   }
 
   /**
@@ -345,12 +376,18 @@ export function createBilling<
         customerId: customerOf(account, provider),
         products: provider.sold,
       })
+      // A proof that may be out of date: the provider is asked before it adds anything to the
+      // account, and not for one the account has already.
+      const events =
+        verified.refresh && addsTo(account ?? emptyAccount(userId), provider, verified.events)
+          ? await verified.refresh()
+          : verified.events
 
       // Whose purchase it is comes before anything is written: all of the proof, or none of it.
       const another = (): BillingPurchaseError =>
         new BillingPurchaseError('billing: this purchase belongs to another user.', 'other-user')
       const refs: [BillingRefKind, string][] = []
-      for (const event of verified.events) {
+      for (const event of events) {
         if (event.providerId !== undefined && !provider.productOf.has(event.providerId)) continue
         if (event.userId !== undefined && event.userId !== userId) throw another()
         for (const [kind, id] of refsOf(event)) refs.push([kind, scopedId(provider.name, id)])
@@ -366,7 +403,7 @@ export function createBilling<
       }
 
       const result: BillingPurchaseResult = { events: [], skipped: [] }
-      const applied = await applyEvents(provider, verified.events, result, userId)
+      const applied = await applyEvents(provider, events, result, userId)
       if (applied.stored) await verified.settle?.()
       return result
     },

@@ -19,6 +19,8 @@ import {
   verifyChain,
 } from '../drivers/app-store-jws.js'
 import { createFlatdbBillingStore } from '../stores/flatdb.js'
+import { createFakeAppStoreApi, FAKE_ISSUER_ID, FAKE_KEY_ID } from './app-store-api-fake.js'
+import type { FakeAppStoreApi } from './app-store-api-fake.js'
 import { createTestChain } from './app-store-chain.js'
 import type { TestChain } from './app-store-chain.js'
 
@@ -66,13 +68,20 @@ const products = {
 } as const
 
 function shop(
-  options: { environment?: 'sandbox' | 'production'; store?: BillingStore; trust?: boolean } = {},
+  options: {
+    environment?: 'sandbox' | 'production'
+    store?: BillingStore
+    trust?: boolean
+    /** Apple's API, which the driver asks with the key of it */
+    apple?: FakeAppStoreApi
+  } = {},
 ) {
   return createBilling({
     driver: createAppStoreDriver({
       bundleId: BUNDLE,
       environment: options.environment ?? 'sandbox',
       ...(options.trust === false ? {} : { rootCertificates: [chain.root] }),
+      ...(options.apple ? { apiKey: options.apple.apiKey, fetch: options.apple.fetch } : {}),
     }),
     store: options.store ?? createMemoryBillingStore(),
     products,
@@ -635,6 +644,415 @@ describe('a purchase the app hands over', () => {
     await expect(mismatch).rejects.toThrow('product "pro" is subscription in the config')
     await expect(mismatch).rejects.not.toBeInstanceOf(BillingPurchaseError)
     expect((await billing.account('u1')).holdings).toEqual([])
+  })
+})
+
+describe('a purchase that is handed over late, at a driver with a key', () => {
+  // The fixtures were signed when they were bought: at NOW they are a week old.
+  const UNLOCKED = '2000000812345701'
+  const refunded = {
+    revocationDate: BOUGHT + DAY,
+    revocationReason: 0,
+    revocationType: 'REFUND_FULL',
+  }
+  let apple: FakeAppStoreApi
+  beforeEach(async () => {
+    apple = await createFakeAppStoreApi({ chain, bundleId: BUNDLE })
+    apple.transactions.set(UNLOCKED, fixture('transaction-non-consumable'))
+    apple.transactions.set(SUBSCRIPTION, fixture('transaction-subscription'))
+  })
+
+  it('asks Apple what the purchase is today, as the key of the config', async () => {
+    const billing = shop({ apple })
+    const { events } = await billing.verifyPurchase({
+      userId: 'u1',
+      proof: await proof('transaction-non-consumable'),
+    })
+
+    expect(events).toMatchObject([
+      { type: 'purchase.completed', id: UNLOCKED, occurredAt: new Date(BOUGHT), product: 'unlock' },
+    ])
+    expect((await billing.entitlements('u1')).has('themes')).toBe(true)
+    expect(apple.calls).toHaveLength(1)
+    expect(apple.calls[0]).toMatchObject({
+      url: `https://api.storekit-sandbox.apple.com/inApps/v1/transactions/${UNLOCKED}`,
+      header: { alg: 'ES256', kid: FAKE_KEY_ID, typ: 'JWT' },
+      claims: {
+        iss: FAKE_ISSUER_ID,
+        iat: NOW / 1000,
+        exp: NOW / 1000 + 300,
+        aud: 'appstoreconnect-v1',
+        bid: BUNDLE,
+      },
+    })
+  })
+
+  it('asks the environment the driver takes', async () => {
+    const live = await createFakeAppStoreApi({ chain, bundleId: BUNDLE, environment: 'production' })
+    const paid = { ...fixture('transaction-non-consumable'), environment: 'Production' }
+    live.transactions.set(UNLOCKED, paid)
+    const billing = shop({ environment: 'production', apple: live })
+
+    const { events } = await billing.verifyPurchase({ userId: 'u1', proof: await chain.sign(paid) })
+    expect(events).toHaveLength(1)
+    expect(live.calls.map((call) => call.url)).toEqual([
+      `https://api.storekit.apple.com/inApps/v1/transactions/${UNLOCKED}`,
+    ])
+  })
+
+  it('applies a purchase Apple refunded in the meantime as refunded', async () => {
+    apple.transactions.set(UNLOCKED, { ...fixture('transaction-non-consumable'), ...refunded })
+    const billing = shop({ apple })
+    // What the app hands over says nothing of the refund.
+    const { events } = await billing.verifyPurchase({
+      userId: 'u1',
+      proof: await proof('transaction-non-consumable'),
+    })
+
+    expect(events).toMatchObject([
+      { type: 'purchase.completed', id: UNLOCKED },
+      { type: 'payment.refunded', id: `${UNLOCKED}:revoked:${BOUGHT + DAY}` },
+    ])
+    expect((await billing.account('u1')).holdings).toMatchObject([{ status: 'refunded' }])
+    expect((await billing.entitlements('u1')).has('themes')).toBe(false)
+  })
+
+  it('applies a subscription Apple refunded in the meantime as refunded', async () => {
+    apple.transactions.set(SUBSCRIPTION, { ...fixture('transaction-subscription'), ...refunded })
+    const billing = shop({ apple })
+    const { events } = await billing.verifyPurchase({
+      userId: 'u1',
+      proof: await proof('transaction-subscription'),
+    })
+
+    expect(events.map((event) => event.type)).toEqual(['subscription.started', 'payment.refunded'])
+    expect((await billing.account('u1')).holdings).toMatchObject([{ status: 'refunded' }])
+    expect((await billing.entitlements('u1')).has('export')).toBe(false)
+  })
+
+  it('starts nothing from a transaction an upgrade replaced in the meantime', async () => {
+    apple.transactions.set(SUBSCRIPTION, {
+      ...fixture('transaction-subscription'),
+      isUpgraded: true,
+    })
+    const billing = shop({ apple })
+    const { events } = await billing.verifyPurchase({
+      userId: 'u1',
+      proof: await proof('transaction-subscription'),
+    })
+
+    expect(events).toEqual([])
+    expect((await billing.account('u1')).holdings).toEqual([])
+  })
+
+  it('asks nothing about a purchase Apple signed within the last day', async () => {
+    // Refunded at Apple, and the proof does not say so: the notification of it is still on its way.
+    apple.transactions.set(UNLOCKED, { ...fixture('transaction-non-consumable'), ...refunded })
+    const billing = shop({ apple })
+    const { events } = await billing.verifyPurchase({
+      userId: 'u1',
+      proof: await proof('transaction-non-consumable', { signedDate: NOW - DAY + 1 }),
+    })
+
+    expect(events).toMatchObject([{ type: 'purchase.completed' }])
+    expect(apple.calls).toEqual([])
+  })
+
+  it('asks about a purchase that is a day old, and about one that says no date', async () => {
+    for (const [userId, signedDate] of [
+      ['u1', NOW - DAY],
+      ['u2', undefined],
+    ] as const) {
+      const billing = shop({ apple })
+      apple.transactions.set(UNLOCKED, {
+        ...fixture('transaction-non-consumable'),
+        ...refunded,
+        appAccountToken: await appStoreAccountToken(userId),
+      })
+      const { events } = await billing.verifyPurchase({
+        userId,
+        proof: await proof('transaction-non-consumable', {
+          signedDate,
+          appAccountToken: await appStoreAccountToken(userId),
+        }),
+      })
+      expect(events.map((event) => event.type)).toEqual(['purchase.completed', 'payment.refunded'])
+    }
+    expect(apple.calls).toHaveLength(2)
+  })
+
+  it('asks about a purchase once: not again when the account has it', async () => {
+    const billing = shop({ apple })
+    const jws = await proof('transaction-non-consumable')
+    await billing.verifyPurchase({ userId: 'u1', proof: jws })
+    // Every start of the app hands it over again.
+    for (let start = 0; start < 3; start++) {
+      const again = await billing.verifyPurchase({ userId: 'u1', proof: jws })
+      expect(again.events).toEqual([])
+      expect(again.skipped).toMatchObject([{ reason: 'duplicate' }])
+    }
+    expect(apple.calls).toHaveLength(1)
+  })
+
+  it('asks nothing about a purchase a notification brought', async () => {
+    const billing = shop({ apple })
+    await billing.verifyPurchase({ userId: 'u1', proof: await proof('transaction-non-consumable') })
+    // The subscription reaches the account through its notification, the user through the token.
+    await billing.handleWebhook(await delivery(fixture('notification-subscribed')))
+    expect(apple.calls).toHaveLength(1)
+
+    const { skipped } = await billing.verifyPurchase({
+      userId: 'u1',
+      proof: await proof('transaction-subscription'),
+    })
+    expect(skipped).toMatchObject([{ reason: 'duplicate' }])
+    expect(apple.calls).toHaveLength(1)
+  })
+
+  it('asks nothing about a transaction that says nothing', async () => {
+    const billing = shop({ apple })
+    vi.setSystemTime(UNTIL)
+    // A subscription period that is over starts nothing, whatever Apple would answer.
+    const { events } = await billing.verifyPurchase({
+      userId: 'u1',
+      proof: await proof('transaction-subscription'),
+    })
+    expect(events).toEqual([])
+    expect(apple.calls).toEqual([])
+  })
+
+  it('asks only about a verified purchase of the user', async () => {
+    const billing = shop({ apple })
+    const stranger = await createTestChain()
+    const refused: [string, string, Promise<string>][] = [
+      ['u1', 'invalid', proof('transaction-non-consumable', {}, stranger)],
+      ['u1', 'invalid', proof('transaction-non-consumable', { bundleId: 'com.example.other' })],
+      ['u1', 'invalid', proof('transaction-non-consumable', { appAccountToken: undefined })],
+      ['u2', 'other-user', proof('transaction-non-consumable')],
+    ]
+    for (const [userId, reason, handed] of refused) {
+      await expect(billing.verifyPurchase({ userId, proof: await handed })).rejects.toMatchObject({
+        reason,
+      })
+    }
+    expect(apple.calls).toEqual([])
+  })
+
+  it('refuses a purchase Apple does not know', async () => {
+    apple.transactions.clear()
+    const billing = shop({ apple })
+    const unknown = billing.verifyPurchase({
+      userId: 'u1',
+      proof: await proof('transaction-non-consumable'),
+    })
+
+    await expect(unknown).rejects.toMatchObject({ reason: 'invalid' })
+    await expect(unknown).rejects.toThrow('the App Store knows no transaction')
+    expect((await billing.account('u1')).holdings).toEqual([])
+  })
+
+  it('checks whose purchase it is on what Apple answers', async () => {
+    const billing = shop({ apple })
+    const jws = await proof('transaction-non-consumable')
+    // The account of a transaction can be set anew at Apple.
+    apple.transactions.set(UNLOCKED, {
+      ...fixture('transaction-non-consumable'),
+      appAccountToken: await appStoreAccountToken('u2'),
+    })
+    await expect(billing.verifyPurchase({ userId: 'u1', proof: jws })).rejects.toMatchObject({
+      reason: 'other-user',
+    })
+
+    apple.transactions.set(UNLOCKED, {
+      ...fixture('transaction-non-consumable'),
+      inAppOwnershipType: 'FAMILY_SHARED',
+    })
+    await expect(billing.verifyPurchase({ userId: 'u1', proof: jws })).rejects.toMatchObject({
+      reason: 'invalid',
+    })
+    expect((await billing.account('u1')).holdings).toEqual([])
+    // Nothing of it was kept: the purchase is still there for the user Apple names.
+    apple.transactions.set(UNLOCKED, fixture('transaction-non-consumable'))
+    expect((await billing.verifyPurchase({ userId: 'u1', proof: jws })).events).toHaveLength(1)
+  })
+
+  it('changes nothing while Apple cannot be asked, and applies the purchase afterwards', async () => {
+    const billing = shop({ apple })
+    const jws = await proof('transaction-non-consumable')
+    const failures: [number | Error, unknown, string][] = [
+      [401, undefined, '`apiKey`'],
+      [
+        429,
+        { errorCode: 4290000, errorMessage: 'Rate limit exceeded.' },
+        '429 (4290000: Rate limit exceeded.)',
+      ],
+      [
+        500,
+        { errorCode: 5000001, errorMessage: 'An unknown error occurred. Please try again.' },
+        '500 (5000001',
+      ],
+      [502, undefined, 'answered 502.'],
+      // The app is not Apple's to find, which is another answer than an unknown transaction.
+      [
+        404,
+        { errorCode: 4040003, errorMessage: 'App not found.' },
+        '404 (4040003: App not found.)',
+      ],
+      [
+        new TypeError('fetch failed', { cause: new Error('connect ETIMEDOUT') }),
+        undefined,
+        'was not reached: fetch failed (connect ETIMEDOUT)',
+      ],
+    ]
+    for (const [failure, body, message] of failures) {
+      apple.failNext(failure, body)
+      const failed = billing.verifyPurchase({ userId: 'u1', proof: jws })
+      await expect(failed, message).rejects.toThrow(BillingError)
+      await expect(failed, message).rejects.toThrow(message)
+      // Not the customer's fault, so not a refusal of the purchase.
+      await expect(failed, message).rejects.not.toBeInstanceOf(BillingPurchaseError)
+      expect((await billing.account('u1')).holdings).toEqual([])
+    }
+
+    const { events } = await billing.verifyPurchase({ userId: 'u1', proof: jws })
+    expect(events).toMatchObject([{ type: 'purchase.completed', userId: 'u1' }])
+    expect(apple.calls).toHaveLength(failures.length + 1)
+  })
+
+  it('takes nothing from an answer that is not the transaction, signed by Apple', async () => {
+    const billing = shop({ apple })
+    const stranger = await createTestChain()
+    const jws = await proof('transaction-non-consumable')
+    const unlock = { ...fixture('transaction-non-consumable'), signedDate: NOW }
+    const answers: [string, unknown, string][] = [
+      ['nothing', {}, 'answered without the transaction'],
+      ['no JSON', undefined, 'answered without the transaction'],
+      [
+        'a chain nobody trusts',
+        { signedTransactionInfo: await stranger.sign(unlock) },
+        'trusted root',
+      ],
+      [
+        'another transaction',
+        {
+          signedTransactionInfo: await chain.sign({ ...unlock, transactionId: '2000000812345799' }),
+        },
+        'another transaction than the one asked for',
+      ],
+      [
+        'another app',
+        { signedTransactionInfo: await chain.sign({ ...unlock, bundleId: 'com.example.other' }) },
+        'another app',
+      ],
+      [
+        'the other environment',
+        { signedTransactionInfo: await chain.sign({ ...unlock, environment: 'Production' }) },
+        "not from Apple's sandbox",
+      ],
+    ]
+    for (const [what, body, message] of answers) {
+      apple.answerNext(body)
+      const failed = billing.verifyPurchase({ userId: 'u1', proof: jws })
+      await expect(failed, what).rejects.toThrow(BillingError)
+      await expect(failed, what).rejects.toThrow(message)
+      await expect(failed, what).rejects.not.toBeInstanceOf(BillingPurchaseError)
+    }
+    expect((await billing.account('u1')).holdings).toEqual([])
+  })
+
+  it('never puts the key or the token of a request into a message', async () => {
+    const billing = shop({ apple })
+    const jws = await proof('transaction-non-consumable')
+    const secret = apple.apiKey.privateKey.replace(/-----[A-Z ]+-----|\s/g, '')
+    for (const failure of [401, 500, new TypeError('fetch failed')]) {
+      apple.failNext(failure)
+      const error: unknown = await billing
+        .verifyPurchase({ userId: 'u1', proof: jws })
+        .catch((cause: unknown) => cause)
+      const message = (error as Error).message
+      expect(message).not.toContain(secret.slice(0, 24))
+      expect(message).not.toContain(apple.calls.at(-1)!.token)
+      for (const part of apple.calls.at(-1)!.token.split('.')) expect(message).not.toContain(part)
+    }
+  })
+
+  it('needs a key that can be one', async () => {
+    const config = {
+      bundleId: BUNDLE,
+      environment: 'sandbox',
+      rootCertificates: [chain.root],
+    } as const
+    const key = apple.apiKey
+    const refused: [unknown, string][] = [
+      [null, '`apiKey.issuerId`'],
+      [{ ...key, issuerId: undefined }, '`apiKey.issuerId`'],
+      [{ ...key, issuerId: '' }, '`apiKey.issuerId`'],
+      [{ ...key, keyId: undefined }, '`apiKey.keyId`'],
+      [{ ...key, keyId: 'no key id' }, '`apiKey.keyId`'],
+      [{ ...key, privateKey: undefined }, '`apiKey.privateKey`'],
+      [{ ...key, privateKey: '' }, '`apiKey.privateKey`'],
+      [{ ...key, privateKey: 'not a key at all!' }, '`apiKey.privateKey`'],
+    ]
+    for (const [apiKey, message] of refused) {
+      const create = () => createAppStoreDriver({ ...config, apiKey: apiKey as never })
+      expect(create, message).toThrow(BillingError)
+      expect(create, message).toThrow(message)
+    }
+
+    // The file as it is, as an environment variable carries it, and without its first and last line.
+    const body = key.privateKey.replace(/-----[A-Z ]+-----/g, '').trim()
+    for (const privateKey of [key.privateKey, key.privateKey.replace(/\n/g, '\\n'), body]) {
+      const billing = createBilling({
+        driver: createAppStoreDriver({
+          ...config,
+          apiKey: { ...key, privateKey },
+          fetch: apple.fetch,
+        }),
+        store: createMemoryBillingStore(),
+        products,
+      })
+      await billing.verifyPurchase({
+        userId: 'u1',
+        proof: await proof('transaction-non-consumable'),
+      })
+      expect((await billing.account('u1')).holdings).toHaveLength(1)
+    }
+    expect(apple.calls).toHaveLength(3)
+
+    // Base64 that is no key shows when the first request is signed.
+    const billing = createBilling({
+      driver: createAppStoreDriver({
+        ...config,
+        apiKey: { ...key, privateKey: btoa('not a key at all, but base64') },
+        fetch: apple.fetch,
+      }),
+      store: createMemoryBillingStore(),
+      products,
+    })
+    await expect(
+      billing.verifyPurchase({ userId: 'u1', proof: await proof('transaction-non-consumable') }),
+    ).rejects.toThrow('is not a signing key')
+    expect(apple.calls).toHaveLength(3)
+  })
+
+  it('asks Apple nothing without a key', async () => {
+    const billing = createBilling({
+      driver: createAppStoreDriver({
+        bundleId: BUNDLE,
+        environment: 'sandbox',
+        rootCertificates: [chain.root],
+        fetch: () => {
+          throw new Error('no request without a key')
+        },
+      }),
+      store: createMemoryBillingStore(),
+      products,
+    })
+    const { events } = await billing.verifyPurchase({
+      userId: 'u1',
+      proof: await proof('transaction-non-consumable'),
+    })
+    expect(events).toHaveLength(1)
   })
 })
 

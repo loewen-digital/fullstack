@@ -239,6 +239,13 @@ export interface DriverPurchaseResult {
   events: ProviderEvent[]
   /** As `settle` of a webhook delivery. When it throws, `verifyPurchase` of billing throws */
   settle?(): Promise<void>
+  /**
+   * For a proof that may be out of date: asks the provider what the purchase is today, and
+   * answers the events that take the place of `events`. Billing calls it before the proof adds
+   * anything to the account, and only then: a proof whose events are all in the account costs no
+   * request. When it throws, `verifyPurchase` of billing throws and nothing is changed.
+   */
+  refresh?(): Promise<ProviderEvent[]>
 }
 
 /** A payment provider behind the module */
@@ -293,6 +300,19 @@ export interface PaddleDriverConfig {
 /** The App Store runs two environments; what one signed is unknown to the other */
 export type AppStoreEnvironment = 'production' | 'sandbox'
 
+/**
+ * An In-App Purchase key of App Store Connect (Users and Access, Integrations), which the App
+ * Store Server API takes. One key serves production and the sandbox.
+ */
+export interface AppStoreApiKey {
+  /** The issuer id, shown above the keys */
+  issuerId: string
+  /** The id of the key */
+  keyId: string
+  /** The contents of the `.p8` file of the key. A secret: read it from the environment */
+  privateKey: string
+}
+
 export interface AppStoreDriverConfig {
   /** The bundle id of the app that sells. What the App Store signed for another app is refused */
   bundleId: string
@@ -302,10 +322,20 @@ export interface AppStoreDriverConfig {
    */
   environment: AppStoreEnvironment
   /**
+   * With a key, the driver asks Apple what a transaction is today before it applies one that was
+   * signed more than a day ago and is not in the account yet: one that was refunded in the
+   * meantime is applied as refunded. Without a key the driver asks Apple nothing.
+   */
+  apiKey?: AppStoreApiKey
+  /**
    * The root certificates a signature's chain may end in, as DER bytes, base64 or PEM (default:
    * Apple Root CA - G3). For tests that sign with a chain of their own.
    */
   rootCertificates?: readonly (Uint8Array | string)[]
+  /** Milliseconds to wait for an answer of Apple (default: 15000) */
+  timeoutMs?: number
+  /** Replaces the global `fetch`: for tests */
+  fetch?: typeof fetch
 }
 
 export interface GooglePlayDriverConfig {

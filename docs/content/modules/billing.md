@@ -581,7 +581,7 @@ The tests of the driver run without a network, against Paddle's documented notif
 
 ## The App Store driver
 
-`createAppStoreDriver` takes what a web app shipped as an iOS app sells through Apple's in-app purchase. The purchase is made on the device, by StoreKit in the app's shell. The driver verifies what the App Store signed and reads it: the signed transaction the app hands over, and the notifications Apple posts to your webhook route. It asks Apple nothing and holds no secret, so it adds no dependency and runs on Node and on Cloudflare Workers, on Web Crypto alone.
+`createAppStoreDriver` takes what a web app shipped as an iOS app sells through Apple's in-app purchase. The purchase is made on the device, by StoreKit in the app's shell. The driver verifies what the App Store signed and reads it: the signed transaction the app hands over, and the notifications Apple posts to your webhook route. As it is, it asks Apple nothing and holds no secret; with a key it [asks Apple about a purchase that is handed over late](#a-purchase-that-is-handed-over-late). It adds no dependency and runs on Node and on Cloudflare Workers, on Web Crypto and `fetch` alone.
 
 ```ts
 import { appStoreAccountToken, createAppStoreDriver, createBilling, createMemoryBillingStore } from '@loewen-digital/fullstack/billing'
@@ -616,7 +616,10 @@ const appBilling = createBilling({
 |---|---|---|
 | `bundleId` | required | The bundle id of the app. What Apple signed for another app is refused |
 | `environment` | required | `'production'` or `'sandbox'`. One driver takes one of them and refuses the other, see [Sandbox and production](#sandbox-and-production) |
+| `apiKey` | optional | `{ issuerId, keyId, privateKey }` of an In-App Purchase key. With it the driver asks Apple what a transaction is today before it applies one that is handed over late, see [A purchase that is handed over late](#a-purchase-that-is-handed-over-late). A secret |
 | `rootCertificates` | optional | The root certificates a signature may lead to, as DER bytes, base64 or PEM. Default: Apple Root CA - G3, which ships with the driver. For tests that sign with a chain of their own |
+| `timeoutMs` | optional | Milliseconds to wait for an answer of Apple, with `apiKey`. Default: `15000` |
+| `fetch` | optional | Replaces the global `fetch`, with `apiKey`: for tests |
 
 The driver has no `checkout()`: it throws, because the purchase starts on the device. A product is `type: 'subscription'` for an auto-renewable subscription and `type: 'one-time'` for everything else Apple sells (non-consumable, consumable, non-renewing subscription); a purchase of the other kind than the config says is refused with a `BillingError` that names both.
 
@@ -686,6 +689,48 @@ The driver checks, in this order: the signature and its certificate chain up to 
 - **A period that is over starts nothing.** An old transaction would otherwise start a subscription that nothing ends. The subscription a user holds today is in the transaction of its current period.
 - **A consumable is a holding of its own** per purchase, and it stays `active`: sell consumables as products without features and credit them from the event, as in [usage](/modules/usage). The `quantity` of a purchase is not read; sell a pack as a product of its own.
 
+### A purchase that is handed over late
+
+A transaction says what was true when Apple signed it. What happens afterwards, a refund above all, Apple tells in a [notification](#notifications), and a notification about a purchase of a user who has handed nothing over yet finds nobody: it is answered with `409`, and Apple gives up after five more attempts, about six and a half days. A transaction that is handed over after that still says "bought", also when the money went back long ago. Somebody who keeps the app from posting, asks Apple for a refund and posts a week later holds a purchase they did not pay for.
+
+With a key the driver asks Apple before it applies such a transaction:
+
+```ts
+const appStoreWithKey = (environment: 'production' | 'sandbox') =>
+  createAppStoreDriver({
+    bundleId: 'com.example.app',
+    environment,
+    apiKey: {
+      issuerId: process.env.APP_STORE_ISSUER_ID!,
+      keyId: process.env.APP_STORE_KEY_ID!,
+      privateKey: process.env.APP_STORE_PRIVATE_KEY!, // the contents of the .p8 file
+    },
+  })
+```
+
+Apple is asked when all of this holds, and what it answers takes the place of what was handed over:
+
+- **Apple signed the transaction more than a day ago** (`signedDate`). A purchase that is posted when it is made costs no request: what happens after the signature comes as a notification, and Apple still tries those for days.
+- **The account does not have it yet.** A transaction that is in the account already, as on every start of the app, costs no request, whether the app handed it over before or a notification brought it. Neither does one that says nothing, like a subscription period that is over.
+- **It verified, and it is the user's.** The signature, the app, the environment and the account token are checked first. Nobody makes your server ask Apple about a transaction that is not theirs.
+
+The request is Get Transaction Info of the App Store Server API, signed as the key (a JWT, ES256, good for five minutes). The answer is a transaction signed by Apple, and it is verified and checked like the one the app handed over, the account token included:
+
+| Apple answers | becomes |
+|---|---|
+| the transaction as it was handed over | what it says, as in the table above |
+| …with a `revocationDate` | the purchase, and `payment.refunded` after it: the holding is `refunded` and grants nothing |
+| …replaced by an upgrade | nothing |
+| that it knows no such transaction | `BillingPurchaseError`, `invalid` |
+| nothing: Apple is not reachable, answers `429` or `5xx`, or does not take the key | a `BillingError`; nothing is changed, and the next hand-over asks again |
+
+- **The key.** In App Store Connect, under Users and Access, Integrations, In-App Purchase: generate a key, copy its key id and the issuer id above the list, and download the `.p8` file, which Apple offers once. `privateKey` is the contents of that file; line breaks may be the two characters `\n`, as an environment variable carries them. One key serves production and the sandbox: give it to both drivers.
+- **It is a secret**, and it opens the App Store Server API for the apps of your team. It belongs in the environment of the server, never in the repository, in a log or in the app. No message of the driver carries the key or a token signed with it.
+- **A wrong key fails loudly, and late.** That the three values can be a key is checked when the driver is created; whether Apple takes it shows with the first request. Until then purchases that are posted when they are made go through, and every late one throws a `BillingError` that names `apiKey`.
+- **Do not finish what failed.** When the route throws, the shell leaves the transaction unfinished, StoreKit hands it out again on the next start, and the driver asks again.
+- **A refunded consumable arrives as two events** in one answer, `purchase.completed` and then `payment.refunded`. An app that credits a balance on the first takes the credit back on the second, as for a refund that comes days after the purchase.
+- **What a key does not change.** A subscription still ends only through notifications. And the sandbox tries a notification once, not for days: there, what happens within the first day after a purchase nobody posted is lost. Sandbox purchases cost nothing.
+
 ### Notifications
 
 What happens after the purchase (a renewal, a cancel, a failed payment, a refund) Apple tells your server, not the device. In App Store Connect, under App Information, App Store Server Notifications, set the Production Server URL and the Sandbox Server URL to two routes of your app, both as **Version 2**:
@@ -723,7 +768,7 @@ What to know:
 - **Without notifications nothing ever ends.** A purchase is in the account as soon as the app hands it over, with or without notifications. A subscription ends only when Apple says so, here. An app that takes purchases and never set the two URLs gives every subscription away for good, and nothing looks broken. See a `subscription.renewed` arrive in the sandbox before you sell.
 - **A proof and a notification are one event.** Both tell a purchase under the id of its transaction, so it reaches your side effects once, whichever arrives first. What only a notification tells (a cancel, an expiry) has the id of the notification, which Apple keeps when it delivers again.
 - **A notification before the proof.** One that names a purchase nobody handed over, by a user who has handed none over yet, is answered with `409`. Apple delivers again after 1, 12, 24, 48 and 72 hours, in production; the sandbox tries once.
-- **A purchase that is handed over very late can be stale.** When Apple has stopped trying, what it told is lost. A transaction the app hands over after that still starts its purchase, also one Apple has refunded in the meantime. The driver does not ask Apple; an app that needs to be sure asks the App Store Server API with a key of its own before it calls `verifyPurchase`.
+- **A purchase that is handed over very late can be stale.** When Apple has stopped trying, what it told is lost. A transaction the app hands over after that still starts its purchase, also one Apple has refunded in the meantime. Without `apiKey` the driver does not ask Apple. With one it does, see [A purchase that is handed over late](#a-purchase-that-is-handed-over-late): set it before you sell what costs you money per purchase, like credits.
 - **The grace period is Apple's.** Set a Billing Grace Period in App Store Connect and a failed renewal keeps its access while Apple tries, as `past_due`; `entitlements.pastDueGraceDays` can shorten that, not extend it. Without one Apple's word is to stop, and the subscription is `canceled` with the period it was paid for. A renewal that comes after all makes it `active` again.
 - **An upgrade** is `subscription.changed` when the notification brings it, and `subscription.started` when the app hands the new transaction over first: a transaction does not say that it replaced another. The state is the same.
 - **A refund** counts when it takes the purchase away, however large it is. For a subscription that is a refund of the period that was running; one of a period that had ended leaves the subscription as it is.
@@ -741,7 +786,7 @@ Apple runs two environments, and everything it signs says which one it is from. 
 
 ### Trying it in the sandbox
 
-The tests of the driver run without a network: on payloads in the shape of Apple's reference, signed by a certificate chain the test makes for the run, and on Apple's real certificates for the check of the chain. Nothing was recorded from a sandbox account yet. To see it work against Apple yourself:
+The tests of the driver run without a network: on payloads in the shape of Apple's reference, signed by a certificate chain the test makes for the run, on Apple's real certificates for the check of the chain, and against a fake of Apple's API that takes a token only as Apple's reference describes it. Nothing was recorded from a sandbox account yet, and no request with a real key was answered by Apple yet. To see it work against Apple yourself:
 
 1. In App Store Connect, create a non-consumable and an auto-renewable subscription for the app, and put their product ids into `products`, under the sandbox provider.
 2. Set `bundleId` to the app's bundle id and deploy a preview of your app: Apple has to reach it.
@@ -753,6 +798,7 @@ The tests of the driver run without a network: on payloads in the shape of Apple
 8. Buy the subscription again and cancel it in the sandbox account's settings: the holding becomes `canceled` with `accessEndsAt` at the end of the period.
 9. Sign in as a second user of your app and post the transaction of the first: the answer is `409`.
 10. Post a transaction with one character changed, and a notification body with one character changed: `422` and `401`, and nothing changes.
+11. With `apiKey` set: buy as a user of your app who has handed nothing over yet, keep the transaction instead of posting it, and post it a day later. With one character of `keyId` changed the route fails with a `BillingError` that names `apiKey`, and nothing changes; with the right key it answers as in step 6. The difference is the request to Apple.
 
 | Value | | Goes to |
 |---|---|---|
@@ -760,8 +806,9 @@ The tests of the driver run without a network: on payloads in the shape of Apple
 | the environment | `'production'` or `'sandbox'` | `environment`, one driver each |
 | product ids | public | `providerId` of each product, per provider |
 | Production Server URL, Sandbox Server URL | set in App Store Connect, Version 2 | the two notification routes |
+| issuer id, key id, the `.p8` file of an In-App Purchase key | secret, optional | `apiKey`, the same for both drivers |
 
-There is no secret among them: the driver verifies with Apple's public root and signs nothing.
+Without `apiKey` there is no secret among them: the driver verifies with Apple's public root and signs nothing.
 
 ## The Google Play driver
 
@@ -1046,6 +1093,7 @@ async function verifyPurchase({ userId, proof }: DriverPurchaseInput): Promise<D
 - `verifyPurchase` gets the proof as the app received it, the signed-in user, and `products`: what the config sells through this provider, by the provider's id. Throw `BillingPurchaseError(message, 'invalid')` for a proof that is not a valid one of the provider, and `'other-user'` when it names another user; anything else a driver throws reaches the caller of `billing.verifyPurchase` as it is. Leave `userId` off the events: they are applied for the user who handed the proof over, and billing refuses a purchase that is linked to someone else.
 - **An event has one id, however the driver learned of it.** Build the id from what happened (the transaction, the subscription and its period, the refund), not from the delivery, so a proof and a notification that tell the same thing are one event. Where that is not possible the second one still changes nothing, but it is skipped as `unchanged` instead of `duplicate`.
 - `settle`, on the result of `verifyPurchase` and of `parseWebhook`, is called once every event of it is in its user's account, applied now or before: the place to acknowledge or consume a purchase at the store. It is not called while an event waits for its user (`unmatched`) or names a product the config does not have. It is called again when the same proof or delivery comes in again, so it has to bear being repeated; when it throws, the delivery is answered with `500` and `billing.verifyPurchase` throws, and the next attempt settles.
+- `refresh`, on the result of `verifyPurchase`, is for a proof that may be out of date, like a signed transaction that is days old: return it, and billing calls it before the proof adds anything to the account. It asks the provider what the purchase is today and answers the events that are applied in place of `events`, an empty list for a purchase that is gone. It is not called for a proof whose events the account has already, are older than what it knows, or name nothing the config sells, so a proof that is handed over on every start costs one request, not one per start. When it throws, `billing.verifyPurchase` throws and nothing is changed or linked. What it answers is checked like the proof: a purchase that is linked to another user is refused.
 - `acceptUnmatched: true` on the result of `parseWebhook` answers a delivery as received when an event has no user to belong to, instead of the `409` that makes the provider deliver again. It is for a provider whose deliveries only say that a purchase changed, so that your driver reads the purchase as it is now: a second delivery reads the same, and so does the hand-over of the purchase. The event is listed in `skipped` as `unmatched`, and `settle` is not called.
 - Keep ids short and plain: stores use them as keys, and the flatdb store as file names of at most 200 bytes, where every character outside `a-z`, `0-9`, `_` and `-` counts three. Hash an id that is long, as a store's purchase token is.
 - Never log the request, its headers, a proof or the provider's secrets.

@@ -1,5 +1,11 @@
 import { BillingError, BillingPurchaseError, BillingWebhookError } from '../errors.js'
-import type { AppStoreDriverConfig, BillingDriver, ProviderEvent } from '../types.js'
+import type {
+  AppStoreDriverConfig,
+  BillingDriver,
+  DriverPurchaseInput,
+  ProviderEvent,
+} from '../types.js'
+import { createAppStoreApi } from './app-store-api.js'
 import {
   APPLE_ROOT_CA_G3,
   AppleSignatureError,
@@ -38,6 +44,14 @@ const READ = new Set([
   'REVOKE',
   'REFUND_REVERSED',
 ])
+/**
+ * A proof Apple signed longer ago than this is asked about before it is applied, when the driver
+ * has a key. What happened after Apple signed a proof comes as a notification, and one that finds
+ * no user yet is delivered again after 1, 12, 24, 48 and 72 hours: a proof of the last day misses
+ * nothing that is not still on its way.
+ */
+const ASK_APPLE_AFTER = 24 * 3_600_000
+const DEFAULT_TIMEOUT_MS = 15_000
 /** An id that is safe as a key of a store: Apple's are digits, or a UUID */
 const ID = /^[\w.-]{1,64}$/
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
@@ -98,12 +112,15 @@ export async function appStoreAccountToken(userId: string): Promise<string> {
 /**
  * Apple's in-app purchase behind the billing module, for a web app shipped as an iOS app. The
  * purchase is made on the device with StoreKit; the driver verifies what the App Store signed
- * and reads it. Web Crypto only: no dependency, no request to Apple and no secret, so it runs on
- * Node and on Cloudflare Workers.
+ * and reads it. Web Crypto and `fetch` only, so it runs on Node and on Cloudflare Workers: no
+ * dependency, and without `apiKey` no request to Apple and no secret.
  *
  * - A purchase is the signed transaction the app hands over (`jwsRepresentation` of StoreKit 2):
  *   the signature and its certificate chain up to Apple's root, the bundle id and the
  *   environment are checked, and the account token in it has to be the one of the user.
+ * - With `apiKey`, a transaction Apple signed more than a day ago is asked about before it adds
+ *   anything to the account (Get Transaction Info of the App Store Server API), and what Apple
+ *   answers takes its place: a purchase that was refunded in the meantime is applied as refunded.
  * - A webhook is an App Store Server Notification of version 2, verified the same way.
  * - One driver takes one environment. Sandbox purchases cost nothing, so they get a provider of
  *   their own: the same driver twice, under two names.
@@ -135,6 +152,16 @@ export function createAppStoreDriver(config: AppStoreDriverConfig): BillingDrive
   }
   const environment = ENVIRONMENTS[config.environment]
   const roots = rootsOf(config.rootCertificates)
+  const api =
+    config.apiKey === undefined
+      ? null
+      : createAppStoreApi({
+          key: config.apiKey,
+          bundleId,
+          environment: config.environment,
+          fetch: (input, init) => (config.fetch ?? fetch)(input, init),
+          timeoutMs: config.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+        })
 
   /** The payload of a JWS the App Store signed; anything else is refused */
   async function signed(jws: unknown, refuse: Refuse): Promise<Fields> {
@@ -184,6 +211,39 @@ export function createAppStoreDriver(config: AppStoreDriverConfig): BillingDrive
     }
   }
 
+  /**
+   * A transaction the user may hand over: bought by them, for their account, and of the kind the
+   * config sells its product as. Anything else is refused.
+   */
+  async function checkPurchase(
+    transaction: Transaction,
+    input: DriverPurchaseInput,
+    refuse: Refuse,
+  ): Promise<void> {
+    if (!transaction.owned) {
+      refuse('the transaction was shared with this customer, not bought by them')
+    }
+    if (transaction.accountToken === undefined) {
+      refuse(
+        'the transaction names no account: the app has to buy with the appAccountToken of the user',
+      )
+    }
+    if (transaction.accountToken !== (await appStoreAccountToken(input.userId))) {
+      throw new BillingPurchaseError(
+        'billing: this purchase belongs to another user.',
+        'other-user',
+      )
+    }
+    const sold = Object.hasOwn(input.products, transaction.productId)
+      ? input.products[transaction.productId]
+      : undefined
+    if (sold && (sold.type === 'subscription') !== transaction.subscription) {
+      throw new BillingError(
+        `billing: product "${sold.product}" is ${sold.type} in the config, and the App Store sold "${transaction.productId}" as ${transaction.subscription ? 'a subscription' : 'a one-time purchase'}.`,
+      )
+    }
+  }
+
   return {
     name: 'app-store',
 
@@ -197,31 +257,35 @@ export function createAppStoreDriver(config: AppStoreDriverConfig): BillingDrive
       const refuse: Refuse = (message) => {
         throw new BillingPurchaseError(`billing: ${message}.`, 'invalid')
       }
-      const transaction = transactionOf(await signed(input.proof, refuse), refuse)
-      if (!transaction.owned) {
-        refuse('the transaction was shared with this customer, not bought by them')
-      }
-      if (transaction.accountToken === undefined) {
-        refuse(
-          'the transaction names no account: the app has to buy with the appAccountToken of the user',
-        )
-      }
-      if (transaction.accountToken !== (await appStoreAccountToken(input.userId))) {
-        throw new BillingPurchaseError(
-          'billing: this purchase belongs to another user.',
-          'other-user',
-        )
-      }
-      const sold = Object.hasOwn(input.products, transaction.productId)
-        ? input.products[transaction.productId]
-        : undefined
-      if (sold && (sold.type === 'subscription') !== transaction.subscription) {
-        throw new BillingError(
-          `billing: product "${sold.product}" is ${sold.type} in the config, and the App Store sold "${transaction.productId}" as ${transaction.subscription ? 'a subscription' : 'a one-time purchase'}.`,
-        )
-      }
+      const handed = transactionOf(await signed(input.proof, refuse), refuse)
+      await checkPurchase(handed, input, refuse)
       const now = Date.now()
-      return { events: transactionEvents(transaction, transaction.signedAt ?? now, now) }
+      const events = transactionEvents(handed, handed.signedAt ?? now, now)
+      if (!api || (handed.signedAt !== null && now - handed.signedAt < ASK_APPLE_AFTER)) {
+        return { events }
+      }
+
+      return {
+        events,
+        // Called by billing before the proof adds anything to the account: Apple is asked only
+        // about a verified transaction of this user, and never about one the account has.
+        async refresh() {
+          const jws = await api.transaction(handed.id)
+          if (jws === null) refuse('the App Store knows no transaction under the id of this one')
+          // Verified like the proof. An answer that does not verify is not the customer's fault.
+          const unusable: Refuse = (message) => {
+            throw new BillingError(
+              `billing: what Apple answered about the transaction is not usable: ${message}.`,
+            )
+          }
+          const current = transactionOf(await signed(jws, unusable), unusable)
+          if (current.id !== handed.id) unusable('it is another transaction than the one asked for')
+          // Whose it is can have changed at Apple since the proof was signed.
+          await checkPurchase(current, input, refuse)
+          const asked = Date.now()
+          return transactionEvents(current, current.signedAt ?? asked, asked)
+        },
+      }
     },
 
     async parseWebhook(request) {
