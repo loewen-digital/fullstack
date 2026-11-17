@@ -80,6 +80,6 @@ describe('loadTranslations', () => {
 
 describe('the i18n entry', () => {
   it('leaves loadTranslations to the entry for Node', () => {
-    expect(Object.keys(entry)).toEqual(['createI18n'])
+    expect(Object.keys(entry)).not.toContain('loadTranslations')
   })
 })

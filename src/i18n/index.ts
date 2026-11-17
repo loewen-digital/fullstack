@@ -5,6 +5,7 @@ import { pluralize } from './pluralization.js'
 import { formatNumber, formatDate } from './formatting.js'
 
 export type { I18nConfig, I18nInstance } from './types.js'
+export { negotiateLocale } from './negotiate.js'
 
 export function createI18n(config: I18nConfig = {}): I18nInstance {
   let activeLocale = config.locale ?? 'en'

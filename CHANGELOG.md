@@ -7,6 +7,7 @@ is the topmost released one here.
 
 ## Unreleased
 
+- `negotiateLocale(header, supported)` from `@loewen-digital/fullstack/i18n` answers which of your locales a request asks for, so an app needs no `Accept-Language` parser of its own. It takes the header or the `Request`, goes by the weights (`q`) and then by the order of the header, takes `de-CH` as `de` and `de` as `de-DE` when that is what you speak, leaves out `*` and `q=0`, and answers `undefined` when the request asks for none of your locales: the default stays yours, and so does whether an account, a cookie or the address comes first. The answer is typed as one of the locales you passed. It runs on Workers, in Node and in the browser. Decision: [0038](docs/decisions/0038-negotiate-locale.md). (#47)
 - **Breaking:** `loadTranslations` moved from `@loewen-digital/fullstack/i18n` to `@loewen-digital/fullstack/i18n/node`; the package root exports it as before. What is left in `/i18n` needs nothing from Node, so a client build that imports `createI18n` into a component no longer prints `Module "node:fs/promises" has been externalized for browser compatibility`. Where you read catalogs from files, change the import. There is no re-export from the old place: with one, the bundler finds `node:fs` again and the warning stays ([decision 0037](docs/decisions/0037-i18n-node-entry.md)). (#48)
 
 ## v0.8.0 · 2026-11-17 · Push notifications, and purchases from the app stores

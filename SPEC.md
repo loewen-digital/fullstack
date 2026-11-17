@@ -144,6 +144,7 @@ The core **never** imports or depends on any framework-specific code. Every modu
 │   │   └── types.ts
 │   ├── i18n/
 │   │   ├── index.ts             → createI18n(), free of Node: it is imported into components too
+│   │   ├── negotiate.ts         → negotiateLocale(): Accept-Language against the app's locales
 │   │   ├── node.ts              → loadTranslations(), the entry `/i18n/node`
 │   │   ├── pluralization.ts
 │   │   ├── formatting.ts
