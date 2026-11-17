@@ -1,11 +1,11 @@
 ---
 title: Fakes
-description: The mail, queue, storage and billing fakes, and how to observe the other modules in tests
+description: The mail, queue, storage, billing and push fakes, and how to observe the other modules in tests
 ---
 
 # Fakes
 
-Four drivers exist for tests: `createFakeMailDriver`, `createFakeQueueDriver`, `createFakeStorageDriver` and `createFakeBillingDriver`. They implement the module's driver interface, record what went through them, and expose that for assertions with your test runner's `expect`. `createTestStack` builds them for you as `fakeMail`, `fakeQueue` and `fakeStorage`; on their own they go into the module's `createXInstance`.
+Five drivers exist for tests: `createFakeMailDriver`, `createFakeQueueDriver`, `createFakeStorageDriver`, `createFakeBillingDriver` and `createFakePushDriver`. They implement the module's driver interface, record what went through them, and expose that for assertions with your test runner's `expect`. `createTestStack` builds them for you as `fakeMail`, `fakeQueue` and `fakeStorage`; on their own they go into the module's `createXInstance`.
 
 ## Import
 
@@ -155,6 +155,53 @@ async function assertsPurchases() {
 | `checkouts` | What every `billing.checkout` handed to the driver |
 | `manageRequests` | What every `billing.manageUrl` handed to the driver |
 | `clear()` | Forget checkouts and manage requests |
+
+## Push
+
+`createFakePushDriver` takes the place of the Web Push driver in `channels.push.drivers`: it accepts what the app's registration code hands over, records what each device was sent, and answers as gone or failed for the devices a test names. `fakePush.device(name)` is a device to register; `name` is its key afterwards. It is not part of `createTestStack`, because the push channel needs a store.
+
+```ts
+import { expect } from 'vitest'
+import { createMemoryDeviceStore, createNotifications } from '@loewen-digital/fullstack/notifications'
+import type { Notification } from '@loewen-digital/fullstack/notifications'
+import { createFakePushDriver } from '@loewen-digital/fullstack/testing'
+
+const fakePush = createFakePushDriver()
+const pushNotifications = createNotifications({
+  channels: { push: { store: createMemoryDeviceStore(), drivers: [fakePush] } },
+})
+const kickOff: Notification = {
+  channels: () => ['push'],
+  toPush: () => ({ title: 'Kick-off', body: 'In an hour' }),
+}
+
+async function assertsPush() {
+  await pushNotifications.devices.register('u1', fakePush.device('laptop'))
+  await pushNotifications.devices.register('u1', fakePush.device('phone'))
+
+  await pushNotifications.notify({ id: 'u1' }, kickOff)
+  expect(fakePush.sent).toHaveLength(2)
+  expect(fakePush.sent[0]).toEqual({ key: 'laptop', payload: { title: 'Kick-off', body: 'In an hour' } })
+
+  fakePush.fail('phone') // the push service is down for this device
+  const report = await pushNotifications.notify({ id: 'u1' }, kickOff)
+  expect(report.ok).toBe(false)
+
+  fakePush.gone('laptop') // the push service dropped this subscription
+  await pushNotifications.notify({ id: 'u1' }, kickOff)
+  expect(await pushNotifications.devices.list('u1')).toHaveLength(1) // the gone one was removed
+}
+```
+
+| Member | Description |
+|---|---|
+| `device(name)` | A device to hand to `devices.register`: for the default kind a subscription whose endpoint ends in `name` |
+| `sent` | `{ key, payload }` for every notification a device took. `key` is the name from `device()`, or the endpoint, `token` or `id` the app registered with |
+| `gone(key)` | From now on the device answers as gone, so the register removes it |
+| `fail(key, reason?)` | From now on the device answers as failed, with `reason` in the report |
+| `clear()` | Forget what was sent and how devices answer |
+
+`createFakePushDriver({ kind })` stands in for a driver of another kind; its devices are `{ kind, id: name }`.
 
 ## The other modules
 

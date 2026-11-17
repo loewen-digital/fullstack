@@ -166,19 +166,38 @@ describe('SMS channel', () => {
   })
 })
 
+// The push channel with its register and drivers has its own files: push.test.ts, web-push.test.ts.
 describe('Push channel', () => {
-  it('sends via push driver', async () => {
-    const send = vi.fn()
-    const push = { send }
-    const notifs = createNotifications({}, { push })
-    await notifs.notify(user, new PushOnlyNotification())
-    expect(send).toHaveBeenCalledWith('u1', { title: 'Hello', body: 'World' })
-  })
-
-  it('throws when push driver is missing', async () => {
+  it('throws when push is not configured', async () => {
     const notifs = createNotifications({})
     await expect(notifs.notify(user, new PushOnlyNotification())).rejects.toThrow(
-      'Push driver required',
+      'push is not configured',
     )
+  })
+})
+
+describe('the report of notify', () => {
+  it('names every channel and is ok when all delivered', async () => {
+    const notifs = createNotifications({}, { mail: fakeMail() })
+    const report = await notifs.notify(user, new WelcomeNotification())
+
+    expect(report).toEqual({
+      ok: true,
+      channels: [
+        { channel: 'mail', ok: true },
+        { channel: 'in-app', ok: true },
+      ],
+    })
+  })
+
+  it('carries the error of a channel that failed while another delivered', async () => {
+    const notifs = createNotifications({})
+    const report = await notifs.notify(user, new WelcomeNotification())
+
+    expect(report.ok).toBe(false)
+    expect(report.channels[0]).toMatchObject({ channel: 'mail', ok: false })
+    expect(String(report.channels[0]!.error)).toContain('Mail instance required')
+    expect(report.channels[1]).toEqual({ channel: 'in-app', ok: true })
+    expect(notifs.getInApp('u1')).toHaveLength(1)
   })
 })

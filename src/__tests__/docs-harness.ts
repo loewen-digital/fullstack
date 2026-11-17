@@ -261,6 +261,9 @@ export function compile(dir: string, files: string[]): string[] {
       '@loewen-digital/fullstack': [join(ROOT, 'src/index.ts')],
       '@loewen-digital/fullstack/auth/flatdb': [join(ROOT, 'src/auth/adapters/flatdb.ts')],
       '@loewen-digital/fullstack/billing/flatdb': [join(ROOT, 'src/billing/stores/flatdb.ts')],
+      '@loewen-digital/fullstack/notifications/flatdb': [
+        join(ROOT, 'src/notifications/stores/flatdb.ts'),
+      ],
       '@loewen-digital/fullstack/usage/flatdb': [join(ROOT, 'src/usage/stores/flatdb.ts')],
       '@loewen-digital/fullstack/*': [join(ROOT, 'src/*/index.ts')],
       '~/*': [join(dir, 'app/*')],

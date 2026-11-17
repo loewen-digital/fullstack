@@ -23,7 +23,6 @@ import type {
   RealtimeConfig,
 } from '../config/types.js'
 import type { SearchConfig as SearchModuleConfig } from '../search/types.js'
-import type { NotificationsConfig as NotificationsModuleConfig } from '../notifications/types.js'
 import type { DbInstance } from '../db/index.js'
 import type { AuthInstance, AuthDbAdapter } from '../auth/index.js'
 import type { MailInstance } from '../mail/index.js'
@@ -173,7 +172,7 @@ export function createStack<C extends FullstackConfig>(
 
   // Notifications optionally depends on mail.
   if (config.notifications !== undefined) {
-    stack.notifications = createNotifications(config.notifications as NotificationsModuleConfig, {
+    stack.notifications = createNotifications(config.notifications, {
       mail: stack.mail as MailInstance | undefined,
     })
   }

@@ -87,6 +87,10 @@
       "import": "./dist/notifications/index.js",
       "types": "./dist/notifications/index.d.ts"
     },
+    "./notifications/flatdb": {
+      "import": "./dist/notifications/stores/flatdb.js",
+      "types": "./dist/notifications/stores/flatdb.d.ts"
+    },
     "./i18n": {
       "import": "./dist/i18n/index.js",
       "types": "./dist/i18n/index.d.ts"

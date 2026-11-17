@@ -128,11 +128,18 @@ The core **never** imports or depends on any framework-specific code. Every modu
 │   │   └── types.ts
 │   ├── notifications/
 │   │   ├── index.ts             → createNotifications()
+│   │   ├── errors.ts            → NotificationsError, PushDeviceError
 │   │   ├── channels/
 │   │   │   ├── mail.ts
-│   │   │   ├── push.ts
+│   │   │   ├── push.ts          → the register of a user's devices, one notification to all of them
 │   │   │   ├── sms.ts
 │   │   │   └── in-app.ts
+│   │   ├── drivers/
+│   │   │   ├── encoding.ts      → base64url, ES256 JWT
+│   │   │   └── web-push.ts      → Web Push: RFC 8291 encryption and VAPID on Web Crypto
+│   │   ├── stores/
+│   │   │   ├── memory.ts
+│   │   │   └── flatdb.ts        → on flatdb's StorageAdapter, compare-and-swap per user
 │   │   └── types.ts
 │   ├── i18n/
 │   │   ├── index.ts             → createI18n()
@@ -192,6 +199,7 @@ The core **never** imports or depends on any framework-specific code. Every modu
 │   │   ├── fake-storage.ts
 │   │   ├── fake-queue.ts
 │   │   ├── fake-billing.ts
+│   │   ├── fake-push.ts
 │   │   ├── db-helpers.ts        → transactions, cleanup
 │   │   └── factories.ts         → factory builder
 │   ├── adapters/
@@ -244,6 +252,7 @@ The core **never** imports or depends on any framework-specific code. Every modu
     "./queue": "./dist/queue/index.js",
     "./events": "./dist/events/index.js",
     "./notifications": "./dist/notifications/index.js",
+    "./notifications/flatdb": "./dist/notifications/stores/flatdb.js",
     "./i18n": "./dist/i18n/index.js",
     "./search": "./dist/search/index.js",
     "./permissions": "./dist/permissions/index.js",
@@ -397,7 +406,7 @@ config (standalone)
 │   └── session (depends on: config, optional: cache)
 │
 ├── mail (depends on: config)
-│   └── notifications (depends on: mail, optional: push/sms)
+│   └── notifications (depends on: mail; optional: an sms driver, push with a device store and drivers)
 │
 ├── queue (depends on: config)
 │   └── events can optionally dispatch to queue

@@ -46,7 +46,7 @@ features:
     details: Internationalization with message lookup, pluralization, and number/date formatting.
   - icon: "\U0001F514"
     title: Notifications
-    details: Multi-channel notifications via mail, in-app, SMS, and push.
+    details: Multi-channel notifications via mail, in-app, SMS, and Web Push to every device of a user.
   - icon: "\U0001F512"
     title: Permissions
     details: Role-based access control with policies, wildcards, and role inheritance.

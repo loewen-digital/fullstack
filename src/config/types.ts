@@ -6,8 +6,9 @@
 import type { AuthConfig } from '../auth/types.js'
 import type { SecurityConfig } from '../security/types.js'
 import type { I18nConfig } from '../i18n/types.js'
+import type { NotificationsConfig } from '../notifications/types.js'
 
-export type { AuthConfig, SecurityConfig, I18nConfig }
+export type { AuthConfig, SecurityConfig, I18nConfig, NotificationsConfig }
 
 export interface DbConfig {
   driver: 'sqlite' | 'postgres' | 'mysql' | 'd1'
@@ -50,13 +51,6 @@ export interface SessionConfig {
   maxAge?: string
   secret?: string
   [key: string]: unknown
-}
-
-export interface NotificationsConfig {
-  channels?: {
-    sms?: unknown
-    push?: unknown
-  }
 }
 
 export interface PermissionsConfig {

@@ -18,6 +18,7 @@ const entries: Record<string, string> = {
   'queue/index': 'src/queue/index.ts',
   'events/index': 'src/events/index.ts',
   'notifications/index': 'src/notifications/index.ts',
+  'notifications/stores/flatdb': 'src/notifications/stores/flatdb.ts',
   'i18n/index': 'src/i18n/index.ts',
   'search/index': 'src/search/index.ts',
   'permissions/index': 'src/permissions/index.ts',
