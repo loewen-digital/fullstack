@@ -61,6 +61,7 @@ src/
 ├── feedback/             → createFeedbackHandler(), sinks (GitHub issue, KV)
 ├── billing/              → createBilling(), entitlements, drivers/ (console, paddle, app-store, google-play), stores/ (memory, flatdb)
 ├── usage/                → createUsage(), counted balances, stores/ (memory, flatdb)
+├── monitoring/           → createErrorReporter(), browser reporter, heartbeat, health handler, drivers/ (sentry, console)
 ├── testing/              → createTestStack(), fakes, factories, DB helpers
 ├── adapters/
 │   ├── sveltekit/        → createHandle(), type augmentation

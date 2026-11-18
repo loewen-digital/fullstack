@@ -33,7 +33,7 @@ const { createSqliteFtsDriver } = await import(
 await createSqliteFtsDriver(':memory:').flush('smoke')
 
 /** Subpaths that are imported into components as well as on the server */
-const BROWSER_ENTRIES = ['./i18n']
+const BROWSER_ENTRIES = ['./i18n', './monitoring', './monitoring/browser']
 
 /** Every Node module the file reaches through its own and its chunks' imports, static or dynamic */
 function nodeModulesFrom(file, seen = new Set()) {

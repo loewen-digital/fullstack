@@ -199,6 +199,23 @@ The core **never** imports or depends on any framework-specific code. Every modu
 │   │   │   ├── memory.ts
 │   │   │   └── flatdb.ts        → on flatdb's StorageAdapter, compare-and-swap per subject
 │   │   └── types.ts
+│   ├── monitoring/
+│   │   ├── index.ts             → createErrorReporter(), the server side and everything a driver needs
+│   │   ├── browser.ts           → createBrowserErrorReporter(), the entry `/monitoring/browser`
+│   │   ├── reporter.ts          → the reporter both runtimes share: report, filter, limit, deliver, never throw
+│   │   ├── describe.ts          → what was thrown as type, message, frames and causes; query strings off
+│   │   ├── stack.ts             → parseStack(): the stacks of V8, Firefox and Safari as frames
+│   │   ├── noise.ts             → what is no fault of the app: messages, scripts, bots
+│   │   ├── breadcrumbs.ts       → clicks, requests and navigations of a page, without an address
+│   │   ├── collector.ts         → the inline script that keeps early errors, and its CSP hash
+│   │   ├── heartbeat.ts         → heartbeat(): the ping after a job that succeeded
+│   │   ├── health.ts            → createHealthHandler(): 200 or 503 for an uptime monitor
+│   │   ├── timeout.ts           → a time limit that holds whether or not the task listens
+│   │   ├── errors.ts            → MonitoringError
+│   │   ├── drivers/
+│   │   │   ├── sentry.ts        → the Sentry protocol (Sentry, GlitchTip, Bugsink): event, envelope, DSN, rate limits, debug ids
+│   │   │   └── console.ts       → prints a report, for development
+│   │   └── types.ts
 │   ├── realtime/
 │   │   ├── index.ts             → createRealtime()
 │   │   ├── websocket.ts
@@ -211,6 +228,7 @@ The core **never** imports or depends on any framework-specific code. Every modu
 │   │   ├── fake-queue.ts
 │   │   ├── fake-billing.ts
 │   │   ├── fake-push.ts
+│   │   ├── fake-errors.ts       → a fake error driver, and a fake server for the Sentry driver
 │   │   ├── db-helpers.ts        → transactions, cleanup
 │   │   └── factories.ts         → factory builder
 │   ├── adapters/
@@ -275,6 +293,8 @@ The core **never** imports or depends on any framework-specific code. Every modu
     "./billing/flatdb": "./dist/billing/stores/flatdb.js",
     "./usage": "./dist/usage/index.js",
     "./usage/flatdb": "./dist/usage/stores/flatdb.js",
+    "./monitoring": "./dist/monitoring/index.js",
+    "./monitoring/browser": "./dist/monitoring/browser.js",
     "./testing": "./dist/testing/index.js",
     "./adapters/sveltekit": "./dist/adapters/sveltekit/index.js",
     "./adapters/nuxt": "./dist/adapters/nuxt/index.js",
@@ -354,6 +374,7 @@ type StorageConfig = {
 |logging |console, file, external (sentry, etc.)|
 |db      |sqlite, postgres, mysql, d1           |
 |realtime|websocket, sse                        |
+|monitoring|sentry (Sentry, GlitchTip, Bugsink), console|
 
 ### 3. createStack Convenience
 
@@ -429,6 +450,7 @@ config (standalone)
 ├── feedback (depends on: security, for CORS headers and the RateLimiter type)
 ├── billing (standalone: a user is a string id, each provider a driver, the state a store)
 ├── usage (standalone: a subject is a string id, the state a store)
+├── monitoring (standalone: an error becomes a report without an address or a user, a driver sends it)
 │
 └── testing (can mock any of the above)
 ```

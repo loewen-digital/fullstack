@@ -135,6 +135,14 @@
       "import": "./dist/usage/stores/flatdb.js",
       "types": "./dist/usage/stores/flatdb.d.ts"
     },
+    "./monitoring": {
+      "import": "./dist/monitoring/index.js",
+      "types": "./dist/monitoring/index.d.ts"
+    },
+    "./monitoring/browser": {
+      "import": "./dist/monitoring/browser.js",
+      "types": "./dist/monitoring/browser.d.ts"
+    },
     "./testing": {
       "import": "./dist/testing/index.js",
       "types": "./dist/testing/index.d.ts"

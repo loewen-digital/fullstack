@@ -30,6 +30,8 @@ const entries: Record<string, string> = {
   'billing/stores/flatdb': 'src/billing/stores/flatdb.ts',
   'usage/index': 'src/usage/index.ts',
   'usage/stores/flatdb': 'src/usage/stores/flatdb.ts',
+  'monitoring/index': 'src/monitoring/index.ts',
+  'monitoring/browser': 'src/monitoring/browser.ts',
   'testing/index': 'src/testing/index.ts',
   'adapters/sveltekit/index': 'src/adapters/sveltekit/index.ts',
   'adapters/nuxt/index': 'src/adapters/nuxt/index.ts',

@@ -7,7 +7,8 @@
  * - A block whose first line is `// <path>.ts` (or `.tsx`) is written to that path. Files under
  *   `src/routes/` get a `./$types` stub next to them, `#lib/*` points at the page's `src/lib/`
  *   through the `imports` of a `package.json` written next to the samples, as in a SvelteKit 3
- *   project, `~/*` points at its `app/`, and `$env/dynamic/private`, the Workers global `ScheduledEvent` and
+ *   project, `~/*` points at its `app/`, and `$env/dynamic/private`, the Workers globals `ScheduledEvent`,
+ *   `ScheduledController` and `ExecutionContext`, the `ctx` that adapter-cloudflare puts on `App.Platform`,
  *   the slices of h3, Astro and Remix the adapter pages use and `PagesFunction` are stubbed; the
  *   globals `KVNamespace`, `R2Bucket` and `RateLimit` are Cloudflare's own, from
  *   `@cloudflare/workers-types` (a devDependency only).
@@ -47,6 +48,7 @@ export const PAGES = [
   'modules/webhooks',
   'modules/billing',
   'modules/usage',
+  'modules/monitoring',
   'modules/auth',
   'modules/session',
   'modules/security',
@@ -80,6 +82,21 @@ declare global {
   interface ScheduledEvent {
     cron: string
     scheduledTime: number
+  }
+  interface ScheduledController {
+    cron: string
+    scheduledTime: number
+    noRetry(): void
+  }
+  interface ExecutionContext {
+    waitUntil(promise: Promise<unknown>): void
+    passThroughOnException(): void
+  }
+  // What @sveltejs/adapter-cloudflare adds to a SvelteKit app's platform.
+  namespace App {
+    interface Platform {
+      ctx: ExecutionContext
+    }
   }
   // Pages Functions on the Request and Response the samples compile with (lib.dom): Cloudflare's
   // own PagesFunction carries its own Request type, which is not lib.dom's.
@@ -266,6 +283,7 @@ export function compile(dir: string, files: string[]): string[] {
         join(ROOT, 'src/notifications/stores/flatdb.ts'),
       ],
       '@loewen-digital/fullstack/usage/flatdb': [join(ROOT, 'src/usage/stores/flatdb.ts')],
+      '@loewen-digital/fullstack/monitoring/browser': [join(ROOT, 'src/monitoring/browser.ts')],
       '@loewen-digital/fullstack/*': [join(ROOT, 'src/*/index.ts')],
       '~/*': [join(dir, 'app/*')],
     },

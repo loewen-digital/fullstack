@@ -1,11 +1,11 @@
 ---
 title: Fakes
-description: The mail, queue, storage, billing and push fakes, and how to observe the other modules in tests
+description: The mail, queue, storage, billing, push and error fakes, and how to observe the other modules in tests
 ---
 
 # Fakes
 
-Five drivers exist for tests: `createFakeMailDriver`, `createFakeQueueDriver`, `createFakeStorageDriver`, `createFakeBillingDriver` and `createFakePushDriver`. They implement the module's driver interface, record what went through them, and expose that for assertions with your test runner's `expect`. `createTestStack` builds them for you as `fakeMail`, `fakeQueue` and `fakeStorage`; on their own they go into the module's `createXInstance`.
+Six drivers exist for tests: `createFakeMailDriver`, `createFakeQueueDriver`, `createFakeStorageDriver`, `createFakeBillingDriver`, `createFakePushDriver` and `createFakeErrorDriver`. They implement the module's driver interface, record what went through them, and expose that for assertions with your test runner's `expect`. `createTestStack` builds them for you as `fakeMail`, `fakeQueue` and `fakeStorage`; on their own they go into the module's `createXInstance`.
 
 ## Import
 
@@ -205,6 +205,84 @@ async function assertsPush() {
 | `clear()` | Forget what was sent and how devices answer |
 
 `createFakePushDriver({ kind })` stands in for a driver of another kind; its devices are `{ kind, id: name }`.
+
+## Errors
+
+`createFakeErrorDriver` takes the place of the driver of [monitoring](/modules/monitoring) and keeps each report as the reporter built it. A test asserts on what would be reported, whatever server the app reports to in production.
+
+```ts
+import { expect } from 'vitest'
+import { createErrorReporter } from '@loewen-digital/fullstack/monitoring'
+import { createFakeErrorDriver } from '@loewen-digital/fullstack/testing'
+
+const fakeErrors = createFakeErrorDriver()
+const reporter = createErrorReporter({ driver: fakeErrors })
+
+async function assertsErrors() {
+  reporter.report(new TypeError('no items'), { route: '/items/[id]', method: 'GET' })
+  await reporter.flush() // the delivery runs behind report()
+
+  expect(fakeErrors.reports).toHaveLength(1)
+  expect(fakeErrors.last()).toMatchObject({ type: 'TypeError', route: '/items/[id]', method: 'GET' })
+
+  fakeErrors.fail() // from now on a delivery fails, as with a server that is down
+  expect(() => reporter.report(new Error('lost'))).not.toThrow()
+}
+```
+
+| Member | Description |
+|---|---|
+| `reports` | Every report that was handed over since creation or the last `clear()` |
+| `last()` | The newest report |
+| `fail(reason?)` | From now on a delivery rejects; the reporter tells its `onError` |
+| `clear()` | Forget the reports, and deliver again |
+
+`createFakeSentryServer` stands one step further out, where the server is: it takes the envelope the Sentry driver posts and keeps the events in it. Use it for a test of the whole path, and for a browser test, where the page's code sends for real.
+
+```ts
+import { createErrorReporter, createSentryDriver } from '@loewen-digital/fullstack/monitoring'
+import { createFakeSentryServer } from '@loewen-digital/fullstack/testing'
+
+const server = createFakeSentryServer() // dsn: https://public@errors.test/1
+const sentryReporter = createErrorReporter({
+  driver: createSentryDriver({ dsn: server.dsn, fetch: server.fetch }),
+})
+
+async function assertsEnvelope() {
+  sentryReporter.report(new Error('boom'), { route: '/items/[id]' })
+  await sentryReporter.flush()
+
+  expect(server.events[0]?.transaction).toBe('/items/[id]')
+  expect(server.events[0]?.exception.values.at(-1)?.value).toBe('boom')
+
+  server.answer(429, { 'Retry-After': '60' }) // the server asks for silence
+}
+```
+
+In a Playwright test the page gets `server.dsn` as its DSN and the test routes the requests to `handle()`, which answers with `Access-Control-Allow-Origin`; without that header the browser drops the request. Give the test a user agent of a real browser: Playwright's default says `HeadlessChrome`, and the reporter does not start for a headless browser.
+
+```js
+await page.route('https://errors.test/**', async (route) => {
+  const request = route.request()
+  const response = await server.handle(
+    new Request(request.url(), { method: request.method(), body: request.postData() }),
+  )
+  await route.fulfill({
+    status: response.status,
+    headers: Object.fromEntries(response.headers),
+    body: await response.text(),
+  })
+})
+```
+
+| Member | Description |
+|---|---|
+| `dsn` | The DSN to configure the driver with; `createFakeSentryServer({ dsn })` sets another one |
+| `events` | Every event that arrived, as the driver wrote it: `exception`, `transaction`, `tags`, `breadcrumbs` |
+| `fetch` | A `fetch` that ends at the fake, for the driver's `fetch` option |
+| `handle(request)` | Takes a request as the real server does: the envelope `POST` and its preflight. A wrong key is answered with 403, another project with 404 |
+| `answer(status, headers?)` | From now on every `POST` is answered with this status |
+| `clear()` | Forget the events, and answer 200 again |
 
 ## The other modules
 
